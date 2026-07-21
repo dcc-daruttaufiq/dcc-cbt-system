@@ -18,18 +18,36 @@
 
 @tailwind utilities;
 
-/* Custom scrollbar bertema tech cyan */
+/* =========================================================
+   CUSTOM ELEGANT SCROLLBAR (SLIM, MODERN & TECH CYAN)
+   ========================================================= */
+
+/* Ukuran scrollbar tipis 5px */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
+
+/* Track/Jalur scrollbar dibuat transparan (menghilangkan background & panah kaku) */
 ::-webkit-scrollbar-track {
-  background: #071426;
+  background: transparent;
 }
+
+/* Batang scrollbar - ramping, rounded penuh, & transparan halus */
 ::-webkit-scrollbar-thumb {
-  background: #1E6EA7;
-  border-radius: 4px;
+  background: rgba(30, 110, 167, 0.4);
+  border-radius: 9999px;
+  transition: all 0.2s ease-in-out;
 }
+
+/* Efek saat mouse hover - menyala Cyan terang */
 ::-webkit-scrollbar-thumb:hover {
   background: #00D9FF;
+  box-shadow: 0 0 10px rgba(0, 217, 255, 0.5);
+}
+
+/* Support Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(30, 110, 167, 0.4) transparent;
 }
