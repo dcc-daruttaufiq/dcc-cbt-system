@@ -19,35 +19,36 @@
 @tailwind utilities;
 
 /* =========================================================
-   CUSTOM ELEGANT SCROLLBAR (SLIM, MODERN & TECH CYAN)
+   CUSTOM ELEGANT SCROLLBAR (FORCED GLOBAL & MODAL CONTAINER)
    ========================================================= */
 
-/* Ukuran scrollbar tipis 5px */
+/* Diterapkan ke SEMUA elemen termasuk div internal & modal overlay */
+*::-webkit-scrollbar,
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 5px !important;
+  height: 5px !important;
 }
 
-/* Track/Jalur scrollbar dibuat transparan (menghilangkan background & panah kaku) */
+*::-webkit-scrollbar-track,
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: transparent !important;
 }
 
-/* Batang scrollbar - ramping, rounded penuh, & transparan halus */
+*::-webkit-scrollbar-thumb,
 ::-webkit-scrollbar-thumb {
-  background: rgba(30, 110, 167, 0.4);
-  border-radius: 9999px;
+  background: rgba(0, 217, 255, 0.3) !important;
+  border-radius: 9999px !important;
   transition: all 0.2s ease-in-out;
 }
 
-/* Efek saat mouse hover - menyala Cyan terang */
+*::-webkit-scrollbar-thumb:hover,
 ::-webkit-scrollbar-thumb:hover {
-  background: #00D9FF;
-  box-shadow: 0 0 10px rgba(0, 217, 255, 0.5);
+  background: #00D9FF !important;
+  box-shadow: 0 0 10px rgba(0, 217, 255, 0.6);
 }
 
 /* Support Firefox */
 * {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(30, 110, 167, 0.4) transparent;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(0, 217, 255, 0.3) transparent !important;
 }

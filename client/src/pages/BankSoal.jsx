@@ -9,7 +9,7 @@ import Input from '../components/ui/Input';
 import Textarea from '../components/ui/Textarea';
 import Select from '../components/ui/Select';
 import Badge from '../components/ui/Badge';
-import { Plus, Trash2, Edit3, Save, X, Database, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, Edit3, Save, X, Database } from 'lucide-react';
 
 export default function BankSoal() {
   useDocumentTitle('Manajemen Bank Soal API');
@@ -145,7 +145,7 @@ export default function BankSoal() {
               <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Daftar Soal Tersedia ({listSoal.length})</h2>
             </div>
 
-            {/* MODERN BORDERLESS LIST (TANPA TABLE KUNO & TEKS READABLE FULL) */}
+            {/* MODERN BORDERLESS LIST */}
             <div className="space-y-3">
               {listSoal.map((row, index) => (
                 <div 
@@ -174,14 +174,12 @@ export default function BankSoal() {
                         )}
                       </div>
 
-                      {/* Teks Soal Tampil Sepenuhnya Tanpa Terpotong */}
                       <p className="text-sm font-medium text-slate-100 leading-relaxed whitespace-pre-wrap">
                         {row.pertanyaan}
                       </p>
                     </div>
                   </div>
 
-                  {/* Tombol Aksi Clean */}
                   <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                     <button 
                       onClick={() => openEditModal(row)} 
@@ -218,7 +216,8 @@ export default function BankSoal() {
                 <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
               </div>
 
-              <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+              {/* AREA SCROLL MODAL */}
+              <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
                 <div>
                   <label className="text-xs font-semibold text-slate-300 mb-1.5 block uppercase">Tipe Konten Pertanyaan</label>
                   <Select value={tipe} onChange={(e) => { setTipe(e.target.value); setChecklist([]); }} disabled={!!editingId} className="bg-[#030712]/60 border-0 text-sm rounded-xl">
@@ -265,7 +264,7 @@ export default function BankSoal() {
                 )}
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800/40">
                 <Button variant="outline" type="button" onClick={() => setIsModalOpen(false)} className="bg-slate-800 text-xs border-0">Batal</Button>
                 <Button variant="primary" onClick={handleSave} className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs border-0">
                   <Save className="w-4 h-4 mr-1.5" /> Simpan ke Database
