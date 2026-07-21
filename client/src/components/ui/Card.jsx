@@ -1,9 +1,9 @@
 import React from 'react';
-import { cn } from '../../utils/cn';
 
-export default function Card({ className, children, ...props }) {
+export default function Card({ children, className = '' }) {
   return (
-    <div className={cn("bg-surface border border-customBorder/60 rounded-xl p-5 shadow-xl text-white", className)} {...props}>
+    // Pakai shadow & background halus tanpa border sama sekali
+    <div className={`bg-[#0d1527]/70 backdrop-blur-sm p-6 rounded-2xl shadow-lg ${className}`}>
       {children}
     </div>
   );
