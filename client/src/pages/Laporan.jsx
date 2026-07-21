@@ -88,7 +88,7 @@ export default function Laporan() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#030712] text-slate-100 font-body">
+    <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
       {/* SIDEBAR CLEAN */}
       <Sidebar userRole="Panitia" />
 
@@ -99,16 +99,16 @@ export default function Laporan() {
             <div className="flex items-center gap-3">
               <BarChart3 className="text-cyan-400 w-5 h-5" />
               <div>
-                <h1 className="text-sm font-bold text-white tracking-wide">LAPORAN & RANKING UJIAN</h1>
+                <h1 className="text-sm font-display font-bold text-white tracking-wide">LAPORAN & RANKING UJIAN</h1>
                 <p className="text-[11px] text-slate-400">Analitik Hasil Ujian & Unduh Rekapitulasi Data</p>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <Button onClick={handleExportExcel} className="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border-0">
+              <Button onClick={handleExportExcel} className="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border-0 font-sans">
                 <Download className="w-3.5 h-3.5 mr-1.5" /> Export Excel
               </Button>
-              <Button onClick={handleExportPDF} className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs border-0 shadow-lg shadow-cyan-400/20">
+              <Button onClick={handleExportPDF} className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0 shadow-lg shadow-cyan-400/20">
                 <FileText className="w-3.5 h-3.5 mr-1.5" /> Export PDF
               </Button>
             </div>
@@ -123,32 +123,32 @@ export default function Laporan() {
               <div className="p-4 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl flex items-center gap-4">
                 <div className="p-3 bg-cyan-400/10 text-cyan-400 rounded-xl"><Users className="w-5 h-5" /></div>
                 <div>
-                  <p className="text-[11px] text-slate-400 uppercase font-semibold">Total Peserta</p>
-                  <h3 className="text-lg font-bold text-white font-mono">{laporan.statistik.totalSiswa} Siswa</h3>
+                  <p className="text-[11px] text-slate-400 uppercase font-semibold font-sans">Total Peserta</p>
+                  <h3 className="text-lg font-display font-bold text-white">{laporan.statistik.totalSiswa} Siswa</h3>
                 </div>
               </div>
 
               <div className="p-4 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl flex items-center gap-4">
                 <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl"><TrendingUp className="w-5 h-5" /></div>
                 <div>
-                  <p className="text-[11px] text-slate-400 uppercase font-semibold">Rata-Rata Nilai</p>
-                  <h3 className="text-lg font-bold text-white font-mono">{laporan.statistik.rataRata}</h3>
+                  <p className="text-[11px] text-slate-400 uppercase font-semibold font-sans">Rata-Rata Nilai</p>
+                  <h3 className="text-lg font-display font-bold text-white">{laporan.statistik.rataRata}</h3>
                 </div>
               </div>
 
               <div className="p-4 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl flex items-center gap-4">
                 <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl"><Trophy className="w-5 h-5" /></div>
                 <div>
-                  <p className="text-[11px] text-slate-400 uppercase font-semibold">Nilai Tertinggi</p>
-                  <h3 className="text-lg font-bold text-emerald-400 font-mono">{laporan.statistik.tertinggi}</h3>
+                  <p className="text-[11px] text-slate-400 uppercase font-semibold font-sans">Nilai Tertinggi</p>
+                  <h3 className="text-lg font-display font-bold text-emerald-400">{laporan.statistik.tertinggi}</h3>
                 </div>
               </div>
 
               <div className="p-4 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl flex items-center gap-4">
                 <div className="p-3 bg-rose-500/10 text-rose-400 rounded-xl"><Award className="w-5 h-5" /></div>
                 <div>
-                  <p className="text-[11px] text-slate-400 uppercase font-semibold">Nilai Terendah</p>
-                  <h3 className="text-lg font-bold text-rose-400 font-mono">{laporan.statistik.terendah}</h3>
+                  <p className="text-[11px] text-slate-400 uppercase font-semibold font-sans">Nilai Terendah</p>
+                  <h3 className="text-lg font-display font-bold text-rose-400">{laporan.statistik.terendah}</h3>
                 </div>
               </div>
             </div>
@@ -156,7 +156,7 @@ export default function Laporan() {
             {/* TABEL RANKING BORDERLESS LIST */}
             <div className="space-y-3">
               <div className="flex justify-between items-center px-1">
-                <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tabel Peringkat Hasil Ujian</h2>
+                <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">Tabel Peringkat Hasil Ujian</h2>
               </div>
 
               {laporan.dataLaporan.map((row, idx) => {
@@ -167,43 +167,56 @@ export default function Laporan() {
                 return (
                   <div
                     key={idx}
-                    className="p-5 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-[#0d1527] transition-all duration-200"
+                    className="p-5 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-[#0d1527] transition-all duration-200"
                   >
-                    <div className="flex items-center gap-4">
-                      <span className="text-xs font-mono font-bold text-cyan-400 bg-cyan-400/10 px-3 py-1.5 rounded-xl shrink-0">
+                    {/* Rank & Identitas Peserta */}
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <span className="text-xs font-display font-bold text-cyan-400 bg-cyan-400/10 px-3 py-1.5 rounded-xl shrink-0">
                         #{idx + 1}
                       </span>
 
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-semibold text-white tracking-wide">{namaSiswa}</h3>
-                          <Badge variant={isLulus ? 'primary' : 'secondary'} className="text-[10px] px-2 py-0.5 rounded-md uppercase">
-                            {isLulus ? 'LULUS' : 'REMIDI'}
-                          </Badge>
-                        </div>
-                        
-                        <p className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
-                          <CreditCard className="w-3 h-3 text-cyan-400 inline" /> TechID: <span className="text-slate-200 font-bold">{techId}</span>
+                      <div className="space-y-1 min-w-[200px] max-w-[280px]">
+                        <h3 className="text-sm font-display font-bold text-white tracking-wide truncate">{namaSiswa}</h3>
+                        <p className="text-[11px] text-slate-400 font-sans flex items-center gap-1">
+                          <CreditCard className="w-3 h-3 text-cyan-400 inline" /> TechID: <span className="text-slate-200 font-semibold">{techId}</span>
                         </p>
                       </div>
-                    </div>
 
-                    <div className="flex items-center gap-6 self-end sm:self-center">
-                      <div className="text-right">
-                        <p className="text-[10px] text-slate-400 uppercase">Nilai PG</p>
-                        <p className="text-xs font-mono font-semibold text-slate-200">{row.nilai_pg || 0}</p>
-                      </div>
-
-                      <div className="text-right">
-                        <p className="text-[10px] text-slate-400 uppercase">Nilai Praktik</p>
-                        <p className="text-xs font-mono font-semibold text-slate-200">{row.nilai_praktik || 0}</p>
-                      </div>
-
-                      <div className="text-right pl-3 border-l border-slate-800/60">
-                        <p className="text-[10px] text-cyan-400 uppercase font-bold">Nilai Akhir</p>
-                        <p className="text-base font-mono font-bold text-emerald-400">{row.nilai_akhir || 0}</p>
+                      {/* BADGE LULUS / REMIDI: DIKUNCI PRESISI SEJAJAR DENGAN LEBAR LEBIH RAPI */}
+                      <div className="w-24 shrink-0 hidden sm:block">
+                        <Badge variant={isLulus ? 'primary' : 'secondary'} className="text-[10px] font-display font-bold px-2.5 py-1 rounded-md uppercase tracking-wider inline-block text-center w-full">
+                          {isLulus ? 'LULUS' : 'REMIDI'}
+                        </Badge>
                       </div>
                     </div>
+
+                    {/* Detail Nilai */}
+                    <div className="flex items-center justify-between md:justify-end gap-6 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-800/40">
+                      {/* Status untuk versi Mobile */}
+                      <div className="sm:hidden">
+                        <Badge variant={isLulus ? 'primary' : 'secondary'} className="text-[10px] font-display font-bold px-2 py-0.5 rounded-md uppercase">
+                          {isLulus ? 'LULUS' : 'REMIDI'}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center gap-6">
+                        <div className="text-right">
+                          <p className="text-[10px] text-slate-400 font-display uppercase">Nilai PG</p>
+                          <p className="text-xs font-display font-bold text-slate-200">{row.nilai_pg || 0}</p>
+                        </div>
+
+                        <div className="text-right">
+                          <p className="text-[10px] text-slate-400 font-display uppercase">Nilai Praktik</p>
+                          <p className="text-xs font-display font-bold text-slate-200">{row.nilai_praktik || 0}</p>
+                        </div>
+
+                        <div className="text-right pl-4 border-l border-slate-800/60">
+                          <p className="text-[10px] text-cyan-400 font-display uppercase font-bold">Nilai Akhir</p>
+                          <p className="text-base font-display font-bold text-emerald-400">{row.nilai_akhir || 0}</p>
+                        </div>
+                      </div>
+                    </div>
+
                   </div>
                 );
               })}
