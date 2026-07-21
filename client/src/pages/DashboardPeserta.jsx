@@ -10,46 +10,41 @@ import {
   CreditCard, 
   Key, 
   Clock, 
-  BookOpen, 
   Play, 
   LogOut, 
-  ShieldAlert,
-  User,
-  AlertCircle,
-  CheckCircle2,
-  Sparkles,
-  FileSpreadsheet,
-  Palette,
-  Code
+  User, 
+  AlertCircle, 
+  CheckCircle2, 
+  Sparkles 
 } from 'lucide-react';
 
-// Daftar Pilihan Mata Ujian / Kekhususan
+// Daftar Pilihan Mata Ujian / Kekhususan (Tanpa Icon)
 const DAFTAR_UJIAN = [
   {
     id: 'msoffice',
-    nama: 'Microsoft Office (Word & Excel)',
+    nama: 'Microsoft Office',
+    subNama: 'Word, Excel, & Powerpoint',
     kategori: 'Perkantoran',
     durasi: '90 Menit',
     detailSoal: '30 Soal PG + 1 Praktik Excel',
-    icon: FileSpreadsheet,
     tokenDefault: 'OFFICE2026'
   },
   {
     id: 'canva',
-    nama: 'Graphic Design (Canva)',
+    nama: 'Graphic Design',
+    subNama: 'Canva & Visual Design',
     kategori: 'Desain Grafis',
     durasi: '90 Menit',
     detailSoal: '20 Soal PG + 1 Praktik Layout',
-    icon: Palette,
     tokenDefault: 'CANVA2026'
   },
   {
     id: 'coding',
-    nama: 'Web Development (Coding)',
+    nama: 'Web Development',
+    subNama: 'HTML, CSS, & JavaScript',
     kategori: 'Pemrograman',
     durasi: '120 Menit',
     detailSoal: '25 Soal PG + 1 Praktik Web',
-    icon: Code,
     tokenDefault: 'DCC2026'
   }
 ];
@@ -68,7 +63,7 @@ export default function DashboardPeserta() {
   const [isAgreed, setIsAgreed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Ambil detail ujian yang sedang dipilih
+  // Detail Ujian Aktif
   const activeExamDetail = DAFTAR_UJIAN.find((u) => u.id === selectedUjian) || DAFTAR_UJIAN[0];
 
   useEffect(() => {
@@ -99,7 +94,6 @@ export default function DashboardPeserta() {
 
     setIsLoading(true);
 
-    // Verifikasi Token (Bisa token khusus mata ujian atau token umum DCC2026 / 12345)
     setTimeout(() => {
       const inputUpper = tokenInput.trim().toUpperCase();
       if (
@@ -179,50 +173,57 @@ export default function DashboardPeserta() {
             </div>
           </div>
 
-          {/* 2. PILIHAN MATA UJIAN / KEKHUSUSAN (CARD SELECTOR) */}
+          {/* 2. PILIHAN MATA UJIAN (CLEAN TEXT & LARGE TYPOGRAPHY) */}
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-cyan-400 px-1">
               <Sparkles className="w-4 h-4" />
-              <h3 className="text-xs font-display font-bold uppercase tracking-widest">PILIH SPESIALISASI / MATA UJIAN ANDA</h3>
+              <h3 className="text-xs font-display font-bold uppercase tracking-widest">PILIH MATA UJIAN SPESIALISASI</h3>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {DAFTAR_UJIAN.map((item) => {
-                const IconComponent = item.icon;
                 const isSelected = selectedUjian === item.id;
 
                 return (
                   <div
                     key={item.id}
                     onClick={() => { setSelectedUjian(item.id); setTokenError(''); }}
-                    className={`p-5 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between gap-4 ${
+                    className={`p-6 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between gap-5 ${
                       isSelected
-                        ? 'bg-[#0d1527] border-cyan-400/80 shadow-lg shadow-cyan-400/10'
+                        ? 'bg-[#0d1527] border-cyan-400 shadow-lg shadow-cyan-400/10'
                         : 'bg-[#0d1527]/40 border-slate-800/60 hover:bg-[#0d1527]/80 hover:border-slate-700'
                     }`}
                   >
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       <div className="flex justify-between items-center">
-                        <div className={`p-2.5 rounded-xl ${isSelected ? 'bg-cyan-400 text-slate-950' : 'bg-slate-800 text-slate-400'}`}>
-                          <IconComponent className="w-5 h-5" />
-                        </div>
-                        <span className="text-[10px] font-display font-bold uppercase px-2 py-0.5 rounded bg-slate-900/80 text-slate-400">
+                        <span className={`text-[10px] font-display font-bold uppercase px-2.5 py-1 rounded-md ${
+                          isSelected ? 'bg-cyan-400 text-slate-950' : 'bg-slate-900/90 text-slate-400'
+                        }`}>
                           {item.kategori}
+                        </span>
+                        
+                        <span className={`text-xs font-display font-bold ${isSelected ? 'text-cyan-400' : 'text-slate-600'}`}>
+                          {isSelected ? '✓ Terpilih' : ''}
                         </span>
                       </div>
 
-                      <div>
-                        <h4 className="text-sm font-display font-bold text-white tracking-wide">{item.nama}</h4>
-                        <p className="text-[11px] text-slate-400 font-sans mt-0.5">{item.detailSoal}</p>
+                      {/* TEKS JUDUL LEBIH BESAR & LEGABEL */}
+                      <div className="pt-2">
+                        <h4 className="text-base md:text-lg font-display font-bold text-white tracking-wide leading-tight">
+                          {item.nama}
+                        </h4>
+                        <p className="text-xs text-slate-400 font-sans mt-1">
+                          {item.subNama}
+                        </p>
                       </div>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-800/40 flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400 font-sans flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-cyan-400" /> {item.durasi}
+                    <div className="pt-3 border-t border-slate-800/40 flex items-center justify-between text-xs font-sans text-slate-400">
+                      <span className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-cyan-400" /> {item.durasi}
                       </span>
-                      <span className={`font-display font-bold ${isSelected ? 'text-cyan-400' : 'text-slate-500'}`}>
-                        {isSelected ? '✓ Terpilih' : 'Pilih'}
+                      <span className="text-[11px] text-slate-500">
+                        {item.detailSoal}
                       </span>
                     </div>
                   </div>
@@ -239,7 +240,7 @@ export default function DashboardPeserta() {
                   <Key className="w-4 h-4" /> VERIFIKASI TOKEN UJIAN
                 </h4>
                 <p className="text-xs text-slate-300 font-sans mt-1">
-                  Mata Ujian Terpilih: <strong className="text-white font-display">{activeExamDetail.nama}</strong>
+                  Mata Ujian Terpilih: <strong className="text-white font-display text-sm">{activeExamDetail.nama} ({activeExamDetail.subNama})</strong>
                 </p>
               </div>
 
@@ -253,7 +254,7 @@ export default function DashboardPeserta() {
                 <div className="md:col-span-2">
                   <Input
                     type="text"
-                    placeholder={`Masukkan Token Ujian ${activeExamDetail.kategori}...`}
+                    placeholder={`Masukkan Token Ujian ${activeExamDetail.nama}...`}
                     value={tokenInput}
                     onChange={(e) => setTokenInput(e.target.value.toUpperCase())}
                     className="w-full px-4 py-3 uppercase font-display font-bold tracking-widest text-sm bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-white rounded-xl transition-all"
@@ -282,7 +283,7 @@ export default function DashboardPeserta() {
                   className="w-3.5 h-3.5 accent-cyan-400 rounded cursor-pointer"
                 />
                 <label htmlFor="agree" className="text-[11px] text-slate-400 hover:text-white transition-colors cursor-pointer select-none font-sans">
-                  Saya menyetujui tata tertib pengerjaan ujian spesialisasi <strong className="text-slate-200">{activeExamDetail.nama}</strong>.
+                  Saya menyetujui tata tertib pengerjaan ujian <strong className="text-slate-200">{activeExamDetail.nama}</strong>.
                 </label>
               </div>
 
