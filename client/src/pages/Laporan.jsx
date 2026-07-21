@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import API from '../utils/api';
-import Card from '../components/ui/Card';
+import Sidebar from '../components/ui/Sidebar';
+import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import { BarChart3, Download, FileText, Trophy, Users, Award, TrendingUp } from 'lucide-react';
@@ -82,93 +83,124 @@ export default function Laporan() {
   };
 
   return (
-    <div className="p-6 text-white max-w-6xl mx-auto space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-borderCustom pb-4">
-        <div>
-          <h1 className="text-3xl font-display font-bold flex items-center gap-2">
-            <BarChart3 className="text-primary w-8 h-8" /> LAPORAN & RANKING UJIAN
-          </h1>
-          <p className="text-xs text-slate-400">Analitik hasil ujian, urutan peringkat nasional, dan unduh rekapitulasi.</p>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={handleExportExcel}>
-            <Download className="w-4 h-4 mr-1.5" /> Export Excel
-          </Button>
-          <Button variant="primary" size="sm" onClick={handleExportPDF}>
-            <FileText className="w-4 h-4 mr-1.5" /> Export PDF
-          </Button>
-        </div>
+    <div className="flex min-h-screen bg-[#030712] text-slate-100 font-body">
+      {/* SIDEBAR CLEAN */}
+      <Sidebar userRole="Panitia" />
+
+      {/* KONTEN UTAMA */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <Navbar>
+          <div className="flex justify-between items-center w-full">
+            <div className="flex items-center gap-3">
+              <BarChart3 className="text-cyan-400 w-5 h-5" />
+              <div>
+                <h1 className="text-sm font-bold text-white tracking-wide">LAPORAN & RANKING UJIAN</h1>
+                <p className="text-[11px] text-slate-400">Analitik Hasil Ujian & Unduh Rekapitulasi Data</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button onClick={handleExportExcel} className="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border-0">
+                <Download className="w-3.5 h-3.5 mr-1.5" /> Export Excel
+              </Button>
+              <Button onClick={handleExportPDF} className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs border-0 shadow-lg shadow-cyan-400/20">
+                <FileText className="w-3.5 h-3.5 mr-1.5" /> Export PDF
+              </Button>
+            </div>
+          </div>
+        </Navbar>
+
+        <main className="p-8 flex-1 overflow-y-auto">
+          <div className="max-w-5xl mx-auto space-y-6">
+
+            {/* GRID STATISTIK BORDERLESS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl flex items-center gap-4">
+                <div className="p-3 bg-cyan-400/10 text-cyan-400 rounded-xl"><Users className="w-5 h-5" /></div>
+                <div>
+                  <p className="text-[11px] text-slate-400 uppercase font-semibold">Total Peserta</p>
+                  <h3 className="text-lg font-bold text-white font-mono">{laporan.statistik.totalSiswa} Siswa</h3>
+                </div>
+              </div>
+
+              <div className="p-4 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl flex items-center gap-4">
+                <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl"><TrendingUp className="w-5 h-5" /></div>
+                <div>
+                  <p className="text-[11px] text-slate-400 uppercase font-semibold">Rata-Rata Nilai</p>
+                  <h3 className="text-lg font-bold text-white font-mono">{laporan.statistik.rataRata}</h3>
+                </div>
+              </div>
+
+              <div className="p-4 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl flex items-center gap-4">
+                <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl"><Trophy className="w-5 h-5" /></div>
+                <div>
+                  <p className="text-[11px] text-slate-400 uppercase font-semibold">Nilai Tertinggi</p>
+                  <h3 className="text-lg font-bold text-emerald-400 font-mono">{laporan.statistik.tertinggi}</h3>
+                </div>
+              </div>
+
+              <div className="p-4 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl flex items-center gap-4">
+                <div className="p-3 bg-rose-500/10 text-rose-400 rounded-xl"><Award className="w-5 h-5" /></div>
+                <div>
+                  <p className="text-[11px] text-slate-400 uppercase font-semibold">Nilai Terendah</p>
+                  <h3 className="text-lg font-bold text-rose-400 font-mono">{laporan.statistik.terendah}</h3>
+                </div>
+              </div>
+            </div>
+
+            {/* TABEL RANKING BORDERLESS LIST */}
+            <div className="space-y-3">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tabel Peringkat Hasil Ujian</h2>
+              </div>
+
+              {laporan.dataLaporan.map((row, idx) => {
+                const isLulus = (row.nilai_akhir || 0) >= 75;
+
+                return (
+                  <div
+                    key={idx}
+                    className="p-5 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-[#0d1527] transition-all duration-200"
+                  >
+                    <div className="flex items-center gap-4">
+                      <span className="text-xs font-mono font-bold text-cyan-400 bg-cyan-400/10 px-3 py-1.5 rounded-xl shrink-0">
+                        #{idx + 1}
+                      </span>
+
+                      <div>
+                        <h3 className="text-sm font-semibold text-white">Peserta #{row.user_id}</h3>
+                        <div className="mt-1">
+                          <Badge variant={isLulus ? 'primary' : 'secondary'} className="text-[10px] px-2 py-0.5 rounded-md uppercase">
+                            {isLulus ? 'LULUS' : 'REMIDI'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-6 self-end sm:self-center">
+                      <div className="text-right">
+                        <p className="text-[10px] text-slate-400 uppercase">Nilai PG</p>
+                        <p className="text-xs font-mono font-semibold text-slate-200">{row.nilai_pg || 0}</p>
+                      </div>
+
+                      <div className="text-right">
+                        <p className="text-[10px] text-slate-400 uppercase">Nilai Praktik</p>
+                        <p className="text-xs font-mono font-semibold text-slate-200">{row.nilai_praktik || 0}</p>
+                      </div>
+
+                      <div className="text-right pl-3 border-l border-slate-800/60">
+                        <p className="text-[10px] text-cyan-400 uppercase font-bold">Nilai Akhir</p>
+                        <p className="text-base font-mono font-bold text-emerald-400">{row.nilai_akhir || 0}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+          </div>
+        </main>
       </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-4 border-borderCustom bg-surface flex items-center gap-4">
-          <div className="p-3 bg-primary/10 text-primary rounded-xl"><Users className="w-6 h-6" /></div>
-          <div>
-            <p className="text-xs text-slate-400">Total Peserta</p>
-            <h3 className="text-xl font-display font-bold">{laporan.statistik.totalSiswa} Siswa</h3>
-          </div>
-        </Card>
-
-        <Card className="p-4 border-borderCustom bg-surface flex items-center gap-4">
-          <div className="p-3 bg-secondary/10 text-secondary rounded-xl"><TrendingUp className="w-6 h-6" /></div>
-          <div>
-            <p className="text-xs text-slate-400">Rata-Rata Nilai</p>
-            <h3 className="text-xl font-display font-bold">{laporan.statistik.rataRata}</h3>
-          </div>
-        </Card>
-
-        <Card className="p-4 border-borderCustom bg-surface flex items-center gap-4">
-          <div className="p-3 bg-green-500/10 text-green-400 rounded-xl"><Trophy className="w-6 h-6" /></div>
-          <div>
-            <p className="text-xs text-slate-400">Nilai Tertinggi</p>
-            <h3 className="text-xl font-display font-bold text-green-400">{laporan.statistik.tertinggi}</h3>
-          </div>
-        </Card>
-
-        <Card className="p-4 border-borderCustom bg-surface flex items-center gap-4">
-          <div className="p-3 bg-red-500/10 text-red-400 rounded-xl"><Award className="w-6 h-6" /></div>
-          <div>
-            <p className="text-xs text-slate-400">Nilai Terendah</p>
-            <h3 className="text-xl font-display font-bold text-red-400">{laporan.statistik.terendah}</h3>
-          </div>
-        </Card>
-      </div>
-
-      <Card className="border-borderCustom bg-surface p-6 space-y-4">
-        <h2 className="text-lg font-display font-bold text-primary">TABEL PERINGKAT & RIWAYAT HASIL UJIAN</h2>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left text-slate-300">
-            <thead className="bg-background text-xs uppercase font-display text-primary border-b border-borderCustom">
-              <tr>
-                <th className="px-4 py-3">Rank</th>
-                <th className="px-4 py-3">ID Peserta</th>
-                <th className="px-4 py-3">Nilai PG</th>
-                <th className="px-4 py-3">Nilai Praktik</th>
-                <th className="px-4 py-3">Nilai Akhir</th>
-                <th className="px-4 py-3">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-borderCustom/40 font-sans">
-              {laporan.dataLaporan.map((row, idx) => (
-                <tr key={idx} className="hover:bg-background/40 transition">
-                  <td className="px-4 py-3 font-bold font-mono text-secondary">#{idx + 1}</td>
-                  <td className="px-4 py-3 font-semibold text-white">Peserta #{row.user_id}</td>
-                  <td className="px-4 py-3 font-mono">{row.nilai_pg || 0}</td>
-                  <td className="px-4 py-3 font-mono">{row.nilai_praktik || 0}</td>
-                  <td className="px-4 py-3 font-mono text-base font-bold text-primary">{row.nilai_akhir || 0}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant={(row.nilai_akhir || 0) >= 75 ? 'primary' : 'secondary'}>
-                      {(row.nilai_akhir || 0) >= 75 ? 'LULUS' : 'REMIDI'}
-                    </Badge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
     </div>
   );
 }
