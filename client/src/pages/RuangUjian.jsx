@@ -3,12 +3,24 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import API from '../utils/api';
-import Card from '../components/ui/Card';
+import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import Progress from '../components/ui/Progress';
-import Textarea from '../components/ui/Textarea';
-import { Clock, Flag, ChevronLeft, ChevronRight, Save, Upload, FileText } from 'lucide-react';
+import { 
+  Clock, 
+  Flag, 
+  ChevronLeft, 
+  ChevronRight, 
+  Save, 
+  Upload, 
+  FileText, 
+  Send, 
+  AlertTriangle, 
+  X, 
+  CheckCircle2, 
+  User, 
+  CreditCard 
+} from 'lucide-react';
 
 // Data Dummy Cadangan (Dipakai otomatis jika database di backend masih kosong)
 const dummyBackupSoal = [
@@ -43,20 +55,33 @@ const dummyBackupSoal = [
 ];
 
 export default function RuangUjian() {
-  useDocumentTitle('Sesi Ujian Berjalan');
+  useDocumentTitle('Ruang Ujian Berjalan - DCC CBT');
   const navigate = useNavigate();
-  
+
+  // State Identitas & Sesi
+  const [userName, setUserName] = useState('');
+  const [techId, setTechId] = useState('');
+  const [examName, setExamName] = useState('');
+
   // States Manajemen Ujian Live DB
   const [listSoal, setListSoal] = useState([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [jawaban, setJawaban] = useState({}); 
   const [flags, setFlags] = useState({}); 
   const [isSaving, setIsSaving] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(7200); // Default 2 jam jika timer server gagal
+  const [timeLeft, setTimeLeft] = useState(7200); 
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
   const timerRef = useRef(null);
 
-  // 1. Ambil data paket soal dari server (Gunakan fallback dummy jika database kosong)
+  // 1. Ambil data identitas & paket soal dari server
   useEffect(() => {
+    const storedName = localStorage.getItem('userName') || sessionStorage.getItem('userName') || 'ASSHYFA YUNITIASARI';
+    const storedExam = sessionStorage.getItem('selectedExamName') || 'Sertifikasi Keahlian Komputer';
+
+    setUserName(storedName);
+    setTechId('DCC25-0072');
+    setExamName(storedExam);
+
     const startExam = async () => {
       try {
         const res = await API.get('/ujian/mulai?userId=1');
@@ -65,7 +90,6 @@ export default function RuangUjian() {
           setListSoal(res.data.soal);
           setTimeLeft(res.data.sisaDetik);
         } else {
-          // DATABASE KOSONG: Aktifkan data dummy agar tidak mental
           console.warn('⚠️ Database soal kosong. Menggunakan data dummy cadangan.');
           setListSoal(dummyBackupSoal);
         }
@@ -109,11 +133,11 @@ export default function RuangUjian() {
     } catch (err) {
       console.error('Gagal melakukan autosave ke backend:', err);
     } finally {
-      setTimeout(() => setIsSaving(false), 600);
+      setTimeout(() => setIsSaving(false), 500);
     }
   };
 
-  // Pilihan PG disimpan fleksibel (mengakomodasi huruf A/B/C maupun teks opsi)
+  // Pilihan PG disimpan fleksibel
   const handleSelectPG = (opsiTeks, labelHuruf) => {
     const nilaiSimpan = labelHuruf || opsiTeks;
     setJawaban((prev) => ({ ...prev, [soalAktif.id]: nilaiSimpan }));
@@ -147,7 +171,6 @@ export default function RuangUjian() {
       await API.post('/ujian/autosave', { soalId: soalAktif.id, jawaban: dataBaru, userId: 1 });
     } catch (err) {
       console.error('Gagal mengunggah berkas praktik:', err);
-      // Fallback lokal jika API upload belum dikonfigurasi sempurna
       const dataLama = jawaban[soalAktif.id] || { teks: '', fileName: '' };
       setJawaban({ ...jawaban, [soalAktif.id]: { ...dataLama, fileName: file.name } });
     } finally {
@@ -159,223 +182,306 @@ export default function RuangUjian() {
     setFlags({ ...flags, [soalAktif.id]: !flags[soalAktif.id] });
   };
 
-  // 4. Fungsi Kunci & Submit Ujian Permanen (Auto / Manual)
+  // 4. Fungsi Kunci & Submit Ujian Permanen
   const handleAutoSubmit = async () => {
     clearInterval(timerRef.current);
+    sessionStorage.removeItem('examStarted');
     try {
       await API.post('/ujian/submit', { userId: 1 });
       alert('Sesi ujian telah berakhir! Lembar jawaban Anda berhasil dikumpulkan.');
       navigate('/dashboard-peserta');
     } catch (err) {
-      console.warn('Gagal submit ke server, mengalihkan halaman secara lokal.');
       navigate('/dashboard-peserta');
     }
   };
 
   if (listSoal.length === 0) {
-    return <div className="text-white p-10 text-center font-display font-medium">Menghubungkan ke Central Core Ujian...</div>;
+    return (
+      <div className="min-h-screen bg-[#030712] text-white flex items-center justify-center font-display font-bold">
+        Menghubungkan ke Central Core Ujian...
+      </div>
+    );
   }
 
   const soalAktif = listSoal[currentIdx];
   const totalSoalTerjawab = Object.keys(jawaban).length;
-  const progressPersen = (totalSoalTerjawab / listSoal.length) * 100;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 text-white p-6">
+    <div className="min-h-screen bg-[#030712] text-slate-100 font-sans flex flex-col select-none">
       
-      {/* AREA KIRI & TENGAH: PERTANYAAN & PILIHAN */}
-      <div className="lg:col-span-3 space-y-6">
-        
-        {/* Header Informasi Ruang Ujian */}
-        <Card className="border-customBorder bg-surface flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4">
+      {/* NAVBAR RUANG UJIAN ULTRA CLEAN */}
+      <Navbar>
+        <div className="flex justify-between items-center w-full max-w-6xl mx-auto px-4">
           <div className="flex items-center gap-3">
-            <Badge variant="primary" className="text-sm px-3 py-1 font-display">SOAL NO. {currentIdx + 1}</Badge>
+            <div className="w-8 h-8 rounded-xl bg-cyan-400 flex items-center justify-center text-slate-950 font-display font-bold shadow-lg shadow-cyan-400/20">
+              D
+            </div>
+            <div>
+              <h1 className="text-xs font-display font-bold text-cyan-400 uppercase tracking-widest">{examName}</h1>
+              <p className="text-[11px] text-slate-300 font-sans">{userName} • TechID: {techId}</p>
+            </div>
+          </div>
+
+          {/* TIMER ELEGAN */}
+          <div className="p-2 px-4 rounded-xl bg-[#0d1527] border border-slate-800 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-cyan-400 animate-pulse" />
+            <span className="font-display font-bold text-sm tracking-wider text-emerald-400">
+              {formatTime(timeLeft)}
+            </span>
+          </div>
+        </div>
+      </Navbar>
+
+      {/* MAIN CONTENT RUANG UJIAN */}
+      <main className="flex-1 p-4 md:p-6 max-w-6xl w-full mx-auto grid grid-cols-1 lg:grid-cols-4 gap-6 overflow-y-auto">
+        
+        {/* KIRI: LEMBAR PERTANYAAN (3 KOLOM) */}
+        <div className="lg:col-span-3 space-y-5">
+          
+          {/* HEADER INFORMASI SOAL & AUTOSAVE STATUS */}
+          <div className="p-4 rounded-2xl bg-[#0d1527]/50 border border-slate-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Badge variant="primary" className="text-xs px-3 py-1 font-display font-bold">
+                SOAL NO. {currentIdx + 1}
+              </Badge>
+
+              <span className="text-[10px] font-display font-bold uppercase px-2.5 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800">
+                {soalAktif.tipe === 'pg' ? 'Pilihan Ganda' : 'Ujian Praktik'}
+              </span>
+            </div>
+
             <AnimatePresence mode="wait">
               {isSaving ? (
-                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-xs text-secondary flex items-center gap-1.5 font-sans">
-                  <span className="w-2 h-2 rounded-full bg-secondary animate-ping" /> Menyimpan ke server...
+                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-xs text-cyan-400 flex items-center gap-1.5 font-sans">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" /> Menyimpan jawaban...
                 </motion.span>
               ) : (
                 <span className="text-xs text-slate-400 flex items-center gap-1 font-sans">
-                  <Save className="w-3.5 h-3.5" /> Autosave Aktif Terpusat
+                  <Save className="w-3.5 h-3.5 text-cyan-400" /> Autosave Aktif
                 </span>
               )}
             </AnimatePresence>
           </div>
-          
-          <div className="flex items-center gap-2 bg-background border border-customBorder/40 px-3 py-1.5 rounded-lg text-primary font-mono font-bold text-lg shadow-inner">
-            <Clock className="w-5 h-5 text-secondary animate-pulse" />
-            {formatTime(timeLeft)}
-          </div>
-        </Card>
 
-        {/* Kotak Utama Butir Pertanyaan */}
-        <Card className="border-customBorder bg-surface/90 min-h-[300px] p-6 flex flex-col justify-between">
-          <div className="space-y-6">
-            <p className="text-base md:text-lg font-sans leading-relaxed text-slate-100">
-              {soalAktif.pertanyaan}
-            </p>
+          {/* KOTAK UTAMA SOAL */}
+          <div className="p-6 md:p-8 rounded-2xl bg-[#0d1527]/40 border border-slate-800/50 min-h-[340px] flex flex-col justify-between space-y-6">
+            <div className="space-y-6">
+              <p className="text-base md:text-lg font-sans leading-relaxed text-slate-100">
+                {soalAktif.pertanyaan}
+              </p>
 
-            {/* Antarmuka Sesuai Tipe Soal */}
-            <div className="mt-4">
+              {/* TIPE PILIHAN GANDA */}
               {soalAktif.tipe === 'pg' ? (
-                <div className="grid grid-cols-1 gap-3">
+                <div className="grid grid-cols-1 gap-3 pt-2">
                   {soalAktif.opsi.map((opsiTeks, idx) => {
                     const teksPilihan = typeof opsiTeks === 'object' ? opsiTeks.teks : opsiTeks;
-                    const labelHuruf = String.fromCharCode(65 + idx); 
-                    
+                    const labelHuruf = String.fromCharCode(65 + idx);
                     const isSelected = jawaban[soalAktif.id] === labelHuruf || jawaban[soalAktif.id] === teksPilihan;
-                    
+
                     return (
-                      <button
+                      <div
                         key={idx}
                         onClick={() => handleSelectPG(teksPilihan, labelHuruf)}
-                        className={`w-full text-left p-4 rounded-xl border font-sans text-sm transition-all duration-200 flex items-start gap-4 ${
+                        className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer flex items-start gap-4 ${
                           isSelected
-                            ? 'bg-primary/10 border-primary text-primary shadow-lg shadow-primary/5'
-                            : 'bg-background/40 border-customBorder/50 text-slate-300 hover:border-customBorder hover:bg-background/80'
+                            ? 'bg-[#0d1527] border-cyan-400 text-white shadow-md shadow-cyan-400/10'
+                            : 'bg-[#030712]/60 border-slate-800/80 text-slate-300 hover:bg-[#0d1527]/60 hover:border-slate-700'
                         }`}
                       >
-                        <span className={`w-6 h-6 rounded-lg border flex items-center justify-center font-display font-bold text-xs shrink-0 transition-colors ${
-                          isSelected ? 'bg-primary text-darkBg border-primary' : 'border-slate-500 bg-surface'
+                        <span className={`w-7 h-7 rounded-lg font-display font-bold text-xs flex items-center justify-center shrink-0 ${
+                          isSelected ? 'bg-cyan-400 text-slate-950' : 'bg-slate-800 text-slate-300'
                         }`}>
                           {labelHuruf}
                         </span>
-                        <span className="pt-0.5">{teksPilihan}</span>
-                      </button>
+                        <span className="text-sm font-sans pt-0.5">{teksPilihan}</span>
+                      </div>
                     );
                   })}
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <Textarea
-                    placeholder={soalAktif.placeholder || "Tulis jawaban esai atau instruksi pengerjaan praktik Anda di sini..."}
+                /* TIPE PRAKTIK */
+                <div className="space-y-4 pt-2">
+                  <textarea
+                    rows={5}
+                    placeholder={soalAktif.placeholder || "Tuliskan kode jawaban atau deskripsi pengerjaan Anda di sini..."}
                     value={jawaban[soalAktif.id]?.teks || ''}
                     onChange={(e) => handleTextareaPraktik(e.target.value)}
-                    className="bg-background/40 border-customBorder/60 focus:border-primary text-sm min-h-[160px]"
+                    className="w-full p-4 bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-xs text-white rounded-xl font-sans focus:outline-none"
                   />
-                  
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-background/30 border border-customBorder/30 rounded-xl">
-                    <label className="relative flex items-center justify-center gap-2 bg-surface hover:bg-surface/80 border border-customBorder px-4 py-2 rounded-lg cursor-pointer transition text-sm font-medium font-sans">
-                      <Upload className="w-4 h-4 text-secondary" />
-                      <span>Unggah File Praktik</span>
-                      <input type="file" className="hidden" onChange={handleFileUpload} accept=".pdf,.zip,.png,.jpg,.jpeg" />
+
+                  <div className="p-4 bg-[#030712]/40 border border-slate-800/80 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <label className="relative flex items-center gap-2 bg-[#0d1527] hover:bg-slate-800 border border-slate-700 px-4 py-2.5 rounded-xl cursor-pointer transition text-xs font-display font-bold text-slate-200">
+                      <Upload className="w-4 h-4 text-cyan-400" />
+                      <span>Unggah Berkas Praktik</span>
+                      <input type="file" className="hidden" onChange={handleFileUpload} accept=".pdf,.zip,.png,.jpg,.jpeg,.xlsx" />
                     </label>
-                    
+
                     {jawaban[soalAktif.id]?.fileName ? (
-                      <div className="flex items-center gap-2 text-xs text-primary bg-primary/10 px-3 py-1.5 rounded-md border border-primary/20">
+                      <div className="flex items-center gap-2 text-xs text-cyan-400 bg-cyan-400/10 px-3 py-1.5 rounded-lg border border-cyan-400/20">
                         <FileText className="w-4 h-4" />
-                        <span className="truncate max-w-[200px]">{jawaban[soalAktif.id].fileName}</span>
+                        <span className="truncate max-w-[200px] font-mono">{jawaban[soalAktif.id].fileName}</span>
                       </div>
                     ) : (
-                      <span className="text-xs text-slate-500 font-sans">Belum ada file diunggah (Format: .pdf, .zip, .png)</span>
+                      <span className="text-xs text-slate-500 font-sans">Format: .pdf, .zip, .png, .xlsx (Max 10MB)</span>
                     )}
                   </div>
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Navigasi Footer Ujian */}
-          <div className="flex items-center justify-between border-t border-customBorder/30 pt-4 mt-8 gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentIdx === 0}
-              onClick={() => setCurrentIdx(currentIdx - 1)}
-            >
-              <ChevronLeft className="w-4 h-4 mr-1" /> Kembali
-            </Button>
+            {/* NAVIGASI FOOTER UJIAN */}
+            <div className="flex items-center justify-between border-t border-slate-800/40 pt-5 mt-6 gap-2">
+              <Button
+                onClick={() => setCurrentIdx(Math.max(0, currentIdx - 1))}
+                disabled={currentIdx === 0}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border-0 disabled:opacity-30"
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" /> Kembali
+              </Button>
 
-            <Button
-              onClick={toggleFlag}
-              className={`border font-sans font-medium text-xs transition-colors ${
-                flags[soalAktif.id]
-                  ? 'bg-amber-500 text-darkBg border-amber-500 hover:bg-amber-400 font-semibold'
-                  : 'border-amber-500/40 bg-transparent text-amber-400 hover:bg-amber-500/10'
-              }`}
-            >
-              <Flag className="w-3.5 h-3.5 mr-1.5" /> {flags[soalAktif.id] ? 'Ragu-Ragu Aktif' : 'Tandai Ragu-Ragu'}
-            </Button>
+              <button
+                onClick={toggleFlag}
+                className={`px-3 py-2 rounded-xl text-xs font-display font-bold border transition-all flex items-center gap-1.5 ${
+                  flags[soalAktif.id]
+                    ? 'bg-amber-500/20 border-amber-500/60 text-amber-400'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Flag className="w-3.5 h-3.5" />
+                {flags[soalAktif.id] ? 'RAGU-RAGU AKTIF' : 'TANDAI RAGU-RAGU'}
+              </button>
 
-            <Button
-              variant={currentIdx === listSoal.length - 1 ? 'secondary' : 'outline'}
-              size="sm"
-              onClick={() => {
-                if (currentIdx < listSoal.length - 1) {
-                  setCurrentIdx(currentIdx + 1);
-                } else {
-                  if (confirm('Apakah Anda yakin ingin mengakhiri ujian dan mengumpulkan semua lembar jawaban?')) {
-                    handleAutoSubmit();
+              <Button
+                onClick={() => {
+                  if (currentIdx < listSoal.length - 1) {
+                    setCurrentIdx(currentIdx + 1);
+                  } else {
+                    setShowSubmitModal(true);
                   }
-                }
-              }}
-            >
-              {currentIdx === listSoal.length - 1 ? 'Selesai Ujian' : 'Berikutnya'} <ChevronRight className="w-4 h-4 ml-1" />
-            </Button>
+                }}
+                className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0"
+              >
+                {currentIdx === listSoal.length - 1 ? 'Selesai Ujian' : 'Berikutnya'} <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
           </div>
-        </Card>
-      </div>
+        </div>
 
-      {/* AREA KANAN: SIDEBAR NOMOR SOAL & PROGRESS */}
-      <div className="space-y-4">
-        <Card className="border-customBorder bg-surface p-4">
-          <div className="flex justify-between text-xs font-sans text-slate-400 mb-2">
-            <span>Progress Pengisian</span>
-            <span className="text-white font-medium">{totalSoalTerjawab} dari {listSoal.length} Soal</span>
-          </div>
-          <Progress value={progressPersen} max={100} />
-        </Card>
+        {/* KANAN: SIDEBAR NAVIGASI GRID NOMOR SOAL (1 KOLOM) */}
+        <div className="space-y-5">
+          <div className="p-6 rounded-2xl bg-[#0d1527]/40 border border-slate-800/50 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-800/40 pb-3">
+              <h3 className="text-xs font-display font-bold text-slate-300 uppercase tracking-widest">
+                NAVIGASI SOAL
+              </h3>
+              <span className="text-[10px] font-sans text-cyan-400">
+                {totalSoalTerjawab}/{listSoal.length} Terisi
+              </span>
+            </div>
 
-        {/* Panel Kisi Grid Nomor Soal */}
-        <Card className="border-customBorder bg-surface p-4 flex flex-col justify-between min-h-[340px]">
-          <div>
-            <h3 className="text-sm font-display font-bold tracking-wider mb-4 text-slate-300 uppercase">Navigasi Nomor Soal</h3>
+            {/* GRID NOMOR SOAL */}
             <div className="grid grid-cols-5 gap-2">
               {listSoal.map((item, index) => {
                 const isCurrent = index === currentIdx;
                 const isFlagged = flags[item.id];
-                const isAnswered = jawaban[item.id] !== undefined && (typeof jawaban[item.id] === 'string' ? jawaban[item.id] !== '' : jawaban[item.id]?.teks !== '' || jawaban[item.id]?.fileName !== '');
+                const isAnswered = jawaban[item.id] !== undefined && (
+                  typeof jawaban[item.id] === 'string' 
+                    ? jawaban[item.id] !== '' 
+                    : (jawaban[item.id]?.teks !== '' || jawaban[item.id]?.fileName !== '')
+                );
 
-                let nodeStyles = "border-customBorder/40 bg-background/40 text-slate-400";
-                if (isAnswered) nodeStyles = "bg-primary/20 border-primary text-primary font-semibold";
-                if (isFlagged) nodeStyles = "bg-amber-500 border-amber-600 text-darkBg font-semibold shadow-md shadow-amber-500/10";
-                if (isCurrent) nodeStyles = "bg-primary border-primary text-darkBg font-bold shadow-lg shadow-primary/20 scale-105 ring-2 ring-primary/30";
+                let nodeStyles = "bg-[#030712] text-slate-400 border-slate-800";
+                if (isFlagged) {
+                  nodeStyles = "bg-amber-500/20 text-amber-400 border-amber-500/50";
+                } else if (isAnswered) {
+                  nodeStyles = "bg-emerald-500/20 text-emerald-400 border-emerald-500/50";
+                }
+
+                if (isCurrent) {
+                  nodeStyles += " ring-2 ring-cyan-400";
+                }
 
                 return (
                   <button
                     key={item.id}
                     onClick={() => setCurrentIdx(index)}
-                    className={`h-10 rounded-lg border text-xs font-display flex items-center justify-center transition-all duration-150 ${nodeStyles}`}
+                    className={`h-10 rounded-xl font-display font-bold text-xs border transition-all flex items-center justify-center ${nodeStyles}`}
                   >
                     {index + 1}
                   </button>
                 );
               })}
             </div>
-          </div>
 
-          {/* Legend Indikator Warna */}
-          <div className="border-t border-customBorder/20 pt-4 mt-6 space-y-2 text-xs font-sans text-slate-400">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-primary" />
-              <span>Soal Aktif</span>
+            {/* KETERANGAN INDIKATOR */}
+            <div className="pt-3 border-t border-slate-800/40 space-y-2 text-[10px] font-sans text-slate-400">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded bg-emerald-500/20 border border-emerald-500/50 inline-block"></span>
+                <span>Sudah Dijawab / Terisi</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded bg-amber-500/20 border border-amber-500/50 inline-block"></span>
+                <span>Ditandai Ragu-Ragu</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded bg-[#030712] border border-slate-800 inline-block"></span>
+                <span>Belum Dijawab</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-primary/20 border border-primary/50" />
-              <span>Sudah Dijawab / Terisi</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-amber-500" />
-              <span>Ditandai Ragu-Ragu</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-background/40 border border-customBorder/40" />
-              <span>Belum Dijawab / Kosong</span>
+
+            {/* TOMBOL SUBMIT FINAL */}
+            <div className="pt-2">
+              <Button
+                onClick={() => setShowSubmitModal(true)}
+                className="w-full py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0 rounded-xl shadow-lg shadow-cyan-400/20 flex items-center justify-center gap-2"
+              >
+                <Send className="w-3.5 h-3.5" /> SUBMIT SELESAI UJIAN
+              </Button>
             </div>
           </div>
-        </Card>
-      </div>
+        </div>
+
+      </main>
+
+      {/* MODAL KONFIRMASI SUBMIT */}
+      {showSubmitModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0d1527] border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-800/60 pb-3">
+              <h3 className="text-sm font-display font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400" /> Konfirmasi Selesai Ujian
+              </h3>
+              <button onClick={() => setShowSubmitModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300 font-sans leading-relaxed">
+              Apakah Anda yakin ingin menyelesaikan sesi ujian ini? Setelah disubmit, jawaban Anda akan langsung dikunci di server dan tidak dapat diubah kembali.
+            </p>
+
+            <div className="p-3 bg-[#030712] rounded-xl text-[11px] font-sans text-slate-400 space-y-1">
+              <p>• Terjawab: <strong className="text-emerald-400">{totalSoalTerjawab}</strong> dari {listSoal.length} Soal</p>
+              <p>• Ragu-ragu: <strong className="text-amber-400">{Object.keys(flags).filter(k => flags[k]).length}</strong> Soal</p>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button
+                onClick={() => setShowSubmitModal(false)}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border-0"
+              >
+                Batal
+              </Button>
+              <Button
+                onClick={handleAutoSubmit}
+                className="flex-1 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0 shadow-lg shadow-cyan-400/20"
+              >
+                Ya, Submit Sekarang
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
