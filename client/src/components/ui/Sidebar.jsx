@@ -1,8 +1,8 @@
 import React from 'react';
 
-export default function Sidebar({ children }) {
+export default function Sidebar({ children, className = '' }) {
   return (
-    <aside className="w-64 border-r border-customBorder bg-surface h-screen p-4 flex flex-col gap-2 shrink-0 hidden md:flex">
+    <aside className={`w-64 bg-[#080d1a]/60 backdrop-blur-md min-h-screen p-5 flex flex-col gap-3 shrink-0 border-r border-slate-800/40 hidden md:flex ${className}`}>
       {children}
     </aside>
   );
