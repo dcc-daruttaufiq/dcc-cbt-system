@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #071426; /* Mengunci background ke biru tua sesuai palet */
+    color: #ffffff;            /* Teks warna putih biar kontras */
+    font-family: 'Poppins', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  
+  h1, h2, h3, h4, h5, h6, .font-display {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+}
+
+/* Custom scrollbar bertema tech cyan */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #071426;
+}
+::-webkit-scrollbar-thumb {
+  background: #1E6EA7;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00D9FF;
+}

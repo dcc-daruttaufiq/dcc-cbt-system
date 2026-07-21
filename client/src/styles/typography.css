@@ -1,0 +1,70 @@
+/**
+ * Typography rules — DCC CBT
+ * Rajdhani: display/heading face — technical, HUD-like, used for
+ *           headings, labels, timers, and numeric/data emphasis.
+ * Poppins:  body face — clean and highly readable for question text,
+ *           paragraphs, and UI copy.
+ */
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-body);
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: 0.005em;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.font-display {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: clamp(2rem, 1.6rem + 1.6vw, 3rem);
+  font-weight: 700;
+}
+
+h2 {
+  font-size: clamp(1.5rem, 1.3rem + 1vw, 2.25rem);
+  font-weight: 700;
+}
+
+h3 {
+  font-size: clamp(1.25rem, 1.15rem + 0.5vw, 1.75rem);
+}
+
+h4 {
+  font-size: 1.25rem;
+}
+
+small,
+.text-caption {
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  color: rgb(var(--color-text-muted));
+}
+
+/* Numeric/monospace-ish emphasis for timers, scores, question counters */
+.font-numeric {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+code,
+pre {
+  font-family: 'Rajdhani', monospace;
+}

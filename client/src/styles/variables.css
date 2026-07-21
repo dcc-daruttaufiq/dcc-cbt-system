@@ -1,0 +1,11 @@
+:root {
+  --primary: #00D9FF;
+  --secondary: #17C9D8;
+  --background: #071426;
+  --surface: #0D2039;
+  --border: #1E6EA7;
+  
+  /* Slate & Utility tones untuk dark/light fallback */
+  --text-primary: #FFFFFF;
+  --text-muted: #94A3B8;
+}
