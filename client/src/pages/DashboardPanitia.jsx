@@ -3,6 +3,8 @@ import API from '../utils/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
+import Sidebar from '../components/ui/Sidebar';
+import Navbar from '../components/ui/Navbar';
 import { CheckSquare, Square, Award, ClipboardList, User, FileCode, CheckCircle2, RefreshCw } from 'lucide-react';
 
 const dummyPeserta = [
@@ -27,6 +29,13 @@ export default function DashboardPanitia() {
   const [checklistPraktik, setChecklistPraktik] = useState({});
   const [isSaved, setIsSaved] = useState(false);
 
+  // Menu Sidebar Panitia
+  const menuPanitia = [
+    { label: 'Koreksi Ujian', path: '/panitia', icon: '📊' },
+    { label: 'Bank Soal', path: '/bank-soal', icon: '📚' },
+    { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
+  ];
+
   useEffect(() => {
     loadPeserta();
   }, []);
@@ -44,18 +53,14 @@ export default function DashboardPanitia() {
     }
   };
 
-  // FIX: Bisa meriksa peserta aktif maupun selesai tanpa kepentok data kosong
   const handlePeriksa = async (userId) => {
     setSelectedSiswa(userId);
     setIsSaved(false);
     
     try {
       const res = await API.get(`/ujian/peserta/${userId}`);
-      
-      // Ambil jawaban tipe praktik jika ada
       let hanyaPraktik = res.data ? res.data.filter(j => j.tipe === 'praktik') : [];
       
-      // Fallback template jika data praktik belum terisi oleh peserta
       if (hanyaPraktik.length === 0) {
         hanyaPraktik = dummyDetailPraktik;
       }
@@ -75,7 +80,7 @@ export default function DashboardPanitia() {
       if (j.checklist) {
         const kriteriaArr = typeof j.checklist === 'string' ? JSON.parse(j.checklist) : j.checklist;
         kriteriaArr.forEach((_, idx) => {
-          initChecklist[`${j.soal_id}-${idx}`] = true; // default dicentang
+          initChecklist[`${j.soal_id}-${idx}`] = true;
         });
       }
     });
@@ -113,134 +118,160 @@ export default function DashboardPanitia() {
   };
 
   return (
-    <div className="p-6 text-white max-w-6xl mx-auto space-y-6">
-      <div className="flex justify-between items-center border-b border-borderCustom pb-4">
-        <div className="flex items-center gap-3">
-          <ClipboardList className="text-primary w-8 h-8" />
-          <div>
-            <h1 className="text-2xl font-display font-bold">PANEL KOREKSI PRAKTIK PANITIA</h1>
-            <p className="text-xs text-slate-400">Pemeriksaan & Centang Checklist Hasil Soal Praktik Siswa</p>
-          </div>
-        </div>
-        <Button variant="outline" size="sm" onClick={loadPeserta}>
-          <RefreshCw className="w-4 h-4 mr-1.5" /> Refresh Status Peserta
-        </Button>
-      </div>
+    <div className="flex min-h-screen bg-[#030712] text-slate-100 font-body">
+      {/* SIDEBAR CLEAN */}
+      <Sidebar links={menuPanitia} userRole="Panitia" />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* BILAH KIRI: STATUS LIVE PESERTA */}
-        <div className="space-y-4">
-          <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Monitoring & Antrean Peserta</h2>
-          {peserta.map((p, idx) => {
-            const isSelesai = p.status === 'selesai';
-            return (
-              <Card key={idx} className={`p-4 border transition ${selectedSiswa === p.user_id ? 'border-primary bg-primary/10' : 'border-borderCustom bg-surface'}`}>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-background rounded-lg border border-borderCustom">
-                      <User className="w-5 h-5 text-slate-400" />
+      {/* KONTEN UTAMA */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <Navbar>
+          <div className="flex justify-between items-center w-full">
+            <div className="flex items-center gap-3">
+              <ClipboardList className="text-indigo-400 w-6 h-6" />
+              <div>
+                <h1 className="text-base font-bold text-white tracking-wide">PANEL KOREKSI PRAKTIK</h1>
+                <p className="text-[11px] text-slate-400">Pemeriksaan & Rubrik Hasil Soal Praktik Siswa</p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={loadPeserta} className="bg-slate-800/40 hover:bg-slate-800 border-0 text-xs">
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh Status
+            </Button>
+          </div>
+        </Navbar>
+
+        <main className="p-8 flex-1 overflow-y-auto">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            {/* BILAH KIRI: STATUS LIVE PESERTA */}
+            <div className="space-y-4">
+              <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">Monitoring & Antrean Peserta</h2>
+              <div className="space-y-3">
+                {peserta.map((p, idx) => {
+                  const isSelesai = p.status === 'selesai';
+                  const isSelected = selectedSiswa === p.user_id;
+
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`p-4 rounded-2xl transition-all duration-200 cursor-pointer ${
+                        isSelected 
+                          ? 'bg-indigo-600/20 shadow-lg shadow-indigo-500/10' 
+                          : 'bg-[#0d1527]/60 hover:bg-[#0d1527] backdrop-blur-md'
+                      }`}
+                      onClick={() => handlePeriksa(p.user_id)}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-slate-800/50 rounded-xl">
+                            <User className="w-5 h-5 text-indigo-400" />
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-sm text-white">Peserta ID: {p.user_id}</h4>
+                            <p className="text-xs text-slate-400 mt-0.5">{p.total_dijawab} Soal Dikerjakan</p>
+                            
+                            <div className="mt-2 flex items-center gap-2">
+                              <Badge variant={isSelesai ? 'primary' : 'secondary'} className="text-[10px] px-2 py-0.5 rounded-md">
+                                {isSelesai ? 'Selesai Ujian' : 'Sedang Mengerjakan'}
+                              </Badge>
+                              {isSelesai && p.nilai_akhir > 0 && (
+                                <span className="text-xs font-mono font-bold text-emerald-400">
+                                  Skor: {p.nilai_akhir}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <Button size="sm" className="bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 border-0 text-xs">
+                          Periksa
+                        </Button>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-sm">Peserta ID: {p.user_id}</h4>
-                      <p className="text-xs text-slate-400">{p.total_dijawab} Soal Dikerjakan</p>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* BILAH KANAN: LEMBAR KOREKSI */}
+            <div className="lg:col-span-2 space-y-6">
+              {selectedSiswa ? (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center px-1">
+                    <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                      <FileCode className="text-indigo-400 w-4 h-4" /> JAWABAN PRAKTIK — PESERTA #{selectedSiswa}
+                    </h2>
+                    <span className="text-xs text-slate-400 bg-slate-800/40 px-3 py-1 rounded-full">PG Dinilai Otomatis</span>
+                  </div>
+                  
+                  {soalPraktikList.map((j, idx) => (
+                    <div key={idx} className="p-6 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl space-y-5">
+                      <p className="text-sm text-slate-200 font-medium leading-relaxed">{j.pertanyaan}</p>
                       
-                      {/* TAMPILAN STATUS LIVE & NILAI */}
-                      <div className="mt-1 flex items-center gap-2">
-                        <Badge variant={isSelesai ? 'primary' : 'secondary'} className="text-[10px]">
-                          {isSelesai ? 'Selesai Ujian' : 'Sedang Mengerjakan'}
-                        </Badge>
-                        {isSelesai && p.nilai_akhir > 0 && (
-                          <span className="text-xs font-mono font-bold text-green-400">
-                            Skor: {p.nilai_akhir}
-                          </span>
+                      {/* Jawaban Teks / Kode */}
+                      <div className="p-4 bg-[#030712]/60 rounded-xl text-sm space-y-2">
+                        <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Hasil Kode / Jawaban Siswa:</p>
+                        <pre className="text-emerald-400 font-mono text-xs break-words bg-black/40 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">
+                          {typeof j.jawaban === 'string' && j.jawaban.startsWith('{') ? JSON.parse(j.jawaban).teks : j.jawaban}
+                        </pre>
+                        
+                        {typeof j.jawaban === 'string' && j.jawaban.includes('fileName') && (
+                          <div className="pt-1 flex items-center gap-2 text-xs text-indigo-400 font-mono">
+                            <span>📄 File Lampiran:</span>
+                            <span className="underline font-bold cursor-pointer hover:text-indigo-300">{JSON.parse(j.jawaban).fileName}</span>
+                          </div>
                         )}
                       </div>
-                    </div>
-                  </div>
-                  
-                  <Button size="sm" variant="outline" onClick={() => handlePeriksa(p.user_id)}>
-                    Periksa
-                  </Button>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
 
-        {/* BILAH KANAN: KHUSUS LEMBAR KOREKSI SOAL PRAKTIK */}
-        <div className="lg:col-span-2">
-          {selectedSiswa ? (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center border-b border-borderCustom/40 pb-3">
-                <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                  <FileCode className="text-secondary w-5 h-5" /> LEMBAR JAWABAN PRAKTIK — PESERTA #{selectedSiswa}
-                </h2>
-                <Badge variant="secondary">Soal PG Dinilai Server Otomatis</Badge>
-              </div>
-              
-              {soalPraktikList.map((j, idx) => (
-                <Card key={idx} className="p-6 border-borderCustom bg-surface space-y-4">
-                  <p className="text-sm text-slate-100 font-medium leading-relaxed">{j.pertanyaan}</p>
-                  
-                  {/* Tampilan Jawaban Teks / Lampiran File Praktik */}
-                  <div className="p-4 bg-background border border-borderCustom/50 rounded-xl text-sm space-y-2">
-                    <p className="text-xs text-slate-500 font-semibold uppercase">Hasil Jawaban / Kode Praktik Siswa:</p>
-                    <p className="text-slate-100 font-mono break-words bg-black/30 p-3 rounded-lg border border-white/5">
-                      {typeof j.jawaban === 'string' && j.jawaban.startsWith('{') ? JSON.parse(j.jawaban).teks : j.jawaban}
-                    </p>
+                      {/* Checklist Rubrik */}
+                      {j.checklist && (
+                        <div className="p-4 bg-[#030712]/40 rounded-xl space-y-3">
+                          <p className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider">Checklist Rubrik Penilaian:</p>
+                          <div className="space-y-2">
+                            {(typeof j.checklist === 'string' ? JSON.parse(j.checklist) : j.checklist).map((kriteria, kIdx) => {
+                              const key = `${j.soal_id}-${kIdx}`;
+                              const isChecked = checklistPraktik[key];
+                              return (
+                                <div 
+                                  key={kIdx} 
+                                  onClick={() => toggleChecklist(key)} 
+                                  className="flex items-center gap-3 p-3 bg-[#0d1527]/40 rounded-xl cursor-pointer hover:bg-slate-800/50 transition text-sm select-none"
+                                >
+                                  {isChecked ? <CheckSquare className="w-5 h-5 text-indigo-400 shrink-0" /> : <Square className="w-5 h-5 text-slate-600 shrink-0" />}
+                                  <span className={isChecked ? 'text-indigo-200 font-medium' : 'text-slate-400'}>{kriteria}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* ACTION CARD SIMPAN SKOR */}
+                  <div className="p-6 bg-gradient-to-r from-indigo-950/40 to-[#0d1527]/80 backdrop-blur-md rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                      <h3 className="font-bold text-base flex items-center gap-2 text-white">
+                        <Award className="text-indigo-400 w-5 h-5" /> Estimasi Skor Praktik: 
+                        <span className="text-emerald-400 font-mono text-xl">{hitungSkorPraktikLokal()} / 100</span>
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-1">Skor akan otomatis tersimpan dan digabungkan dengan nilai PG.</p>
+                    </div>
                     
-                    {typeof j.jawaban === 'string' && j.jawaban.includes('fileName') && (
-                      <div className="pt-2 flex items-center gap-2 text-xs text-secondary font-mono">
-                        <span>📄 File Lampiran Praktik:</span>
-                        <span className="underline font-bold cursor-pointer">{JSON.parse(j.jawaban).fileName}</span>
-                      </div>
-                    )}
+                    <Button variant="primary" size="md" onClick={submitSimpanNilaiPraktik} className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 border-0 shadow-lg shadow-indigo-600/30">
+                      <CheckCircle2 className="w-4 h-4 mr-1.5" /> {isSaved ? 'Tersimpan!' : 'Simpan Nilai Praktik'}
+                    </Button>
                   </div>
-
-                  {/* CHECKLIST KRITERIA PRAKTIK PANITIA */}
-                  {j.checklist && (
-                    <div className="bg-background/40 border border-secondary/30 p-4 rounded-xl space-y-3">
-                      <p className="text-xs font-bold text-secondary uppercase tracking-wide">Checklist Kriteria Rubrik Praktik:</p>
-                      <div className="space-y-2">
-                        {(typeof j.checklist === 'string' ? JSON.parse(j.checklist) : j.checklist).map((kriteria, kIdx) => {
-                          const key = `${j.soal_id}-${kIdx}`;
-                          const isChecked = checklistPraktik[key];
-                          return (
-                            <div 
-                              key={kIdx} 
-                              onClick={() => toggleChecklist(key)} 
-                              className="flex items-center gap-3 p-2.5 bg-background/60 border border-borderCustom/40 rounded-lg cursor-pointer hover:bg-white/5 transition text-sm"
-                            >
-                              {isChecked ? <CheckSquare className="w-5 h-5 text-primary shrink-0" /> : <Square className="w-5 h-5 text-slate-500 shrink-0" />}
-                              <span className={isChecked ? 'text-primary font-medium' : 'text-slate-300'}>{kriteria}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </Card>
-              ))}
-
-              {/* ACTION BUTTON SIMPAN NILAI PRAKTIK */}
-              <Card className="p-6 border border-primary/30 bg-surface rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div>
-                  <h3 className="font-bold text-base flex items-center gap-2"><Award className="text-primary w-5 h-5" /> Estimasi Skor Praktik: <span className="text-green-400 font-mono text-xl">{hitungSkorPraktikLokal()} / 100</span></h3>
-                  <p className="text-xs text-slate-400">Simpan skor praktik ini. Skor akan otomatis digabungkan saat siswa menyelesaikan ujian PG.</p>
                 </div>
-                
-                <Button variant="primary" size="md" onClick={submitSimpanNilaiPraktik} className="w-full sm:w-auto">
-                  <CheckCircle2 className="w-4 h-4 mr-1.5" /> {isSaved ? 'Tersimpan!' : 'Simpan Nilai Praktik'}
-                </Button>
-              </Card>
+              ) : (
+                <div className="p-16 text-center text-slate-500 bg-[#0d1527]/40 backdrop-blur-md rounded-2xl">
+                  <User className="w-12 h-12 mx-auto mb-3 text-slate-600" />
+                  <p className="text-sm">Pilih salah satu peserta di sebelah kiri untuk mulai pemeriksaan kriteria praktik.</p>
+                </div>
+              )}
             </div>
-          ) : (
-            <Card className="p-12 text-center text-slate-400 border-dashed border-2 border-borderCustom bg-surface">
-              Pilih salah satu peserta di bilah kiri untuk mengoreksi soal praktik.
-            </Card>
-          )}
-        </div>
+
+          </div>
+        </main>
       </div>
     </div>
   );
