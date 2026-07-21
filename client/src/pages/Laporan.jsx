@@ -4,15 +4,18 @@ import Sidebar from '../components/ui/Sidebar';
 import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import { BarChart3, Download, FileText, Trophy, Users, Award, TrendingUp } from 'lucide-react';
+import { BarChart3, Download, FileText, Trophy, Users, Award, TrendingUp, CreditCard } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
+// Dummy data menggunakan format Kartu TECHID DCC resmi
 const dummyLaporan = {
-  statistik: { totalSiswa: 1, rataRata: 91, tertinggi: 91, terendah: 91 },
+  statistik: { totalSiswa: 3, rataRata: 89, tertinggi: 95, terendah: 82 },
   dataLaporan: [
-    { user_id: 1, nilai_pg: 100, nilai_praktik: 85, nilai_akhir: 91 }
+    { user_id: 1, tech_id: 'DCC25-0072', nama: 'ASSHYFA YUNITIASARI', nilai_pg: 90, nilai_praktik: 92, nilai_akhir: 91 },
+    { user_id: 2, tech_id: 'DCC25-0081', nama: 'MUHAMMAD ALFI', nilai_pg: 95, nilai_praktik: 95, nilai_akhir: 95 },
+    { user_id: 3, tech_id: 'DCC25-0094', nama: 'RIZKY RAMADHAN', nilai_pg: 80, nilai_praktik: 84, nilai_akhir: 82 }
   ]
 };
 
@@ -39,7 +42,8 @@ export default function Laporan() {
   const handleExportExcel = () => {
     const dataExcel = laporan.dataLaporan.map((item, index) => ({
       'Ranking': index + 1,
-      'ID Peserta': item.user_id,
+      'TechID': item.tech_id || `DCC25-000${item.user_id}`,
+      'Nama Lengkap': item.nama || item.nama_lengkap || `Peserta #${item.user_id}`,
       'Nilai PG': item.nilai_pg || 0,
       'Nilai Praktik': item.nilai_praktik || 0,
       'Nilai Akhir': item.nilai_akhir || 0,
@@ -56,13 +60,14 @@ export default function Laporan() {
     const doc = new jsPDF();
     doc.text("LAPORAN REKAPITULASI HASIL UJIAN DCC-CBT", 14, 15);
     
-    const tableColumn = ["Rank", "ID Peserta", "Nilai PG", "Nilai Praktik", "Nilai Akhir", "Status"];
+    const tableColumn = ["Rank", "TechID", "Nama Lengkap", "Nilai PG", "Nilai Praktik", "Nilai Akhir", "Status"];
     const tableRows = [];
 
     laporan.dataLaporan.forEach((item, index) => {
       const rowData = [
         index + 1,
-        item.user_id,
+        item.tech_id || `DCC25-000${item.user_id}`,
+        item.nama || item.nama_lengkap || `Peserta #${item.user_id}`,
         item.nilai_pg || 0,
         item.nilai_praktik || 0,
         item.nilai_akhir || 0,
@@ -156,6 +161,8 @@ export default function Laporan() {
 
               {laporan.dataLaporan.map((row, idx) => {
                 const isLulus = (row.nilai_akhir || 0) >= 75;
+                const namaSiswa = row.nama || row.nama_lengkap || `Peserta #${row.user_id}`;
+                const techId = row.tech_id || `DCC25-000${row.user_id}`;
 
                 return (
                   <div
@@ -167,13 +174,17 @@ export default function Laporan() {
                         #{idx + 1}
                       </span>
 
-                      <div>
-                        <h3 className="text-sm font-semibold text-white">Peserta #{row.user_id}</h3>
-                        <div className="mt-1">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-semibold text-white tracking-wide">{namaSiswa}</h3>
                           <Badge variant={isLulus ? 'primary' : 'secondary'} className="text-[10px] px-2 py-0.5 rounded-md uppercase">
                             {isLulus ? 'LULUS' : 'REMIDI'}
                           </Badge>
                         </div>
+                        
+                        <p className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
+                          <CreditCard className="w-3 h-3 text-cyan-400 inline" /> TechID: <span className="text-slate-200 font-bold">{techId}</span>
+                        </p>
                       </div>
                     </div>
 
