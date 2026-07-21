@@ -1,6 +1,5 @@
 @tailwind base;
 @tailwind components;
-@tailwind utilities;
 
 @layer base {
   body {
@@ -16,6 +15,8 @@
     letter-spacing: 0.05em;
   }
 }
+
+@tailwind utilities;
 
 /* Custom scrollbar bertema tech cyan */
 ::-webkit-scrollbar {
