@@ -70,24 +70,24 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#030712] flex items-center justify-center p-4">
-      <Card className="w-full max-w-md p-8 bg-[#0d1527]/80 backdrop-blur-xl border-0 shadow-2xl space-y-6">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <Card className="w-full max-w-md p-8 border-borderCustom bg-surface space-y-6">
         
         {/* Header Title */}
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-display font-bold text-indigo-400 tracking-wider">PORTAL DCC-CBT</h1>
+          <h1 className="text-3xl font-display font-bold text-primary tracking-wider">PORTAL DCC-CBT</h1>
           <p className="text-xs text-slate-400 font-sans">Pilih peran Anda untuk masuk ke dalam sistem</p>
         </div>
 
-        {/* TAB CHOOSER: 3 PILIHAN ROLE */}
-        <div className="grid grid-cols-3 gap-1 bg-[#030712]/60 p-1.5 rounded-xl">
+        {/* TAB CHOOSER: MATCHING SESUAI PALETTE PRIMARY */}
+        <div className="grid grid-cols-3 gap-1 bg-background p-1.5 rounded-xl border border-borderCustom/60">
           <button
             type="button"
             onClick={() => setSelectedRole('peserta')}
             className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${
               selectedRole === 'peserta'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100'
+                : 'text-slate-400 hover:text-white hover:bg-surface/50'
             }`}
           >
             <UserCheck className="w-4 h-4 mb-1" />
@@ -99,8 +99,8 @@ export default function Login() {
             onClick={() => setSelectedRole('panitia')}
             className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${
               selectedRole === 'panitia'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100'
+                : 'text-slate-400 hover:text-white hover:bg-surface/50'
             }`}
           >
             <ShieldCheck className="w-4 h-4 mb-1" />
@@ -112,8 +112,8 @@ export default function Login() {
             onClick={() => setSelectedRole('master_admin')}
             className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${
               selectedRole === 'master_admin'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100'
+                : 'text-slate-400 hover:text-white hover:bg-surface/50'
             }`}
           >
             <Crown className="w-4 h-4 mb-1" />
@@ -123,7 +123,7 @@ export default function Login() {
 
         {/* Alert Error */}
         {errorMsg && (
-          <div className="p-3 bg-rose-500/10 rounded-xl text-rose-400 text-xs text-center font-sans">
+          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs text-center font-sans">
             {errorMsg}
           </div>
         )}
@@ -162,21 +162,21 @@ export default function Login() {
                 type="checkbox" 
                 checked={rememberMe} 
                 onChange={(e) => setRememberMe(e.target.checked)} 
-                className="accent-indigo-600 rounded"
+                className="accent-primary rounded"
               />
               <span>Ingat Akses Saya</span>
             </label>
           </div>
 
-          <Button type="submit" variant="primary" size="lg" className="w-full mt-2 bg-indigo-600 hover:bg-indigo-500 border-0" disabled={isLoading}>
+          <Button type="submit" variant="primary" size="lg" className="w-full mt-2" disabled={isLoading}>
             {isLoading ? 'MEMVERIFIKASI...' : `MASUK SEBAGAI ${selectedRole.toUpperCase()}`}
           </Button>
         </form>
 
         {/* Quick Testing Info */}
-        <div className="text-center pt-2">
+        <div className="text-center border-t border-borderCustom/40 pt-4">
           <p className="text-[10px] text-slate-500 font-mono">
-            Akses Universal: Username <code className="text-indigo-400">admin</code> & Password <code className="text-indigo-400">admin123</code>
+            Akses Universal: Username <code className="text-primary">admin</code> & Password <code className="text-primary">admin123</code>
           </p>
         </div>
 
