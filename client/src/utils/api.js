@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: 'http://localhost:5000/api',
-  timeout: 10000, // Timeout request max 10 detik
+  baseURL: 'https://dcc-cbt-backend.onrender.com/api', // Sudah terhubung ke Render
+  timeout: 15000, // Timeout dinaikkan ke 15 detik (antisipasi cold-start Render free tier)
 });
 
 // Interceptor Request: Otomatis tempelkan token
