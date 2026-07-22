@@ -14,7 +14,9 @@ import {
   CheckCircle2, 
   RefreshCw, 
   FileText,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Trash2,
+  Trash
 } from 'lucide-react';
 
 export default function DashboardPanitia() {
@@ -24,8 +26,11 @@ export default function DashboardPanitia() {
   const [checklistPraktik, setChecklistPraktik] = useState({});
   const [isSaved, setIsSaved] = useState(false);
 
+  // State Pilihan Checkbox untuk Bulk Delete
+  const [selectedIds, setSelectedIds] = useState([]);
+
   // Filter Status (6 Tab Utama Murni Teks)
-  const [filterPeserta, setFilterPeserta] = useState('perlu_dikoreksi');
+  const [filterPeserta, setFilterPeserta] = useState('semua');
   const [filterTipeJawaban, setFilterTipeJawaban] = useState('praktik');
 
   const pesertaFileInputRef = useRef(null);
@@ -65,7 +70,7 @@ export default function DashboardPanitia() {
       if (currentActiveUser && (p.tech_id === currentActiveUser.tech_id || String(p.user_id) === String(currentActiveUser.user_id))) {
         return {
           ...p,
-          status: isExamFinished ? 'selesai' : 'berjalan'
+          status: isExamFinished ? 'selesai' : (p.status || 'berjalan')
         };
       }
       return p;
@@ -83,7 +88,7 @@ export default function DashboardPanitia() {
     return () => clearInterval(interval);
   }, []);
 
-  // HANDLER IMPOR PESERTA EXCEL / CSV DENGAN DETEKSI MULTI-DELIMITER (KOMA, TITIK KOMA, TAB)
+  // HANDLER IMPOR PESERTA (SUPPORT MENUMPUK/APPEND 3+ FILE EXCEL/CSV & ANTI-DUPLIKAT TECHID)
   const handleImportPesertaExcelCSV = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -94,12 +99,18 @@ export default function DashboardPanitia() {
       const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
       const importedPesertaArr = [];
 
+      // Ambil data peserta lama di LocalStorage
+      const existingPeserta = JSON.parse(localStorage.getItem('dcc_sesi_peserta') || '[]');
+      const existingTechIds = new Set(existingPeserta.map(p => (p.tech_id || '').toLowerCase().trim()));
+
+      let duplicateCount = 0;
+
       lines.forEach((line, index) => {
         if (index === 0 && (line.toLowerCase().includes('nama') || line.toLowerCase().includes('techid'))) {
           return;
         }
 
-        // DETEKSI OTOMATIS PEMISAH KOLOM (TITIK KOMA, KOMA, ATAU TAB)
+        // AUTO-DETECT PEMISAH KOLOM (TITIK KOMA, KOMA, ATAU TAB)
         let delimiter = ',';
         if (line.includes(';')) delimiter = ';';
         else if (line.includes('\t')) delimiter = '\t';
@@ -110,8 +121,14 @@ export default function DashboardPanitia() {
         if (cols.length >= 2) {
           const nama = cols[0] || `Peserta #${index + 1}`;
           const techId = cols[1] || `DCC25-${String(index + 1).padStart(3, '0')}`;
-          
-          // SMART MAPPER 5 KATEGORI RESMI PER SEMESTER
+          const cleanTechId = techId.toLowerCase().trim();
+
+          // CEK ANTI DUPLIKAT: Jika TechID sudah pernah terdaftar, lewati!
+          if (existingTechIds.has(cleanTechId)) {
+            duplicateCount++;
+            return;
+          }
+
           const rawMataUjian = (cols[2] || '').toLowerCase();
           let finalKat = 'word';
 
@@ -122,6 +139,7 @@ export default function DashboardPanitia() {
           else if (rawMataUjian.includes('pemrograman') || rawMataUjian.includes('coding') || rawMataUjian.includes('web')) finalKat = 'pemrograman';
 
           if (nama && !nama.toLowerCase().includes('nama lengkap')) {
+            existingTechIds.add(cleanTechId); // Tandai TechID ini sudah masuk
             importedPesertaArr.push({
               user_id: Date.now() + index,
               nama: nama,
@@ -139,15 +157,70 @@ export default function DashboardPanitia() {
       });
 
       if (importedPesertaArr.length > 0) {
-        setPeserta(importedPesertaArr);
-        localStorage.setItem('dcc_sesi_peserta', JSON.stringify(importedPesertaArr));
-        alert(`Berhasil mengimpor ${importedPesertaArr.length} peserta! Status awal semua peserta: Belum Ujian.`);
+        // GABUNGKAN DATA BARU DENGAN DATA LAMA (ANTI TERTIMPA)
+        const combined = [...importedPesertaArr, ...existingPeserta];
+        setPeserta(combined);
+        localStorage.setItem('dcc_sesi_peserta', JSON.stringify(combined));
+        
+        let msg = `Berhasil menambahkan ${importedPesertaArr.length} peserta baru! Total peserta: ${combined.length}`;
+        if (duplicateCount > 0) msg += ` (${duplicateCount} data duplikat dilewati).`;
+        alert(msg);
       } else {
-        alert('File tidak sesuai format! Pastikan Kolom A: Nama Lengkap, Kolom B: TechID, Kolom C: Mata Ujian.');
+        alert(duplicateCount > 0 ? `Semua data (${duplicateCount}) dalam file ini sudah terdaftar sebelumnya!` : 'File tidak sesuai format!');
       }
     };
 
     reader.readAsText(file);
+    e.target.value = ''; // Reset input file agar bisa import file yang sama jika dibutuhkan
+  };
+
+  // FITUR HAPUS SATU PESERTA
+  const handleDeleteSingle = (userId, nama) => {
+    if (confirm(`Apakah Anda yakin ingin menghapus data peserta "${nama}"?`)) {
+      const updated = peserta.filter(p => p.user_id !== userId);
+      setPeserta(updated);
+      localStorage.setItem('dcc_sesi_peserta', JSON.stringify(updated));
+      if (selectedSiswa === userId) setSelectedSiswa(null);
+    }
+  };
+
+  // FITUR HAPUS BEBERAPA PESERTA TERPILIH (BULK DELETE)
+  const handleDeleteSelected = () => {
+    if (selectedIds.length === 0) return alert("Pilih minimal satu peserta yang ingin dihapus!");
+    
+    if (confirm(`Apakah Anda yakin ingin menghapus ${selectedIds.length} peserta terpilih?`)) {
+      const updated = peserta.filter(p => !selectedIds.includes(p.user_id));
+      setPeserta(updated);
+      localStorage.setItem('dcc_sesi_peserta', JSON.stringify(updated));
+      setSelectedIds([]);
+      if (selectedIds.includes(selectedSiswa)) setSelectedSiswa(null);
+    }
+  };
+
+  // FITUR RESET SEMUA DATA PESERTA
+  const handleDeleteAll = () => {
+    if (confirm("PERINGATAN: Apakah Anda yakin ingin MENGHAPUS SEMUA PESERTA? Lakukan ini jika ingin mengganti data ke angkatan/tahun ajaran baru.")) {
+      setPeserta([]);
+      localStorage.setItem('dcc_sesi_peserta', JSON.stringify([]));
+      setSelectedSiswa(null);
+      setSelectedIds([]);
+    }
+  };
+
+  // TOGGLE CHECKBOX INDIVIDUAL
+  const toggleSelectPeserta = (userId) => {
+    setSelectedIds(prev => 
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+    );
+  };
+
+  // TOGGLE CHECKALL
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredPeserta.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredPeserta.map(p => p.user_id));
+    }
   };
 
   const handlePeriksa = async (userId) => {
@@ -312,6 +385,12 @@ export default function DashboardPanitia() {
                 <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Import Peserta Excel / CSV
               </Button>
 
+              {peserta.length > 0 && (
+                <Button onClick={handleDeleteAll} className="text-xs bg-rose-500/20 hover:bg-rose-500 text-rose-300 font-display font-bold border border-rose-500/30">
+                  <Trash2 className="w-3.5 h-3.5 mr-1" /> Reset All Data
+                </Button>
+              )}
+
               <Button size="sm" onClick={loadPeserta} className="bg-slate-800 hover:bg-slate-700 text-xs border-0 text-slate-300">
                 <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh Status
               </Button>
@@ -322,12 +401,35 @@ export default function DashboardPanitia() {
         <main className="p-8 flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* BILAH KIRI: ANTREAN PESERTA DENGAN 6 TAB FILTER STATUS (TANPA IKON) */}
+            {/* BILAH KIRI: ANTREAN PESERTA DENGAN 6 TAB FILTER STATUS + FITUR DELETE & ANTI-DUPLIKAT */}
             <div className="space-y-4">
               <div className="flex flex-col gap-2 px-1">
-                <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
-                  Daftar Peserta Terdaftar ({filteredPeserta.length})
-                </h2>
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
+                    Daftar Peserta ({filteredPeserta.length})
+                  </h2>
+
+                  {/* TOMBOL PILIH ALL & BULK DELETE */}
+                  {filteredPeserta.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={toggleSelectAll} 
+                        className="text-[11px] text-cyan-400 hover:underline font-mono"
+                      >
+                        {selectedIds.length === filteredPeserta.length ? 'Batal Pilih' : 'Pilih Semua'}
+                      </button>
+
+                      {selectedIds.length > 0 && (
+                        <button 
+                          onClick={handleDeleteSelected} 
+                          className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 text-[10px] font-bold flex items-center gap-1 hover:bg-rose-500/40 transition"
+                        >
+                          <Trash className="w-3 h-3" /> Hapus ({selectedIds.length})
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {/* 6 TAB FILTER MURNI TEKS */}
                 <div className="grid grid-cols-2 gap-1.5 bg-[#0d1527] p-2 rounded-xl border border-slate-800 text-xs font-display font-bold">
@@ -390,53 +492,70 @@ export default function DashboardPanitia() {
               {filteredPeserta.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs space-y-1">
                   <p className="font-semibold text-slate-400">Tidak ada peserta pada status ini.</p>
-                  <p className="text-[11px] text-slate-500">Pilih tab filter lain di atas.</p>
+                  <p className="text-[11px] text-slate-500">Impor Excel atau pilih tab filter lain.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {filteredPeserta.map((p, idx) => {
                     const statusInfo = getBadgeStatus(p);
                     const isSelected = selectedSiswa === p.user_id;
+                    const isChecked = selectedIds.includes(p.user_id);
 
                     return (
                       <div 
                         key={p.user_id || idx} 
-                        className={`p-4 rounded-2xl border transition-all duration-200 cursor-pointer ${
+                        className={`p-4 rounded-2xl border transition-all duration-200 flex items-center justify-between gap-3 ${
                           isSelected 
                             ? 'bg-cyan-500/10 border-cyan-400 shadow-lg shadow-cyan-400/10' 
                             : 'bg-[#0d1527]/60 border-slate-800/60 hover:bg-[#0d1527]'
                         }`}
-                        onClick={() => handlePeriksa(p.user_id)}
                       >
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2.5 bg-slate-800/50 rounded-xl">
-                              <User className="w-5 h-5 text-cyan-400" />
-                            </div>
-                            <div>
-                              <h4 className="font-display font-bold text-sm text-white">
-                                {p.nama || p.nama_lengkap || `Peserta #${p.user_id}`}
-                              </h4>
-                              <p className="text-xs text-slate-400 mt-0.5">
-                                TechID: <span className="text-slate-200 font-mono">{p.tech_id || `DCC25-000${p.user_id}`}</span>
-                              </p>
-                              
-                              <div className="mt-2 flex items-center gap-2">
-                                <Badge variant={statusInfo.variant} className="text-[10px] px-2 py-0.5 rounded-md">
-                                  {statusInfo.text}
-                                </Badge>
-                                {p.status === 'selesai' && (
-                                  <span className="text-xs font-mono font-bold text-emerald-400">
-                                    PG: {p.nilai_pg || 0}
-                                  </span>
-                                )}
-                              </div>
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          {/* Checkbox Individual untuk Hapus Masal */}
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked} 
+                            onChange={() => toggleSelectPeserta(p.user_id)} 
+                            className="w-4 h-4 accent-cyan-400 cursor-pointer shrink-0"
+                          />
+
+                          <div className="p-2.5 bg-slate-800/50 rounded-xl shrink-0 cursor-pointer" onClick={() => handlePeriksa(p.user_id)}>
+                            <User className="w-5 h-5 text-cyan-400" />
+                          </div>
+
+                          <div className="space-y-0.5 flex-1 min-w-0 cursor-pointer" onClick={() => handlePeriksa(p.user_id)}>
+                            <h4 className="font-display font-bold text-sm text-white truncate">
+                              {p.nama || p.nama_lengkap || `Peserta #${p.user_id}`}
+                            </h4>
+                            <p className="text-xs text-slate-400 truncate">
+                              TechID: <span className="text-slate-200 font-mono">{p.tech_id || `DCC25-000${p.user_id}`}</span> • <span className="uppercase text-[10px] text-cyan-400 font-bold">{p.kategori || 'WORD'}</span>
+                            </p>
+                            
+                            <div className="mt-1.5 flex items-center gap-2">
+                              <Badge variant={statusInfo.variant} className="text-[10px] px-2 py-0.5 rounded-md">
+                                {statusInfo.text}
+                              </Badge>
+                              {p.status === 'selesai' && (
+                                <span className="text-xs font-mono font-bold text-emerald-400">
+                                  PG: {p.nilai_pg || 0}
+                                </span>
+                              )}
                             </div>
                           </div>
-                          
-                          <Button size="sm" className="bg-cyan-400/10 hover:bg-cyan-400 text-cyan-400 hover:text-slate-950 border border-cyan-400/20 text-xs font-display font-bold">
+                        </div>
+
+                        {/* TOMBOL AKSI: PERIKSA & HAPUS SINGLE */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Button size="sm" onClick={() => handlePeriksa(p.user_id)} className="bg-cyan-400/10 hover:bg-cyan-400 text-cyan-400 hover:text-slate-950 border border-cyan-400/20 text-xs font-display font-bold">
                             Periksa
                           </Button>
+                          <button 
+                            onClick={() => handleDeleteSingle(p.user_id, p.nama || p.nama_lengkap)}
+                            className="p-2 rounded-xl text-rose-400/70 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                            title="Hapus Peserta ini"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
                     );
