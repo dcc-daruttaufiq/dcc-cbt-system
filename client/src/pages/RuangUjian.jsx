@@ -36,40 +36,72 @@ export default function RuangUjian() {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const timerRef = useRef(null);
 
-  useEffect(() => {
-    const storedName = localStorage.getItem('userName') || sessionStorage.getItem('userName') || 'ASSHYFA YUNITIASARI';
-    const storedExamName = sessionStorage.getItem('selectedExamName') || 'Microsoft Office';
-    const storedExamId = localStorage.getItem('selectedExamCategory') || sessionStorage.getItem('selectedExamId') || 'msoffice';
+  // Read Current Active User
+  const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+  const userId = currentUser.user_id || Date.now();
 
-    setUserName(storedName);
-    setTechId('DCC25-0072');
+  useEffect(() => {
+    // READ USER DATA REALTIME
+    const realName = currentUser.nama || currentUser.nama_lengkap || localStorage.getItem('userName') || 'Peserta Ujian';
+    const realTechId = currentUser.tech_id || localStorage.getItem('userTechId') || 'DCC25-000';
+    const storedExamName = sessionStorage.getItem('selectedExamName') || 'Microsoft Office';
+    const storedExamId = (localStorage.getItem('selectedExamCategory') || sessionStorage.getItem('selectedExamId') || currentUser.kategori || 'msoffice').toLowerCase();
+
+    setUserName(realName);
+    setTechId(realTechId);
     setExamName(storedExamName);
 
     const startExam = async () => {
       let loadedSoal = [];
 
+      // 1. Coba Ambil dari API Backend
       try {
-        const res = await API.get(`/ujian/mulai?userId=1&kategori=${storedExamId}`);
+        const res = await API.get(`/ujian/mulai?userId=${userId}&kategori=${storedExamId}`);
         if (res.data && Array.isArray(res.data.soal) && res.data.soal.length > 0) {
           loadedSoal = res.data.soal;
           setTimeLeft(res.data.sisaDetik || 5400);
         }
       } catch (err) {
-        console.warn("API Server unreachable, reading local Bank Soal");
+        console.warn("API Server unreachable, membaca Bank Soal lokal...");
       }
 
-      if (loadedSoal.length === 0) {
-        const savedBank = localStorage.getItem('dcc_bank_soal') || sessionStorage.getItem('dcc_bank_soal');
-        if (savedBank) {
-          const parsedBank = JSON.parse(savedBank);
-          const filtered = parsedBank.filter(s => (s.kategori || 'msoffice').toLowerCase() === storedExamId.toLowerCase());
-          if (filtered.length > 0) {
-            loadedSoal = filtered;
+      // 2. Jika API Kosong, Ambil Bank Soal dari LocalStorage
+      let allBank = [];
+      const savedBank = localStorage.getItem('dcc_bank_soal') || sessionStorage.getItem('dcc_bank_soal');
+      if (savedBank) {
+        try { allBank = JSON.parse(savedBank); } catch (e) {}
+      }
+
+      if (loadedSoal.length === 0 && allBank.length > 0) {
+        // SMART FILTERING (Cocokkan Kategori Fleksibel)
+        loadedSoal = allBank.filter(s => {
+          const kat = (s.kategori || '').toLowerCase();
+          if (storedExamId === 'coding' || storedExamId === 'web') {
+            return kat.includes('coding') || kat.includes('web') || kat.includes('html') || kat.includes('js');
           }
+          if (storedExamId === 'canva' || storedExamId === 'desain') {
+            return kat.includes('canva') || kat.includes('desain') || kat.includes('grafis');
+          }
+          if (storedExamId === 'msoffice' || storedExamId === 'office') {
+            return kat.includes('office') || kat.includes('msoffice') || kat.includes('word') || kat.includes('excel');
+          }
+          return kat === storedExamId;
+        });
+
+        // SAFETY FALLBACK: Jika tidak ada yang cocok kategorinya, TAMPILKAN SEMUA BANK SOAL!
+        if (loadedSoal.length === 0) {
+          loadedSoal = allBank;
         }
       }
 
       setListSoal(loadedSoal);
+      localStorage.setItem('activeExamQuestions', JSON.stringify(loadedSoal));
+
+      // Restore jawaban jika siswa sempat keluar
+      const savedJwbStr = localStorage.getItem(`jawabanLocal_${userId}`) || localStorage.getItem('jawabanLocal');
+      if (savedJwbStr) {
+        try { setJawaban(JSON.parse(savedJwbStr)); } catch (e) {}
+      }
     };
 
     startExam();
@@ -100,29 +132,33 @@ export default function RuangUjian() {
   const executeAutosave = async (soalId, dataJawaban) => {
     setIsSaving(true);
     try {
-      const savedLocal = JSON.parse(localStorage.getItem('jawabanLocal') || '{}');
+      const savedLocal = JSON.parse(localStorage.getItem(`jawabanLocal_${userId}`) || '{}');
       savedLocal[soalId] = dataJawaban;
+      localStorage.setItem(`jawabanLocal_${userId}`, JSON.stringify(savedLocal));
+      localStorage.setItem(`jawabanLocal_${techId}`, JSON.stringify(savedLocal));
       localStorage.setItem('jawabanLocal', JSON.stringify(savedLocal));
     } catch (e) {}
 
     try {
-      await API.post('/ujian/autosave', { soalId, jawaban: dataJawaban, userId: 1 });
+      await API.post('/ujian/autosave', { soalId, jawaban: dataJawaban, userId });
     } catch (err) {
     } finally {
-      setTimeout(() => setIsSaving(false), 400);
+      setTimeout(() => setIsSaving(false), 300);
     }
   };
 
   const handleSelectPG = (opsiTeks, labelHuruf) => {
     const nilaiSimpan = labelHuruf || opsiTeks;
-    setJawaban((prev) => ({ ...prev, [soalAktif.id]: nilaiSimpan }));
+    const updated = { ...jawaban, [soalAktif.id]: nilaiSimpan };
+    setJawaban(updated);
     executeAutosave(soalAktif.id, nilaiSimpan);
   };
 
   const handleTextareaPraktik = (val) => {
     const dataLama = jawaban[soalAktif.id] || { teks: '', fileName: '' };
     const dataBaru = { ...dataLama, teks: val };
-    setJawaban({ ...jawaban, [soalAktif.id]: dataBaru });
+    const updated = { ...jawaban, [soalAktif.id]: dataBaru };
+    setJawaban(updated);
     executeAutosave(soalAktif.id, dataBaru);
   };
 
@@ -156,52 +192,45 @@ export default function RuangUjian() {
     setFlags({ ...flags, [soalAktif.id]: !flags[soalAktif.id] });
   };
 
-  // SUBMIT JAWABAN REAL PESERTA (KALKULASI MURNI)
   const handleAutoSubmit = async () => {
     clearInterval(timerRef.current);
     sessionStorage.setItem('examSubmitted', 'true');
-    localStorage.setItem('examSubmitted', 'true');
+    localStorage.setItem('isExamFinished', 'true');
 
-    // 1. Murni Hitung Nilai PG dari pilihan siswa
+    // 1. Hitung Nilai PG Asli
     let soalPG = listSoal.filter(s => s.tipe === 'pg');
     let benarCount = 0;
 
     soalPG.forEach(s => {
-      const jwbSiswa = jawaban[s.id];
-      const kunci = s.jawaban_benar || s.jawabanBenar || 'A';
+      const jwbSiswa = (jawaban[s.id] || '').toString().toUpperCase().trim();
+      const kunci = (s.jawaban_benar || s.jawabanBenar || 'A').toString().toUpperCase().trim();
       if (jwbSiswa === kunci) {
         benarCount++;
       }
     });
 
-    // kalkulasi persentase asli (jika 0 soal PG, set 0)
     const calculatedSkorPG = soalPG.length > 0 ? Math.round((benarCount / soalPG.length) * 100) : 0;
 
-    // 2. Simpan Rekapan Sesi Peserta ke LocalStorage
-    const recordPesertaAsli = {
-      user_id: 1,
-      nama: userName || 'ASSHYFA YUNITIASARI',
-      tech_id: techId || 'DCC25-0072',
-      mata_ujian: examName,
-      status: 'selesai',
-      nilai_pg: calculatedSkorPG,
-      nilai_praktik: 0,
-      nilai_akhir: calculatedSkorPG,
-      waktu_selesai: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
-      total_dijawab: Object.keys(jawaban).length
-    };
-
+    // 2. Update Status Sesi Peserta
     let listSesiLokal = JSON.parse(localStorage.getItem('dcc_sesi_peserta') || '[]');
-    listSesiLokal = listSesiLokal.filter(p => p.user_id !== 1);
-    listSesiLokal.unshift(recordPesertaAsli);
+    listSesiLokal = listSesiLokal.map(p => {
+      if ((techId && p.tech_id === techId) || (userId && String(p.user_id) === String(userId))) {
+        return {
+          ...p,
+          status: 'selesai',
+          status_koreksi: 'belum_dikoreksi',
+          nilai_pg: calculatedSkorPG,
+          nilai_akhir: calculatedSkorPG,
+          waktu_selesai: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB'
+        };
+      }
+      return p;
+    });
+
     localStorage.setItem('dcc_sesi_peserta', JSON.stringify(listSesiLokal));
 
-    // 3. Simpan Jawaban Peserta Asli & List Soal Ujian Terkait
-    localStorage.setItem('jawabanLocal', JSON.stringify(jawaban));
-    localStorage.setItem('activeExamQuestions', JSON.stringify(listSoal));
-
     try {
-      await API.post('/ujian/submit', { userId: 1, jawaban });
+      await API.post('/ujian/submit', { userId, jawaban, nilaiPG: calculatedSkorPG });
     } catch (err) {}
 
     navigate('/dashboard-peserta');
@@ -211,7 +240,10 @@ export default function RuangUjian() {
     return (
       <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center font-display gap-3 p-4 text-center">
         <p className="text-sm font-bold text-cyan-400">Belum ada soal untuk mata ujian ini di Bank Soal.</p>
-        <p className="text-xs text-slate-400 font-sans">Silakan tambah soal terlebih dahulu lewat Panel Panitia (Bank Soal).</p>
+        <p className="text-xs text-slate-400 font-sans">Silakan tambah atau impor soal terlebih dahulu lewat Panel Panitia (Bank Soal).</p>
+        <Button onClick={() => navigate('/dashboard-peserta')} className="mt-2 bg-slate-800 text-xs text-slate-300">
+          ← Kembali ke Dashboard
+        </Button>
       </div>
     );
   }
@@ -270,7 +302,7 @@ export default function RuangUjian() {
 
           <div className="p-6 md:p-8 rounded-2xl bg-[#0d1527]/40 border border-slate-800/50 min-h-[340px] flex flex-col justify-between space-y-6">
             <div className="space-y-6">
-              <p className="text-base md:text-lg font-sans leading-relaxed text-slate-100">
+              <p className="text-base md:text-lg font-sans leading-relaxed text-slate-100 whitespace-pre-wrap">
                 {soalAktif.pertanyaan}
               </p>
 
@@ -296,7 +328,7 @@ export default function RuangUjian() {
                         }`}>
                           {labelHuruf}
                         </span>
-                        <span className="text-sm font-sans pt-0.5">{teksPilihan}</span>
+                        <span className="text-sm font-sans pt-0.5">{teksPilihan.replace(/^[A-D]\.\s*/, '')}</span>
                       </div>
                     );
                   })}
@@ -402,7 +434,7 @@ export default function RuangUjian() {
 
                 return (
                   <button
-                    key={item.id}
+                    key={item.id || index}
                     onClick={() => setCurrentIdx(index)}
                     className={`h-10 rounded-xl font-display font-bold text-xs border transition-all flex items-center justify-center ${nodeStyles}`}
                   >
