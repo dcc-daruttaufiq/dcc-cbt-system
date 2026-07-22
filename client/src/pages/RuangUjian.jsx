@@ -1,12 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import API from '../utils/api';
 import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import { Clock, Flag, ChevronLeft, ChevronRight, Save, Upload, FileText, Send, AlertTriangle, X } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, Save, Send, AlertTriangle, X } from 'lucide-react';
+
+// BANK SOAL DEFAULT AGAR SOAL TIDAK PERNAH KOSONG DI BROWSER SISWA MANAPUN
+const DEFAULT_BANK_SOAL = [
+  { id: 101, kategori: 'word', tipe: 'pg', pertanyaan: 'Shortcut keyboard untuk menyimpan dokumen pada Microsoft Word adalah...', opsi: ['A. Ctrl + S', 'B. Ctrl + P', 'C. Ctrl + C', 'D. Ctrl + V'], jawaban_benar: 'A' },
+  { id: 102, kategori: 'excel', tipe: 'pg', pertanyaan: 'Fungsi Excel yang digunakan untuk menjumlahkan sekumpulan data numerik adalah...', opsi: ['A. AVERAGE', 'B. SUM', 'C. COUNT', 'D. MAX'], jawaban_benar: 'B' },
+  { id: 103, kategori: 'powerpoint', tipe: 'pg', pertanyaan: 'Shortcut untuk memulai presentasi slide show dari awal pada PowerPoint adalah...', opsi: ['A. F5', 'B. Shift + F5', 'C. Ctrl + P', 'D. Esc'], jawaban_benar: 'A' },
+  { id: 104, kategori: 'desain', tipe: 'pg', pertanyaan: 'Format berkas gambar yang mendukung latar belakang transparan adalah...', opsi: ['A. JPG', 'B. PNG', 'C. PDF', 'D. BMP'], jawaban_benar: 'B' },
+  { id: 105, kategori: 'pemrograman', tipe: 'pg', pertanyaan: 'Tag HTML yang digunakan untuk membuat judul utama (heading 1) adalah...', opsi: ['A. <head>', 'B. <h1>', 'C. <title>', 'D. <header>'], jawaban_benar: 'B' },
+  { id: 106, kategori: 'word', tipe: 'praktik', pertanyaan: 'TUGAS PRAKTIK: Buatlah surat resmi menggunakan fitur Mail Merge dengan format rapi.', checklist: ['Mail Merge Aktif', 'Format Surat Rapi'] },
+  { id: 107, kategori: 'excel', tipe: 'praktik', pertanyaan: 'TUGAS PRAKTIK: Buat tabel laporan keuangan sederhana menggunakan rumus SUM dan VLOOKUP.', checklist: ['Rumus SUM benar', 'VLOOKUP berfungsi'] }
+];
 
 export default function RuangUjian() {
   useDocumentTitle('Ruang Ujian Berjalan - DCC CBT');
@@ -14,34 +23,42 @@ export default function RuangUjian() {
 
   const [userName, setUserName] = useState('');
   const [techId, setTechId] = useState('');
-  const [examName, setExamName] = useState('');
-
   const [listSoal, setListSoal] = useState([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [jawaban, setJawaban] = useState({}); 
-  const [flags, setFlags] = useState({}); 
   const [isSaving, setIsSaving] = useState(false);
   const [timeLeft, setTimeLeft] = useState(5400); 
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const timerRef = useRef(null);
 
   const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-  const userId = currentUser.user_id || Date.now();
+  const userId = currentUser.user_id || currentUser.tech_id || 'guest';
 
   useEffect(() => {
     const realName = currentUser.nama || currentUser.nama_lengkap || localStorage.getItem('userName') || 'Peserta Ujian';
     const realTechId = currentUser.tech_id || localStorage.getItem('userTechId') || 'DCC25-000';
     
     // BACA ID KATEGORI TERPILIH SANGAT PRESISI
-    const storedExamId = (localStorage.getItem('selectedExamCategory') || sessionStorage.getItem('selectedExamCategory') || currentUser.kategori || 'word').toLowerCase().trim();
+    const storedExamId = (
+      localStorage.getItem('selectedExamCategory') || 
+      sessionStorage.getItem('selectedExamCategory') || 
+      currentUser.kategori || 
+      'word'
+    ).toLowerCase().trim();
 
     setUserName(realName);
     setTechId(realTechId);
 
-    // Ambil Bank Soal dari Storage
+    // 1. Ambil Bank Soal dari Storage
     let allBank = JSON.parse(localStorage.getItem('dcc_bank_soal') || '[]');
 
-    // SMART CATEGORY FILTER (MENCANGKUP VARIASI PENGETIKAN EXCEL/CSV)
+    // 2. AUTO-SEED JIKA LOCALSTORAGE KOSONG
+    if (!Array.isArray(allBank) || allBank.length === 0) {
+      allBank = DEFAULT_BANK_SOAL;
+      localStorage.setItem('dcc_bank_soal', JSON.stringify(DEFAULT_BANK_SOAL));
+    }
+
+    // 3. SMART CATEGORY FILTER
     let filteredSoal = allBank.filter(s => {
       const kat = (s.kategori || '').toLowerCase().trim();
 
@@ -54,8 +71,8 @@ export default function RuangUjian() {
       return kat === storedExamId;
     });
 
-    // FALLBACK SAFETY AUTO-RESCUE: Jika hasil filter 0, ambil semua bank soal agar peserta TIDAK KANAM / BLANK
-    if (filteredSoal.length === 0 && allBank.length > 0) {
+    // 4. AUTO-RESCUE FALLBACK JIKA SOAL KATEGORI TERSEBUT TIDAK DITEMUKAN
+    if (filteredSoal.length === 0) {
       filteredSoal = allBank;
     }
 
@@ -152,19 +169,7 @@ export default function RuangUjian() {
     navigate('/dashboard-peserta');
   };
 
-  if (listSoal.length === 0) {
-    return (
-      <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center gap-3 p-4 text-center">
-        <p className="text-sm font-bold text-cyan-400">Belum ada soal untuk mata ujian ini di Bank Soal.</p>
-        <p className="text-xs text-slate-400">Silakan impor soal terlebih dahulu melalui Panel Panitia (Bank Soal).</p>
-        <Button onClick={() => navigate('/dashboard-peserta')} className="mt-2 bg-slate-800 text-xs text-slate-300">
-          ← Kembali ke Dashboard
-        </Button>
-      </div>
-    );
-  }
-
-  const soalAktif = listSoal[currentIdx] || listSoal[0];
+  const soalAktif = listSoal[currentIdx] || listSoal[0] || DEFAULT_BANK_SOAL[0];
 
   return (
     <div className="min-h-screen bg-[#030712] text-slate-100 font-sans flex flex-col select-none">
@@ -173,7 +178,7 @@ export default function RuangUjian() {
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-cyan-400 flex items-center justify-center text-slate-950 font-bold">D</div>
             <div>
-              <h1 className="text-xs font-bold text-cyan-400 uppercase tracking-widest">{soalAktif.kategori || 'UJIAN'}</h1>
+              <h1 className="text-xs font-bold text-cyan-400 uppercase tracking-widest">{soalAktif?.kategori || 'UJIAN'}</h1>
               <p className="text-[11px] text-slate-300">{userName} • TechID: {techId}</p>
             </div>
           </div>
@@ -194,11 +199,11 @@ export default function RuangUjian() {
 
           <div className="p-6 md:p-8 rounded-2xl bg-[#0d1527]/40 border border-slate-800/50 min-h-[340px] flex flex-col justify-between space-y-6">
             <div className="space-y-6">
-              <p className="text-base md:text-lg leading-relaxed text-slate-100 whitespace-pre-wrap">{soalAktif.pertanyaan}</p>
+              <p className="text-base md:text-lg leading-relaxed text-slate-100 whitespace-pre-wrap">{soalAktif?.pertanyaan}</p>
 
-              {soalAktif.tipe === 'pg' ? (
+              {soalAktif?.tipe === 'pg' ? (
                 <div className="grid grid-cols-1 gap-3 pt-2">
-                  {soalAktif.opsi && soalAktif.opsi.map((opsiTeks, idx) => {
+                  {soalAktif?.opsi && soalAktif.opsi.map((opsiTeks, idx) => {
                     const labelHuruf = String.fromCharCode(65 + idx);
                     const isSelected = jawaban[soalAktif.id] === labelHuruf;
 
@@ -222,7 +227,7 @@ export default function RuangUjian() {
                 <textarea
                   rows={5}
                   placeholder="Tuliskan jawaban praktik Anda di sini..."
-                  value={jawaban[soalAktif.id]?.teks || ''}
+                  value={jawaban[soalAktif?.id]?.teks || ''}
                   onChange={(e) => handleTextareaPraktik(e.target.value)}
                   className="w-full p-4 bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-xs text-white rounded-xl focus:outline-none font-mono"
                 />

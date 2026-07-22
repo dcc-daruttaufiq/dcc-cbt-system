@@ -6,8 +6,8 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Badge from '../components/ui/Badge';
 import { 
-  CreditCard, Key, Clock, Play, LogOut, User, 
-  AlertCircle, CheckCircle2, Sparkles, Award, FileCheck 
+  CreditCard, Key, Play, LogOut, User, 
+  AlertCircle, Sparkles, Award 
 } from 'lucide-react';
 
 const DAFTAR_UJIAN = [
@@ -24,7 +24,6 @@ export default function DashboardPeserta() {
 
   const [userName, setUserName] = useState('');
   const [techId, setTechId] = useState('');
-  const [currentUserObj, setCurrentUserObj] = useState(null);
   const [selectedUjian, setSelectedUjian] = useState('word');
   const [tokenInput, setTokenInput] = useState('');
   const [tokenError, setTokenError] = useState('');
@@ -34,11 +33,10 @@ export default function DashboardPeserta() {
   const [completedExamInfo, setCompletedExamInfo] = useState(null);
 
   useEffect(() => {
-    // 1. BACA DATA AKUN DARI LOCALSTORAGE
+    // 1. AMBIL PROFIL SISWA AKTIF
     const savedUserStr = localStorage.getItem('currentUser');
     let activeUser = savedUserStr ? JSON.parse(savedUserStr) : null;
     
-    // Sinkronkan data dari dcc_sesi_peserta
     const localSesi = JSON.parse(localStorage.getItem('dcc_sesi_peserta') || '[]');
     if (activeUser && activeUser.tech_id) {
       const matchedFromImport = localSesi.find(p => p.tech_id?.toLowerCase().trim() === activeUser.tech_id?.toLowerCase().trim());
@@ -52,10 +50,9 @@ export default function DashboardPeserta() {
 
     setUserName(nameToDisplay);
     setTechId(techIdToDisplay);
-    setCurrentUserObj(activeUser);
 
-    // 2. DETEKSI KATEGORI AWAL SISWA
-    const rawKat = (activeUser?.kategori || localStorage.getItem('userKategori') || '').toLowerCase();
+    // 2. DETEKSI KATEGORI MATA UJIAN AWAL SISWA
+    const rawKat = (activeUser?.kategori || localStorage.getItem('userKategori') || '').toLowerCase().trim();
     let initialKat = 'word';
 
     if (rawKat.includes('excel')) initialKat = 'excel';
@@ -72,15 +69,14 @@ export default function DashboardPeserta() {
       setCompletedExamInfo({
         namaUjian: activeExam.nama,
         skorPG: activeUser?.nilai_pg !== undefined ? activeUser.nilai_pg : 0,
-        statusPraktik: activeUser?.status_koreksi === 'dikoreksi' ? 'Selesai Dikoreksi Panitia' : 'Berkas Diterima & Dalam Koreksi Panitia',
-        waktuSelesai: activeUser?.waktu_selesai || 'Selesai'
+        statusPraktik: activeUser?.status_koreksi === 'dikoreksi' ? 'Selesai Dikoreksi Panitia' : 'Berkas Diterima & Dalam Koreksi Panitia'
       });
     }
   }, []);
 
   const activeExamDetail = DAFTAR_UJIAN.find((u) => u.id === selectedUjian) || DAFTAR_UJIAN[0];
 
-  // LOGOUT SAFE: JANGAN HAPUS BANK SOAL!
+  // LOGOUT HANYA HAPUS SESI AKUN, BUKAN BANK SOAL ATAU PESERTA LAIN!
   const handleLogout = () => {
     localStorage.removeItem('currentUser');
     localStorage.removeItem('userName');
@@ -103,22 +99,18 @@ export default function DashboardPeserta() {
     setTimeout(() => {
       const inputUpper = tokenInput.trim().toUpperCase();
       
-      // MENDUKUNG TOKEN PER MATA UJIAN ATAU TOKEN BYPASS (DCC2026 / 12345 / 1234)
       if (
         inputUpper === activeExamDetail.tokenDefault || 
         inputUpper === 'DCC2026' || 
         inputUpper === '12345' || 
         inputUpper === '1234'
       ) {
-        // SIMPAN KATEGORI SECARA KONSISTEN
+        // SIMPAN KATEGORI DENGAN KUNCI YANG KONSISTEN
         sessionStorage.setItem('examStarted', 'true');
-        sessionStorage.setItem('selectedExamId', activeExamDetail.id);
         sessionStorage.setItem('selectedExamCategory', activeExamDetail.id);
         localStorage.setItem('selectedExamCategory', activeExamDetail.id);
         localStorage.setItem('userKategori', activeExamDetail.id);
-        sessionStorage.setItem('selectedExamName', activeExamDetail.nama);
 
-        // Update status pengerjaan peserta ke 'berjalan'
         const localSesi = JSON.parse(localStorage.getItem('dcc_sesi_peserta') || '[]');
         const updatedSesi = localSesi.map(p => {
           if (p.tech_id?.toLowerCase().trim() === techId.toLowerCase().trim()) {
@@ -156,7 +148,6 @@ export default function DashboardPeserta() {
       <main className="flex-1 p-6 md:p-10 overflow-y-auto">
         <div className="max-w-4xl mx-auto space-y-6">
           
-          {/* KARTU PROFIL REAL SISWA */}
           <div className="p-6 md:p-8 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-xl">
             <div className="flex items-center gap-5">
               <div className="w-14 h-14 rounded-2xl bg-cyan-400/10 text-cyan-400 border border-cyan-400/20 flex items-center justify-center font-display font-bold shrink-0">
@@ -209,7 +200,6 @@ export default function DashboardPeserta() {
             </div>
           ) : (
             <>
-              {/* KARTU PILIHAN 5 MATA UJIAN (BISA DIKLIK BEBAS) */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-cyan-400 px-1">
                   <Sparkles className="w-4 h-4" />
@@ -247,7 +237,6 @@ export default function DashboardPeserta() {
                 </div>
               </div>
 
-              {/* FORM TOKEN UJIAN */}
               <div className="p-6 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 space-y-4">
                 <div className="border-b border-slate-800/50 pb-3 flex justify-between items-center">
                   <div>
