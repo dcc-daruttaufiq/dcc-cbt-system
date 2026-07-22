@@ -43,6 +43,7 @@ export default function BankSoal() {
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
+  // LOGIKA FETCH SOAL PERMANEN (ANTI-RESET SAAT APLIKASI MATI)
   const fetchSoal = async () => {
     const savedLocal = localStorage.getItem('dcc_bank_soal');
     let localData = [];
@@ -165,7 +166,7 @@ export default function BankSoal() {
     } catch (err) {}
   };
 
-  // HANDLER IMPORT EXCEL / CSV
+  // HANDLER IMPORT EXCEL / CSV DENGAN SMART MAPPING MATA UJIAN
   const handleImportExcelCSV = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -185,7 +186,20 @@ export default function BankSoal() {
         const cols = line.split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
         
         if (cols.length >= 3) {
-          const kat = cols[0] || 'msoffice';
+          const rawKategori = (cols[0] || '').toLowerCase();
+          let finalKategori = 'msoffice'; // Default fallback
+
+          // SMART MAPPER: Memetakan teks kategori Excel ke ID Kategori CBT yang Valid
+          if (rawKategori.includes('canva') || rawKategori.includes('desain') || rawKategori.includes('poster') || rawKategori.includes('logo') || rawKategori.includes('grafis') || rawKategori.includes('elemen') || rawKategori.includes('tipografi') || rawKategori.includes('layout') || rawKategori.includes('warna')) {
+            finalKategori = 'canva';
+          } else if (rawKategori.includes('coding') || rawKategori.includes('web') || rawKategori.includes('html') || rawKategori.includes('css') || rawKategori.includes('javascript') || rawKategori.includes('js') || rawKategori.includes('programming')) {
+            finalKategori = 'coding';
+          } else if (rawKategori.includes('office') || rawKategori.includes('word') || rawKategori.includes('excel') || rawKategori.includes('ppt') || rawKategori.includes('powerpoint') || rawKategori.includes('ms')) {
+            finalKategori = 'msoffice';
+          } else {
+            finalKategori = rawKategori || 'msoffice';
+          }
+
           const tpe = (cols[1] || 'pg').toLowerCase();
           const tnya = cols[2];
           
@@ -198,7 +212,7 @@ export default function BankSoal() {
 
             importedSoalArr.push({
               id: Date.now() + index,
-              kategori: kat.toLowerCase(),
+              kategori: finalKategori,
               tipe: 'pg',
               pertanyaan: tnya,
               opsi: [`A. ${opsA}`, `B. ${opsB}`, `C. ${opsC}`, `D. ${opsD}`],
@@ -206,12 +220,13 @@ export default function BankSoal() {
               jawabanBenar: knci
             });
           } else {
-            const rubrikRaw = cols[8] || cols[3] || 'Kesesuaian hasil, Kerapihan';
-            const rubrikArr = rubrikRaw.split(',').map(r => r.trim());
+            const rubrikRaw = cols[8] || cols[3] || 'Kesesuaian hasil pengerjaan, Kerapihan berkas';
+            // Support pemisah rubrik menggunakan koma (,) maupun pipe (|)
+            const rubrikArr = rubrikRaw.split(/[|,]/).map(r => r.trim()).filter(Boolean);
 
             importedSoalArr.push({
               id: Date.now() + index,
-              kategori: kat.toLowerCase(),
+              kategori: finalKategori,
               tipe: 'praktik',
               pertanyaan: tnya,
               checklist: rubrikArr
@@ -224,7 +239,7 @@ export default function BankSoal() {
         const combined = [...importedSoalArr, ...listSoal];
         setDataSoal(combined);
         localStorage.setItem('dcc_bank_soal', JSON.stringify(combined));
-        alert(`Berhasil mengimpor ${importedSoalArr.length} soal secara otomatis!`);
+        alert(`Berhasil mengimpor ${importedSoalArr.length} soal! Semua otomatis terpetakan ke mata ujian yang sesuai.`);
       } else {
         alert('File tidak sesuai format kolom!');
       }
