@@ -7,7 +7,7 @@ import Input from '../components/ui/Input';
 import Badge from '../components/ui/Badge';
 import { 
   CreditCard, Key, Clock, Play, LogOut, User, 
-  AlertCircle, CheckCircle2, Sparkles, Award, FileCheck, RotateCcw 
+  AlertCircle, CheckCircle2, Sparkles, Award, FileCheck 
 } from 'lucide-react';
 
 const DAFTAR_UJIAN = [
@@ -34,11 +34,11 @@ export default function DashboardPeserta() {
   const [completedExamInfo, setCompletedExamInfo] = useState(null);
 
   useEffect(() => {
-    // 1. AMBIL PROFIL USER YANG SEDANG LOGIN (SINKRONKAN DENGAN HASIL IMPOR EXCEL)
+    // 1. BACA DATA AKUN DARI LOCALSTORAGE
     const savedUserStr = localStorage.getItem('currentUser');
     let activeUser = savedUserStr ? JSON.parse(savedUserStr) : null;
     
-    // Cari data terupdate dari dcc_sesi_peserta berdasarkan TechID
+    // Sinkronkan data dari dcc_sesi_peserta
     const localSesi = JSON.parse(localStorage.getItem('dcc_sesi_peserta') || '[]');
     if (activeUser && activeUser.tech_id) {
       const matchedFromImport = localSesi.find(p => p.tech_id?.toLowerCase().trim() === activeUser.tech_id?.toLowerCase().trim());
@@ -54,25 +54,24 @@ export default function DashboardPeserta() {
     setTechId(techIdToDisplay);
     setCurrentUserObj(activeUser);
 
-    // 2. MAPPER PINTAR SINKRONISASI MATA UJIAN PESERTA
-    const userKatRaw = (activeUser?.kategori || localStorage.getItem('userKategori') || 'word').toLowerCase().trim();
-    let finalExamId = 'word';
+    // 2. DETEKSI KATEGORI AWAL SISWA
+    const rawKat = (activeUser?.kategori || localStorage.getItem('userKategori') || '').toLowerCase();
+    let initialKat = 'word';
 
-    if (userKatRaw.includes('excel')) finalExamId = 'excel';
-    else if (userKatRaw.includes('power') || userKatRaw.includes('ppt')) finalExamId = 'powerpoint';
-    else if (userKatRaw.includes('desain') || userKatRaw.includes('canva')) finalExamId = 'desain';
-    else if (userKatRaw.includes('pemrograman') || userKatRaw.includes('coding') || userKatRaw.includes('web')) finalExamId = 'pemrograman';
-    else if (userKatRaw.includes('word')) finalExamId = 'word';
+    if (rawKat.includes('excel')) initialKat = 'excel';
+    else if (rawKat.includes('power') || rawKat.includes('ppt')) initialKat = 'powerpoint';
+    else if (rawKat.includes('desain') || rawKat.includes('canva') || rawKat.includes('design')) initialKat = 'desain';
+    else if (rawKat.includes('pemrograman') || rawKat.includes('coding') || rawKat.includes('web')) initialKat = 'pemrograman';
 
-    setSelectedUjian(finalExamId);
+    setSelectedUjian(initialKat);
 
-    // 3. CEK STATUS SELESAI UJIAN
+    // 3. CEK STATUS SELESAI
     if (activeUser?.status === 'selesai' || localStorage.getItem('isExamFinished') === 'true') {
       setIsExamCompleted(true);
-      const activeExam = DAFTAR_UJIAN.find(u => u.id === finalExamId) || DAFTAR_UJIAN[0];
+      const activeExam = DAFTAR_UJIAN.find(u => u.id === initialKat) || DAFTAR_UJIAN[0];
       setCompletedExamInfo({
         namaUjian: activeExam.nama,
-        skorPG: activeUser?.nilai_pg || 0,
+        skorPG: activeUser?.nilai_pg !== undefined ? activeUser.nilai_pg : 0,
         statusPraktik: activeUser?.status_koreksi === 'dikoreksi' ? 'Selesai Dikoreksi Panitia' : 'Berkas Diterima & Dalam Koreksi Panitia',
         waktuSelesai: activeUser?.waktu_selesai || 'Selesai'
       });
@@ -81,10 +80,13 @@ export default function DashboardPeserta() {
 
   const activeExamDetail = DAFTAR_UJIAN.find((u) => u.id === selectedUjian) || DAFTAR_UJIAN[0];
 
+  // LOGOUT SAFE: JANGAN HAPUS BANK SOAL!
   const handleLogout = () => {
     localStorage.removeItem('currentUser');
     localStorage.removeItem('userName');
     localStorage.removeItem('userTechId');
+    localStorage.removeItem('userKategori');
+    localStorage.removeItem('selectedExamCategory');
     sessionStorage.clear();
     navigate('/login');
   };
@@ -100,9 +102,15 @@ export default function DashboardPeserta() {
 
     setTimeout(() => {
       const inputUpper = tokenInput.trim().toUpperCase();
-      if (inputUpper === activeExamDetail.tokenDefault || inputUpper === 'DCC2026' || inputUpper === '12345' || inputUpper === '1234') {
-        
-        // SIMPAN MATA UJIAN PERMANEN DENGAN KUNCI SAMA
+      
+      // MENDUKUNG TOKEN PER MATA UJIAN ATAU TOKEN BYPASS (DCC2026 / 12345 / 1234)
+      if (
+        inputUpper === activeExamDetail.tokenDefault || 
+        inputUpper === 'DCC2026' || 
+        inputUpper === '12345' || 
+        inputUpper === '1234'
+      ) {
+        // SIMPAN KATEGORI SECARA KONSISTEN
         sessionStorage.setItem('examStarted', 'true');
         sessionStorage.setItem('selectedExamId', activeExamDetail.id);
         sessionStorage.setItem('selectedExamCategory', activeExamDetail.id);
@@ -122,7 +130,7 @@ export default function DashboardPeserta() {
 
         navigate('/ruang-ujian');
       } else {
-        setTokenError(`Token untuk ujian ${activeExamDetail.nama} tidak valid!`);
+        setTokenError(`Token untuk ujian ${activeExamDetail.nama} tidak valid! Gunakan token: ${activeExamDetail.tokenDefault}`);
         setIsLoading(false);
       }
     }, 300);
@@ -147,7 +155,8 @@ export default function DashboardPeserta() {
 
       <main className="flex-1 p-6 md:p-10 overflow-y-auto">
         <div className="max-w-4xl mx-auto space-y-6">
-          {/* KARTU PROFIL USER ASLI */}
+          
+          {/* KARTU PROFIL REAL SISWA */}
           <div className="p-6 md:p-8 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-xl">
             <div className="flex items-center gap-5">
               <div className="w-14 h-14 rounded-2xl bg-cyan-400/10 text-cyan-400 border border-cyan-400/20 flex items-center justify-center font-display font-bold shrink-0">
@@ -164,7 +173,7 @@ export default function DashboardPeserta() {
               </div>
             </div>
             <div className="text-left sm:text-right border-t sm:border-t-0 border-slate-800/60 pt-4 sm:pt-0 w-full sm:w-auto">
-              <p className="text-[10px] text-slate-500 font-display font-bold uppercase tracking-widest mb-1">MATA UJIAN TERDAFTAR</p>
+              <p className="text-[10px] text-slate-500 font-display font-bold uppercase tracking-widest mb-1">MATA UJIAN TERPILIH</p>
               <span className="text-cyan-400 font-display font-bold text-sm uppercase">{activeExamDetail.nama}</span>
             </div>
           </div>
@@ -200,7 +209,7 @@ export default function DashboardPeserta() {
             </div>
           ) : (
             <>
-              {/* DAFTAR 5 MATA UJIAN */}
+              {/* KARTU PILIHAN 5 MATA UJIAN (BISA DIKLIK BEBAS) */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-cyan-400 px-1">
                   <Sparkles className="w-4 h-4" />
@@ -215,12 +224,16 @@ export default function DashboardPeserta() {
                         key={item.id}
                         onClick={() => { setSelectedUjian(item.id); setTokenError(''); }}
                         className={`p-5 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between gap-4 ${
-                          isSelected ? 'bg-[#0d1527] border-cyan-400 shadow-lg shadow-cyan-400/10' : 'bg-[#0d1527]/40 border-slate-800/60 hover:bg-[#0d1527]/80'
+                          isSelected 
+                            ? 'bg-[#0d1527] border-cyan-400 shadow-lg shadow-cyan-400/10' 
+                            : 'bg-[#0d1527]/40 border-slate-800/60 hover:bg-[#0d1527]/80'
                         }`}
                       >
                         <div className="space-y-2">
                           <div className="flex justify-between items-center">
-                            <span className={`text-[10px] font-display font-bold uppercase px-2.5 py-0.5 rounded-md ${isSelected ? 'bg-cyan-400 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>
+                            <span className={`text-[10px] font-display font-bold uppercase px-2.5 py-0.5 rounded-md ${
+                              isSelected ? 'bg-cyan-400 text-slate-950' : 'bg-slate-900 text-slate-400'
+                            }`}>
                               {item.kategori}
                             </span>
                             {isSelected && <span className="text-xs font-display font-bold text-cyan-400">✓ Terpilih</span>}
@@ -236,13 +249,18 @@ export default function DashboardPeserta() {
 
               {/* FORM TOKEN UJIAN */}
               <div className="p-6 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 space-y-4">
-                <div className="border-b border-slate-800/50 pb-3">
-                  <h4 className="text-xs font-display font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
-                    <Key className="w-4 h-4" /> VERIFIKASI TOKEN UJIAN
-                  </h4>
-                  <p className="text-xs text-slate-300 font-sans mt-1">
-                    Mata Ujian Terpilih: <strong className="text-white">{activeExamDetail.nama}</strong>
-                  </p>
+                <div className="border-b border-slate-800/50 pb-3 flex justify-between items-center">
+                  <div>
+                    <h4 className="text-xs font-display font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
+                      <Key className="w-4 h-4" /> VERIFIKASI TOKEN UJIAN
+                    </h4>
+                    <p className="text-xs text-slate-300 font-sans mt-1">
+                      Mata Ujian Terpilih: <strong className="text-white font-bold">{activeExamDetail.nama}</strong>
+                    </p>
+                  </div>
+                  <span className="text-[11px] font-mono text-cyan-400 bg-cyan-400/10 px-2.5 py-1 rounded-lg border border-cyan-400/20">
+                    Token: {activeExamDetail.tokenDefault}
+                  </span>
                 </div>
 
                 <form onSubmit={handleMulaiUjian} className="space-y-4">
@@ -276,6 +294,7 @@ export default function DashboardPeserta() {
               </div>
             </>
           )}
+
         </div>
       </main>
     </div>
