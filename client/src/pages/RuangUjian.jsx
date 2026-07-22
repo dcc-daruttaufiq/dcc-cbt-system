@@ -44,8 +44,8 @@ export default function RuangUjian() {
     // READ USER DATA REALTIME
     const realName = currentUser.nama || currentUser.nama_lengkap || localStorage.getItem('userName') || 'Peserta Ujian';
     const realTechId = currentUser.tech_id || localStorage.getItem('userTechId') || 'DCC25-000';
-    const storedExamName = sessionStorage.getItem('selectedExamName') || 'Microsoft Office';
-    const storedExamId = (localStorage.getItem('selectedExamCategory') || sessionStorage.getItem('selectedExamId') || currentUser.kategori || 'msoffice').toLowerCase();
+    const storedExamName = sessionStorage.getItem('selectedExamName') || 'Microsoft Word';
+    const storedExamId = (localStorage.getItem('selectedExamCategory') || sessionStorage.getItem('selectedExamId') || currentUser.kategori || 'word').toLowerCase();
 
     setUserName(realName);
     setTechId(realTechId);
@@ -73,22 +73,21 @@ export default function RuangUjian() {
       }
 
       if (loadedSoal.length === 0 && allBank.length > 0) {
-        // SMART FILTERING (Cocokkan Kategori Fleksibel)
+        // SMART FILTERING (MENCANGKUP 5 KATEGORI MURNI PER SEMESTER)
         loadedSoal = allBank.filter(s => {
-          const kat = (s.kategori || '').toLowerCase();
-          if (storedExamId === 'coding' || storedExamId === 'web') {
-            return kat.includes('coding') || kat.includes('web') || kat.includes('html') || kat.includes('js');
-          }
-          if (storedExamId === 'canva' || storedExamId === 'desain') {
-            return kat.includes('canva') || kat.includes('desain') || kat.includes('grafis');
-          }
-          if (storedExamId === 'msoffice' || storedExamId === 'office') {
-            return kat.includes('office') || kat.includes('msoffice') || kat.includes('word') || kat.includes('excel');
-          }
-          return kat === storedExamId;
+          const kat = (s.kategori || '').toLowerCase().trim();
+          const target = storedExamId.toLowerCase().trim();
+
+          if (target === 'word') return kat.includes('word') || kat.includes('doc');
+          if (target === 'excel') return kat.includes('excel') || kat.includes('spreadsheet');
+          if (target === 'powerpoint') return kat.includes('power') || kat.includes('ppt') || kat.includes('point');
+          if (target === 'desain') return kat.includes('desain') || kat.includes('design') || kat.includes('canva') || kat.includes('grafis');
+          if (target === 'pemrograman') return kat.includes('pemrograman') || kat.includes('coding') || kat.includes('web') || kat.includes('html') || kat.includes('js');
+
+          return kat === target;
         });
 
-        // SAFETY FALLBACK: Jika tidak ada yang cocok kategorinya, TAMPILKAN SEMUA BANK SOAL!
+        // SAFETY FALLBACK: Jika filter tidak ada yang cocok, tampilkan seluruh bank soal
         if (loadedSoal.length === 0) {
           loadedSoal = allBank;
         }
@@ -347,7 +346,7 @@ export default function RuangUjian() {
                     <label className="relative flex items-center gap-2 bg-[#0d1527] hover:bg-slate-800 border border-slate-700 px-4 py-2.5 rounded-xl cursor-pointer transition text-xs font-display font-bold text-slate-200">
                       <Upload className="w-4 h-4 text-cyan-400" />
                       <span>Unggah Berkas Praktik</span>
-                      <input type="file" className="hidden" onChange={handleFileUpload} accept=".pdf,.zip,.png,.jpg,.jpeg,.xlsx" />
+                      <input type="file" className="hidden" onChange={handleFileUpload} accept=".pdf,.zip,.png,.jpg,.jpeg,.xlsx,.docx,.pptx" />
                     </label>
 
                     {jawaban[soalAktif.id]?.fileName ? (
@@ -356,7 +355,7 @@ export default function RuangUjian() {
                         <span className="truncate max-w-[200px] font-mono">{jawaban[soalAktif.id].fileName}</span>
                       </div>
                     ) : (
-                      <span className="text-xs text-slate-500 font-sans">Format: .pdf, .zip, .png, .xlsx (Max 10MB)</span>
+                      <span className="text-xs text-slate-500 font-sans">Format: .pdf, .docx, .xlsx, .zip, .png (Max 10MB)</span>
                     )}
                   </div>
                 </div>

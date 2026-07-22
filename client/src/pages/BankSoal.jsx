@@ -12,9 +12,10 @@ import Badge from '../components/ui/Badge';
 import { Plus, Trash2, Edit3, Save, X, Database, Layers, Download, Upload, FileSpreadsheet } from 'lucide-react';
 
 const initialDummySoal = [
-  { id: 101, kategori: 'msoffice', tipe: 'pg', pertanyaan: 'Shortcut keyboard untuk menyimpan dokumen pada Microsoft Word adalah...', opsi: ['A. Ctrl + S', 'B. Ctrl + P', 'C. Ctrl + C', 'D. Ctrl + V'], jawaban_benar: 'A' },
-  { id: 102, kategori: 'canva', tipe: 'pg', pertanyaan: 'Format berkas gambar yang mendukung latar belakang transparan di Canva adalah...', opsi: ['A. JPG', 'B. PNG', 'C. PDF', 'D. BMP'], jawaban_benar: 'B' },
-  { id: 103, kategori: 'coding', tipe: 'praktik', pertanyaan: 'TUGAS PRAKTIK: Buatlah fungsi JavaScript untuk memfilter elemen array secara dinamis.', checklist: ['Fungsi valid', 'No syntax error'] }
+  { id: 101, kategori: 'word', tipe: 'pg', pertanyaan: 'Shortcut keyboard untuk menyimpan dokumen pada Microsoft Word adalah...', opsi: ['A. Ctrl + S', 'B. Ctrl + P', 'C. Ctrl + C', 'D. Ctrl + V'], jawaban_benar: 'A' },
+  { id: 102, kategori: 'excel', tipe: 'pg', pertanyaan: 'Fungsi Excel yang digunakan untuk menjumlahkan sekumpulan data numerik adalah...', opsi: ['A. AVERAGE', 'B. SUM', 'C. COUNT', 'D. MAX'], jawaban_benar: 'B' },
+  { id: 103, kategori: 'desain', tipe: 'pg', pertanyaan: 'Format berkas gambar yang mendukung latar belakang transparan adalah...', opsi: ['A. JPG', 'B. PNG', 'C. PDF', 'D. BMP'], jawaban_benar: 'B' },
+  { id: 104, kategori: 'pemrograman', tipe: 'praktik', pertanyaan: 'TUGAS PRAKTIK: Buatlah fungsi JavaScript untuk memfilter elemen array secara dinamis.', checklist: ['Fungsi valid', 'No syntax error'] }
 ];
 
 export default function BankSoal() {
@@ -26,7 +27,7 @@ export default function BankSoal() {
   const [editingId, setEditingId] = useState(null);
 
   // Form States
-  const [kategori, setKategori] = useState('msoffice');
+  const [kategori, setKategori] = useState('word');
   const [tipe, setTipe] = useState('pg');
   const [pertanyaan, setPertanyaan] = useState('');
   const [opsi, setOpsi] = useState({ A: '', B: '', C: '', D: '' });
@@ -43,23 +44,21 @@ export default function BankSoal() {
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
-  // LOGIKA FETCH SOAL PERMANEN (ANTI-RESET SAAT DI-REFRESH)
+  // LOGIKA FETCH SOAL PERMANEN (UTAMAKAN LOCALSTORAGE BIAR TIDAK HILANG SAAT REFRESH)
   const fetchSoal = async () => {
-    // 1. CEK DULU DI LOCALSTORAGE: Jika sudah ada data (hasil impor/edit), langsung pakai data ini!
     const savedLocal = localStorage.getItem('dcc_bank_soal');
     if (savedLocal) {
       try {
         const parsed = JSON.parse(savedLocal);
         if (Array.isArray(parsed) && parsed.length > 0) {
           setDataSoal(parsed);
-          return; // STOP! Jangan timpa dengan API/Dummy jika data lokal sudah ada
+          return;
         }
       } catch (e) {
-        console.warn("Gagal membaca localStorage, mencoba cara lain...");
+        console.warn("Gagal membaca localStorage...");
       }
     }
 
-    // 2. JIKA LOKAL KOSONG, BARU AMBIL DARI API BACKEND
     try {
       let res = await API.get('/soal').catch(() => API.get('/ujian/soal'));
       if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
@@ -71,7 +70,6 @@ export default function BankSoal() {
       console.warn('API server offline, menggunakan penyimpanan lokal.');
     }
 
-    // 3. JIKA LOKAL DAN API KOSONG, BARU PAKAI DUMMY PERTAMA KALI
     setDataSoal(initialDummySoal);
     localStorage.setItem('dcc_bank_soal', JSON.stringify(initialDummySoal));
   };
@@ -94,7 +92,7 @@ export default function BankSoal() {
 
   const openCreateModal = () => {
     setEditingId(null);
-    setKategori('msoffice');
+    setKategori('word');
     setTipe('pg');
     setPertanyaan('');
     setOpsi({ A: '', B: '', C: '', D: '' });
@@ -105,7 +103,7 @@ export default function BankSoal() {
 
   const openEditModal = (soal) => {
     setEditingId(soal.id);
-    setKategori(soal.kategori || 'msoffice');
+    setKategori(soal.kategori || 'word');
     setTipe(soal.tipe);
     setPertanyaan(soal.pertanyaan);
     if (soal.tipe === 'pg') {
@@ -171,7 +169,7 @@ export default function BankSoal() {
     } catch (err) {}
   };
 
-  // HANDLER IMPORT EXCEL / CSV DENGAN SMART MAPPER
+  // HANDLER IMPORT EXCEL / CSV DENGAN MAPPING 5 KATEGORI MURNI
   const handleImportExcelCSV = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -183,7 +181,6 @@ export default function BankSoal() {
       const importedSoalArr = [];
 
       lines.forEach((line, index) => {
-        // Skip baris header jika ada
         if (index === 0 && (line.toLowerCase().includes('kategori') || line.toLowerCase().includes('pertanyaan'))) {
           return;
         }
@@ -192,17 +189,21 @@ export default function BankSoal() {
         
         if (cols.length >= 3) {
           const rawKategori = (cols[0] || '').toLowerCase();
-          let finalKategori = 'msoffice';
+          let finalKategori = 'word';
 
-          // SMART MAPPER KATEGORI
-          if (rawKategori.includes('canva') || rawKategori.includes('desain') || rawKategori.includes('poster') || rawKategori.includes('logo') || rawKategori.includes('grafis') || rawKategori.includes('elemen') || rawKategori.includes('tipografi') || rawKategori.includes('layout') || rawKategori.includes('warna')) {
-            finalKategori = 'canva';
-          } else if (rawKategori.includes('coding') || rawKategori.includes('web') || rawKategori.includes('html') || rawKategori.includes('css') || rawKategori.includes('javascript') || rawKategori.includes('js') || rawKategori.includes('programming')) {
-            finalKategori = 'coding';
-          } else if (rawKategori.includes('office') || rawKategori.includes('word') || rawKategori.includes('excel') || rawKategori.includes('ppt') || rawKategori.includes('powerpoint') || rawKategori.includes('ms')) {
-            finalKategori = 'msoffice';
+          // MAPPER 5 KATEGORI TERPISAH
+          if (rawKategori.includes('excel')) {
+            finalKategori = 'excel';
+          } else if (rawKategori.includes('power') || rawKategori.includes('ppt') || rawKategori.includes('point')) {
+            finalKategori = 'powerpoint';
+          } else if (rawKategori.includes('word') || rawKategori.includes('doc')) {
+            finalKategori = 'word';
+          } else if (rawKategori.includes('desain') || rawKategori.includes('design') || rawKategori.includes('canva') || rawKategori.includes('grafis')) {
+            finalKategori = 'desain';
+          } else if (rawKategori.includes('pemrograman') || rawKategori.includes('coding') || rawKategori.includes('web') || rawKategori.includes('html') || rawKategori.includes('js')) {
+            finalKategori = 'pemrograman';
           } else {
-            finalKategori = rawKategori || 'msoffice';
+            finalKategori = rawKategori || 'word';
           }
 
           const tpe = (cols[1] || 'pg').toLowerCase();
@@ -225,7 +226,7 @@ export default function BankSoal() {
               jawabanBenar: knci
             });
           } else {
-            const rubrikRaw = cols[8] || cols[3] || 'Kesesuaian hasil pengerjaan, Kerapihan berkas';
+            const rubrikRaw = cols[8] || cols[3] || 'Kesesuaian pengerjaan, Kerapihan berkas';
             const rubrikArr = rubrikRaw.split(/[|,]/).map(r => r.trim()).filter(Boolean);
 
             importedSoalArr.push({
@@ -243,7 +244,7 @@ export default function BankSoal() {
         const combined = [...importedSoalArr, ...listSoal];
         setDataSoal(combined);
         localStorage.setItem('dcc_bank_soal', JSON.stringify(combined));
-        alert(`Berhasil mengimpor ${importedSoalArr.length} soal! Data tersimpan permanen.`);
+        alert(`Berhasil mengimpor ${importedSoalArr.length} soal! Terpetakan ke 5 Kategori Ujian.`);
       } else {
         alert('File tidak sesuai format kolom!');
       }
@@ -283,7 +284,7 @@ export default function BankSoal() {
   const filteredSoalList =
     filterKategori === 'semua'
       ? listSoal
-      : listSoal.filter((item) => (item.kategori || 'msoffice') === filterKategori);
+      : listSoal.filter((item) => (item.kategori || 'word') === filterKategori);
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
@@ -331,12 +332,13 @@ export default function BankSoal() {
                 Daftar Soal Tersedia ({filteredSoalList.length})
               </h2>
 
-              <div className="flex gap-1 bg-[#0d1527] p-1 rounded-xl border border-slate-800/80 text-[11px]">
-                {['semua', 'msoffice', 'canva', 'coding'].map((kat) => (
+              {/* 5 FILTER KATEGORI MURNI PER SEMESTER */}
+              <div className="flex gap-1 bg-[#0d1527] p-1 rounded-xl border border-slate-800/80 text-[11px] overflow-x-auto">
+                {['semua', 'word', 'excel', 'powerpoint', 'desain', 'pemrograman'].map((kat) => (
                   <button
                     key={kat}
                     onClick={() => setFilterKategori(kat)}
-                    className={`px-3 py-1 rounded-lg uppercase font-display font-bold transition-all ${
+                    className={`px-3 py-1 rounded-lg uppercase font-display font-bold transition-all whitespace-nowrap ${
                       filterKategori === kat ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
@@ -365,7 +367,7 @@ export default function BankSoal() {
                       <div className="space-y-2 flex-1">
                         <div className="flex items-center gap-2">
                           <Badge className="bg-cyan-400/10 text-cyan-400 border-cyan-400/20 text-[10px] uppercase font-display font-bold px-2 py-0.5">
-                            {row.kategori || 'MSOFFICE'}
+                            {row.kategori || 'WORD'}
                           </Badge>
 
                           <Badge variant={row.tipe === 'pg' ? 'primary' : 'secondary'} className="text-[10px] px-2 py-0.5 rounded-md">
@@ -429,9 +431,11 @@ export default function BankSoal() {
                     <Layers className="w-3.5 h-3.5 text-cyan-400" /> Mata Ujian Spesialisasi
                   </label>
                   <Select value={kategori} onChange={(e) => setKategori(e.target.value)} className="bg-[#030712]/60 border border-slate-800 text-sm rounded-xl">
-                    <option value="msoffice">Microsoft Office (Word, Excel, PPT)</option>
-                    <option value="canva">Graphic Design (Canva & Visual Design)</option>
-                    <option value="coding">Web Development (HTML, CSS, JavaScript)</option>
+                    <option value="word">Microsoft Word</option>
+                    <option value="excel">Microsoft Excel</option>
+                    <option value="powerpoint">Microsoft PowerPoint</option>
+                    <option value="desain">Desain Grafis (Canva / Visual)</option>
+                    <option value="pemrograman">Pemrograman Web (Coding / Web Dev)</option>
                   </Select>
                 </div>
 
