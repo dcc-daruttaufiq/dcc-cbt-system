@@ -24,7 +24,7 @@ export default function DashboardPanitia() {
   const [checklistPraktik, setChecklistPraktik] = useState({});
   const [isSaved, setIsSaved] = useState(false);
 
-  // Default Filter ke 'perlu_dikoreksi' agar Panitia langsung fokus menilai!
+  // Filter Status (6 Tab Utama)
   const [filterPeserta, setFilterPeserta] = useState('perlu_dikoreksi');
   const [filterTipeJawaban, setFilterTipeJawaban] = useState('praktik');
 
@@ -231,18 +231,17 @@ export default function DashboardPanitia() {
     alert(`Nilai Praktik (${skorPraktikTotal}) Berhasil Disimpan! Status siswa kini Selesai Dikoreksi.`);
   };
 
-  // LOGIKA FILTER 5 STATUS REALTIME
+  // LOGIKA 6 FILTER STATUS REALTIME
   const filteredPeserta = peserta.filter(p => {
     const statusP = p.status || 'belum_mulai';
     const isDikoreksi = p.status_koreksi === 'dikoreksi';
 
     if (filterPeserta === 'belum_mulai') return statusP === 'belum_mulai';
     if (filterPeserta === 'berjalan') return statusP === 'berjalan';
-    // PERLU DIKOREKSI = Selesai Ujian TAPI Belum Dikoreksi Panitia
     if (filterPeserta === 'perlu_dikoreksi') return statusP === 'selesai' && !isDikoreksi;
-    // SELESAI DIKOREKSI = Selesai Ujian DAN Sudah Dikoreksi Panitia
     if (filterPeserta === 'selesai_dikoreksi') return statusP === 'selesai' && isDikoreksi;
-    return true;
+    if (filterPeserta === 'selesai_ujian') return statusP === 'selesai';
+    return true; // semua
   });
 
   const filteredJawabanList = soalPraktikList.filter(j => {
@@ -263,9 +262,6 @@ export default function DashboardPanitia() {
     }
     return { text: 'Belum Ujian', variant: 'secondary' };
   };
-
-  // Menghitung jumlah yang perlu dikoreksi
-  const jumlahPerluKoreksi = peserta.filter(p => p.status === 'selesai' && p.status_koreksi !== 'dikoreksi').length;
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
@@ -308,25 +304,15 @@ export default function DashboardPanitia() {
         <main className="p-8 flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* BILAH KIRI: FILTER REALTIME */}
+            {/* BILAH KIRI: ANTREAN PESERTA DENGAN 6 TAB FILTER STATUS (TANPA IKON) */}
             <div className="space-y-4">
               <div className="flex flex-col gap-2 px-1">
                 <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
                   Daftar Peserta Terdaftar ({filteredPeserta.length})
                 </h2>
 
-                {/* TAB FILTER LENGKAP */}
+                {/* 6 TAB FILTER MURNI TEKS */}
                 <div className="grid grid-cols-2 gap-1.5 bg-[#0d1527] p-2 rounded-xl border border-slate-800 text-xs font-display font-bold">
-                  <button
-                    onClick={() => setFilterPeserta('perlu_dikoreksi')}
-                    className={`col-span-2 py-2 px-2.5 rounded-lg transition-all flex items-center justify-between ${
-                      filterPeserta === 'perlu_dikoreksi' ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/20' : 'text-amber-400 bg-amber-400/10 hover:bg-amber-400/20'
-                    }`}
-                  >
-                    <span>⚡ Perlu Dikoreksi</span>
-                    <span className="bg-slate-950/20 px-2 py-0.5 rounded-md font-mono">{jumlahPerluKoreksi}</span>
-                  </button>
-
                   <button
                     onClick={() => setFilterPeserta('semua')}
                     className={`py-2 px-2.5 rounded-lg transition-all ${
@@ -335,6 +321,7 @@ export default function DashboardPanitia() {
                   >
                     Semua ({peserta.length})
                   </button>
+
                   <button
                     onClick={() => setFilterPeserta('belum_mulai')}
                     className={`py-2 px-2.5 rounded-lg transition-all ${
@@ -343,6 +330,7 @@ export default function DashboardPanitia() {
                   >
                     Belum Ujian
                   </button>
+
                   <button
                     onClick={() => setFilterPeserta('berjalan')}
                     className={`py-2 px-2.5 rounded-lg transition-all ${
@@ -351,21 +339,40 @@ export default function DashboardPanitia() {
                   >
                     Sedang Ujian
                   </button>
+
+                  <button
+                    onClick={() => setFilterPeserta('perlu_dikoreksi')}
+                    className={`py-2 px-2.5 rounded-lg transition-all ${
+                      filterPeserta === 'perlu_dikoreksi' ? 'bg-amber-400 text-slate-950' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Perlu Dikoreksi
+                  </button>
+
                   <button
                     onClick={() => setFilterPeserta('selesai_dikoreksi')}
                     className={`py-2 px-2.5 rounded-lg transition-all ${
                       filterPeserta === 'selesai_dikoreksi' ? 'bg-emerald-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    ✓ Selesai Nilai
+                    Selesai Dikoreksi
+                  </button>
+
+                  <button
+                    onClick={() => setFilterPeserta('selesai_ujian')}
+                    className={`py-2 px-2.5 rounded-lg transition-all ${
+                      filterPeserta === 'selesai_ujian' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Selesai Ujian
                   </button>
                 </div>
               </div>
 
               {filteredPeserta.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs space-y-1">
-                  <p className="font-semibold text-slate-400">Tidak ada peserta pada kategori ini.</p>
-                  <p className="text-[11px] text-slate-500">Pilih tab filter lain atau Import data peserta baru.</p>
+                  <p className="font-semibold text-slate-400">Tidak ada peserta pada status ini.</p>
+                  <p className="text-[11px] text-slate-500">Pilih tab filter lain di atas.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
