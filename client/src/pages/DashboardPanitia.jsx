@@ -24,8 +24,8 @@ export default function DashboardPanitia() {
   const [checklistPraktik, setChecklistPraktik] = useState({});
   const [isSaved, setIsSaved] = useState(false);
 
-  // Filter Status
-  const [filterPeserta, setFilterPeserta] = useState('semua');
+  // Default Filter ke 'perlu_dikoreksi' agar Panitia langsung fokus menilai!
+  const [filterPeserta, setFilterPeserta] = useState('perlu_dikoreksi');
   const [filterTipeJawaban, setFilterTipeJawaban] = useState('praktik');
 
   const pesertaFileInputRef = useRef(null);
@@ -36,7 +36,6 @@ export default function DashboardPanitia() {
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
-  // LOGIKA PEMBACAAN STATUS PESERTA SECARA REAL-TIME
   const loadPeserta = async () => {
     let listReal = [];
     try {
@@ -59,12 +58,10 @@ export default function DashboardPanitia() {
       }
     }
 
-    // Cek status sesi login real-time dari peserta aktif di browser/storage
     const currentActiveUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
     const isExamFinished = localStorage.getItem('isExamFinished') === 'true';
 
     const updatedWithRealStatus = listReal.map(p => {
-      // Sinkronisasi status user yang sedang aktif di device/browser
       if (currentActiveUser && (p.tech_id === currentActiveUser.tech_id || String(p.user_id) === String(currentActiveUser.user_id))) {
         return {
           ...p,
@@ -79,7 +76,6 @@ export default function DashboardPanitia() {
 
   useEffect(() => {
     loadPeserta();
-    // Auto-refresh setiap 4 detik untuk memantau pengerjaan siswa secara realtime
     const interval = setInterval(() => {
       loadPeserta();
     }, 4000);
@@ -87,7 +83,6 @@ export default function DashboardPanitia() {
     return () => clearInterval(interval);
   }, []);
 
-  // HANDLER IMPOR PESERTA EXCEL / CSV (STATUS AWAL WAJIB 'belum_mulai')
   const handleImportPesertaExcelCSV = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -116,7 +111,7 @@ export default function DashboardPanitia() {
             nama_lengkap: nama,
             tech_id: techId,
             kategori: mataUjian,
-            status: 'belum_mulai', // WAJIB BELUM MULAI SAAT BARU DI-IMPOR
+            status: 'belum_mulai',
             status_koreksi: 'belum_dikoreksi',
             nilai_pg: 0,
             nilai_praktik: 0,
@@ -128,7 +123,7 @@ export default function DashboardPanitia() {
       if (importedPesertaArr.length > 0) {
         setPeserta(importedPesertaArr);
         localStorage.setItem('dcc_sesi_peserta', JSON.stringify(importedPesertaArr));
-        alert(`Berhasil mengimpor ${importedPesertaArr.length} peserta! Status awal semua peserta: Belum Ujian.`);
+        alert(`Berhasil mengimpor ${importedPesertaArr.length} peserta real! Status awal: Belum Ujian.`);
       } else {
         alert('File tidak sesuai format! Pastikan Kolom A: Nama Lengkap, Kolom B: TechID.');
       }
@@ -149,7 +144,6 @@ export default function DashboardPanitia() {
       }
     } catch (err) {}
 
-    // BACA LEMBAR PENGERJAAN REAL PER PESERTA
     const targetUser = peserta.find(p => p.user_id === userId);
     const userTechId = targetUser?.tech_id;
 
@@ -237,14 +231,16 @@ export default function DashboardPanitia() {
     alert(`Nilai Praktik (${skorPraktikTotal}) Berhasil Disimpan! Status siswa kini Selesai Dikoreksi.`);
   };
 
-  // FILTERING PESERTA REALTIME (4 STATUS)
+  // LOGIKA FILTER 5 STATUS REALTIME
   const filteredPeserta = peserta.filter(p => {
     const statusP = p.status || 'belum_mulai';
     const isDikoreksi = p.status_koreksi === 'dikoreksi';
 
     if (filterPeserta === 'belum_mulai') return statusP === 'belum_mulai';
     if (filterPeserta === 'berjalan') return statusP === 'berjalan';
-    if (filterPeserta === 'selesai_ujian') return statusP === 'selesai' && !isDikoreksi;
+    // PERLU DIKOREKSI = Selesai Ujian TAPI Belum Dikoreksi Panitia
+    if (filterPeserta === 'perlu_dikoreksi') return statusP === 'selesai' && !isDikoreksi;
+    // SELESAI DIKOREKSI = Selesai Ujian DAN Sudah Dikoreksi Panitia
     if (filterPeserta === 'selesai_dikoreksi') return statusP === 'selesai' && isDikoreksi;
     return true;
   });
@@ -256,11 +252,20 @@ export default function DashboardPanitia() {
   });
 
   const getBadgeStatus = (p) => {
-    if (p.status === 'selesai' && p.status_koreksi === 'dikoreksi') return { text: 'Selesai Dikoreksi', variant: 'success' };
-    if (p.status === 'selesai') return { text: 'Selesai Ujian', variant: 'primary' };
-    if (p.status === 'berjalan') return { text: 'Sedang Ujian', variant: 'warning' };
+    if (p.status === 'selesai' && p.status_koreksi === 'dikoreksi') {
+      return { text: 'Selesai Dikoreksi', variant: 'success' };
+    }
+    if (p.status === 'selesai') {
+      return { text: 'Perlu Dikoreksi', variant: 'warning' };
+    }
+    if (p.status === 'berjalan') {
+      return { text: 'Sedang Ujian', variant: 'primary' };
+    }
     return { text: 'Belum Ujian', variant: 'secondary' };
   };
+
+  // Menghitung jumlah yang perlu dikoreksi
+  const jumlahPerluKoreksi = peserta.filter(p => p.status === 'selesai' && p.status_koreksi !== 'dikoreksi').length;
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
@@ -303,15 +308,25 @@ export default function DashboardPanitia() {
         <main className="p-8 flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* BILAH KIRI: ANTREAN PESERTA DENGAN TAB FILTER STATUS LENGKAP */}
+            {/* BILAH KIRI: FILTER REALTIME */}
             <div className="space-y-4">
               <div className="flex flex-col gap-2 px-1">
                 <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
                   Daftar Peserta Terdaftar ({filteredPeserta.length})
                 </h2>
 
-                {/* FILTER TAB REALTIME STATUS */}
+                {/* TAB FILTER LENGKAP */}
                 <div className="grid grid-cols-2 gap-1.5 bg-[#0d1527] p-2 rounded-xl border border-slate-800 text-xs font-display font-bold">
+                  <button
+                    onClick={() => setFilterPeserta('perlu_dikoreksi')}
+                    className={`col-span-2 py-2 px-2.5 rounded-lg transition-all flex items-center justify-between ${
+                      filterPeserta === 'perlu_dikoreksi' ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/20' : 'text-amber-400 bg-amber-400/10 hover:bg-amber-400/20'
+                    }`}
+                  >
+                    <span>⚡ Perlu Dikoreksi</span>
+                    <span className="bg-slate-950/20 px-2 py-0.5 rounded-md font-mono">{jumlahPerluKoreksi}</span>
+                  </button>
+
                   <button
                     onClick={() => setFilterPeserta('semua')}
                     className={`py-2 px-2.5 rounded-lg transition-all ${
@@ -337,28 +352,20 @@ export default function DashboardPanitia() {
                     Sedang Ujian
                   </button>
                   <button
-                    onClick={() => setFilterPeserta('selesai_ujian')}
-                    className={`py-2 px-2.5 rounded-lg transition-all ${
-                      filterPeserta === 'selesai_ujian' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Selesai Ujian
-                  </button>
-                  <button
                     onClick={() => setFilterPeserta('selesai_dikoreksi')}
-                    className={`col-span-2 py-2 px-2.5 rounded-lg transition-all ${
+                    className={`py-2 px-2.5 rounded-lg transition-all ${
                       filterPeserta === 'selesai_dikoreksi' ? 'bg-emerald-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    Selesai Dikoreksi
+                    ✓ Selesai Nilai
                   </button>
                 </div>
               </div>
 
               {filteredPeserta.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs space-y-1">
-                  <p className="font-semibold text-slate-400">Tidak ada peserta pada status ini.</p>
-                  <p className="text-[11px] text-slate-500">Klik "Import Peserta Excel / CSV" untuk mendaftarkan siswa.</p>
+                  <p className="font-semibold text-slate-400">Tidak ada peserta pada kategori ini.</p>
+                  <p className="text-[11px] text-slate-500">Pilih tab filter lain atau Import data peserta baru.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
