@@ -37,19 +37,23 @@ function formatSoal(rows) {
 }
 
 // =========================================================
-// 🌐 API MANAJEMEN BANK SOAL (CRUD SOAL UNTUK PANITIA)
+// 🌐 HANDLER MANAJEMEN BANK SOAL (SUPPORT DUAL ALIAS PATH)
 // =========================================================
 
-// [GET] AMBIL SEMUA SOAL (Untuk Bank Soal Panitia)
-router.get('/soal', async (req, res) => {
+// Handler Get Soal
+const handleGetSoal = async (req, res) => {
   try {
     let rows = [];
     try {
       const [data] = await db.query('SELECT * FROM soal ORDER BY id DESC');
       rows = data || [];
     } catch (e) {
-      const [data2] = await db.query('SELECT * FROM soals ORDER BY id DESC');
-      rows = data2 || [];
+      try {
+        const [data2] = await db.query('SELECT * FROM soals ORDER BY id DESC');
+        rows = data2 || [];
+      } catch (e2) {
+        rows = [];
+      }
     }
 
     const formattedRows = rows.map(row => ({
@@ -63,10 +67,10 @@ router.get('/soal', async (req, res) => {
     console.error("❌ Error Get Soal:", err);
     return res.status(200).json([]);
   }
-});
+};
 
-// [POST] SIMPAN SOAL BARU DARI BANK SOAL
-router.post('/soal', async (req, res) => {
+// Handler Post Soal
+const handlePostSoal = async (req, res) => {
   const { tipe, pertanyaan, opsi, jawabanBenar, checklist, kategori = 'msoffice' } = req.body;
 
   try {
@@ -80,7 +84,6 @@ router.post('/soal', async (req, res) => {
         { replacements: [tipe, pertanyaan, stringOpsi, jawabanBenar || null, stringChecklist, kategori] }
       );
     } catch (e) {
-      // Fallback jika tabel bernama 'soals' atau kolom tanpa kategori
       try {
         await db.query(
           `INSERT INTO soal (tipe, pertanyaan, opsi, jawaban_benar, checklist) 
@@ -101,10 +104,10 @@ router.post('/soal', async (req, res) => {
     console.error("❌ Gagal simpan soal:", err);
     return res.status(500).json({ success: false, message: err.message });
   }
-});
+};
 
-// [PUT] EDIT SOAL
-router.put('/soal/:id', async (req, res) => {
+// Handler Edit Soal
+const handlePutSoal = async (req, res) => {
   const { id } = req.params;
   const { tipe, pertanyaan, opsi, jawabanBenar, checklist, kategori = 'msoffice' } = req.body;
 
@@ -132,10 +135,10 @@ router.put('/soal/:id', async (req, res) => {
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
-});
+};
 
-// [DELETE] HAPUS SOAL
-router.delete('/soal/:id', async (req, res) => {
+// Handler Delete Soal
+const handleDeleteSoal = async (req, res) => {
   const { id } = req.params;
   try {
     try {
@@ -147,14 +150,27 @@ router.delete('/soal/:id', async (req, res) => {
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
-});
+};
+
+// --- MAPPING ROUTE DUA JALUR (ALIAS) ---
+router.get('/soal', handleGetSoal);
+router.get('/ujian/soal', handleGetSoal);
+
+router.post('/soal', handlePostSoal);
+router.post('/ujian/soal', handlePostSoal);
+
+router.put('/soal/:id', handlePutSoal);
+router.put('/ujian/soal/:id', handlePutSoal);
+
+router.delete('/soal/:id', handleDeleteSoal);
+router.delete('/ujian/soal/:id', handleDeleteSoal);
 
 
 // =========================================================
 // 🚀 API SISTEM UJIAN (SISWA & PENILAIAN)
 // =========================================================
 
-// 1. [GET] API MULAI UJIAN (Filter Otomatis Berdasarkan Kategori Mata Ujian)
+// 1. [GET] API MULAI UJIAN
 router.get('/mulai', async (req, res) => {
   const userId = req.query.userId || 1;
   const kategori = req.query.kategori || req.query.examId || 'msoffice';
@@ -188,7 +204,6 @@ router.get('/mulai', async (req, res) => {
 
     const sisaDetik = Math.max(0, Math.floor((waktuSelesaiServer - new Date()) / 1000));
 
-    // AMBIL SOAL BERDASARKAN KATEGORI MATA UJIAN TERPILIH
     let rows = [];
     try {
       const [data] = await db.query(
@@ -217,7 +232,7 @@ router.get('/mulai', async (req, res) => {
   }
 });
 
-// 2. [POST] API AUTOSAVE (DUAL DIALECT MYSQL / SQLITE AMAN)
+// 2. [POST] API AUTOSAVE
 router.post('/autosave', async (req, res) => {
   const { soalId, jawaban, userId = 1 } = req.body;
 
