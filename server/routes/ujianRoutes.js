@@ -36,14 +36,130 @@ function formatSoal(rows) {
   });
 }
 
+// =========================================================
+// 🌐 API MANAJEMEN BANK SOAL (CRUD SOAL UNTUK PANITIA)
+// =========================================================
+
+// [GET] AMBIL SEMUA SOAL (Untuk Bank Soal Panitia)
+router.get('/soal', async (req, res) => {
+  try {
+    let rows = [];
+    try {
+      const [data] = await db.query('SELECT * FROM soal ORDER BY id DESC');
+      rows = data || [];
+    } catch (e) {
+      const [data2] = await db.query('SELECT * FROM soals ORDER BY id DESC');
+      rows = data2 || [];
+    }
+
+    const formattedRows = rows.map(row => ({
+      ...row,
+      opsi: row.opsi ? (typeof row.opsi === 'string' ? JSON.parse(row.opsi) : row.opsi) : [],
+      checklist: row.checklist ? (typeof row.checklist === 'string' ? JSON.parse(row.checklist) : row.checklist) : []
+    }));
+
+    return res.status(200).json(formattedRows);
+  } catch (err) {
+    console.error("❌ Error Get Soal:", err);
+    return res.status(200).json([]);
+  }
+});
+
+// [POST] SIMPAN SOAL BARU DARI BANK SOAL
+router.post('/soal', async (req, res) => {
+  const { tipe, pertanyaan, opsi, jawabanBenar, checklist, kategori = 'msoffice' } = req.body;
+
+  try {
+    const stringOpsi = Array.isArray(opsi) ? JSON.stringify(opsi) : (opsi || null);
+    const stringChecklist = Array.isArray(checklist) ? JSON.stringify(checklist) : (checklist || null);
+
+    try {
+      await db.query(
+        `INSERT INTO soal (tipe, pertanyaan, opsi, jawaban_benar, checklist, kategori) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        { replacements: [tipe, pertanyaan, stringOpsi, jawabanBenar || null, stringChecklist, kategori] }
+      );
+    } catch (e) {
+      // Fallback jika tabel bernama 'soals' atau kolom tanpa kategori
+      try {
+        await db.query(
+          `INSERT INTO soal (tipe, pertanyaan, opsi, jawaban_benar, checklist) 
+           VALUES (?, ?, ?, ?, ?)`,
+          { replacements: [tipe, pertanyaan, stringOpsi, jawabanBenar || null, stringChecklist] }
+        );
+      } catch (e2) {
+        await db.query(
+          `INSERT INTO soals (tipe, pertanyaan, opsi, jawaban_benar, checklist) 
+           VALUES (?, ?, ?, ?, ?)`,
+          { replacements: [tipe, pertanyaan, stringOpsi, jawabanBenar || null, stringChecklist] }
+        );
+      }
+    }
+
+    return res.status(200).json({ success: true, message: 'Soal berhasil disimpan!' });
+  } catch (err) {
+    console.error("❌ Gagal simpan soal:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// [PUT] EDIT SOAL
+router.put('/soal/:id', async (req, res) => {
+  const { id } = req.params;
+  const { tipe, pertanyaan, opsi, jawabanBenar, checklist, kategori = 'msoffice' } = req.body;
+
+  try {
+    const stringOpsi = Array.isArray(opsi) ? JSON.stringify(opsi) : (opsi || null);
+    const stringChecklist = Array.isArray(checklist) ? JSON.stringify(checklist) : (checklist || null);
+
+    try {
+      await db.query(
+        `UPDATE soal 
+         SET tipe = ?, pertanyaan = ?, opsi = ?, jawaban_benar = ?, checklist = ?, kategori = ?
+         WHERE id = ?`,
+        { replacements: [tipe, pertanyaan, stringOpsi, jawabanBenar || null, stringChecklist, kategori, id] }
+      );
+    } catch (e) {
+      await db.query(
+        `UPDATE soal 
+         SET tipe = ?, pertanyaan = ?, opsi = ?, jawaban_benar = ?, checklist = ?
+         WHERE id = ?`,
+        { replacements: [tipe, pertanyaan, stringOpsi, jawabanBenar || null, stringChecklist, id] }
+      );
+    }
+
+    return res.status(200).json({ success: true, message: 'Soal berhasil diupdate!' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// [DELETE] HAPUS SOAL
+router.delete('/soal/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    try {
+      await db.query('DELETE FROM soal WHERE id = ?', { replacements: [id] });
+    } catch (e) {
+      await db.query('DELETE FROM soals WHERE id = ?', { replacements: [id] });
+    }
+    return res.status(200).json({ success: true, message: 'Soal terhapus' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+
+// =========================================================
+// 🚀 API SISTEM UJIAN (SISWA & PENILAIAN)
+// =========================================================
+
 // 1. [GET] API MULAI UJIAN (Filter Otomatis Berdasarkan Kategori Mata Ujian)
 router.get('/mulai', async (req, res) => {
   const userId = req.query.userId || 1;
-  // Tangkap kategori dari query parameter (contoh: msoffice / canva / coding)
   const kategori = req.query.kategori || req.query.examId || 'msoffice';
 
   try {
-    // Cek sesi berjalan
     let sesi = null;
     try {
       const [sesiRows] = await db.query('SELECT * FROM sesi_ujian WHERE user_id = ? AND status = "berjalan"', { replacements: [userId] });
@@ -88,7 +204,6 @@ router.get('/mulai', async (req, res) => {
         );
         rows = data2 || [];
       } catch (e2) {
-        // Fallback jika belum ada kolom kategori di DB
         const [dataAll] = await db.query('SELECT id, tipe, pertanyaan, opsi, checklist FROM soal ORDER BY id ASC');
         rows = dataAll || [];
       }
