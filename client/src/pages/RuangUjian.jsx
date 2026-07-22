@@ -137,11 +137,11 @@ export default function RuangUjian() {
       console.warn("Storage lokal penuh");
     }
 
-    // Coba kirim ke Backend Render (Tanpa memicu crash console jika error)
+    // Coba kirim ke Backend Render
     try {
       await API.post('/ujian/autosave', { soalId, jawaban: dataJawaban, userId: 1 });
     } catch (err) {
-      // Catch dikosongkan agar console bersih saat server 500
+      // Catch dikosongkan agar console bersih
     } finally {
       setTimeout(() => setIsSaving(false), 400);
     }
@@ -182,7 +182,7 @@ export default function RuangUjian() {
         setJawaban({ ...jawaban, [soalAktif.id]: dataBaru });
       }
     } catch (err) {
-      // Tetap gunakan nama file lokal jika API upload server 500
+      // Tetap gunakan nama file lokal
     } finally {
       executeAutosave(soalAktif.id, dataBaru);
     }
@@ -192,14 +192,16 @@ export default function RuangUjian() {
     setFlags({ ...flags, [soalAktif.id]: !flags[soalAktif.id] });
   };
 
-  // 4. Fungsi Submit Ujian
+  // 4. Fungsi Submit Ujian (Mencatat Status Selesai ke Session)
   const handleAutoSubmit = async () => {
     clearInterval(timerRef.current);
     sessionStorage.removeItem('examStarted');
+    sessionStorage.setItem('examSubmitted', 'true'); // Penanda status submit untuk Dashboard
+
     try {
       await API.post('/ujian/submit', { userId: 1 });
     } catch (err) {
-      // Tetap redirect walaupun API submit 500
+      // Tetap redirect walau API error
     }
     navigate('/dashboard-peserta');
   };

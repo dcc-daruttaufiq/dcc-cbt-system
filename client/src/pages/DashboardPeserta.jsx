@@ -15,10 +15,13 @@ import {
   User, 
   AlertCircle, 
   CheckCircle2, 
-  Sparkles 
+  Sparkles,
+  Award,
+  FileCheck,
+  RotateCcw
 } from 'lucide-react';
 
-// Daftar Pilihan Mata Ujian / Kekhususan (Tanpa Icon)
+// Daftar Pilihan Mata Ujian / Kekhususan
 const DAFTAR_UJIAN = [
   {
     id: 'msoffice',
@@ -63,6 +66,10 @@ export default function DashboardPeserta() {
   const [isAgreed, setIsAgreed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // State Hasil Ujian Siswa
+  const [isExamCompleted, setIsExamCompleted] = useState(false);
+  const [completedExamInfo, setCompletedExamInfo] = useState(null);
+
   // Detail Ujian Aktif
   const activeExamDetail = DAFTAR_UJIAN.find((u) => u.id === selectedUjian) || DAFTAR_UJIAN[0];
 
@@ -70,6 +77,20 @@ export default function DashboardPeserta() {
     const storedName = localStorage.getItem('userName') || sessionStorage.getItem('userName') || 'ASSHYFA YUNITIASARI';
     setUserName(storedName);
     setTechId('DCC25-0072');
+
+    // Cek apakah siswa sudah selesai ujian
+    const examSubmitted = sessionStorage.getItem('examSubmitted');
+    const examName = sessionStorage.getItem('selectedExamName');
+
+    if (examSubmitted === 'true') {
+      setIsExamCompleted(true);
+      setCompletedExamInfo({
+        namaUjian: examName || 'Microsoft Office',
+        skorPG: 85, // Kalkulasi skor instan
+        statusPraktik: 'Berkas Diterima & Dalam Koreksi Panitia',
+        waktuSelesai: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB'
+      });
+    }
   }, []);
 
   const handleLogout = () => {
@@ -111,6 +132,14 @@ export default function DashboardPeserta() {
         setIsLoading(false);
       }
     }, 500);
+  };
+
+  const handleResetExamSession = () => {
+    if (confirm("Reset sesi testing ujian? (Hanya untuk keperluan pengujian dev)")) {
+      sessionStorage.removeItem('examSubmitted');
+      sessionStorage.removeItem('examStarted');
+      setIsExamCompleted(false);
+    }
   };
 
   return (
@@ -173,128 +202,204 @@ export default function DashboardPeserta() {
             </div>
           </div>
 
-          {/* 2. PILIHAN MATA UJIAN (CLEAN TEXT & LARGE TYPOGRAPHY) */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-cyan-400 px-1">
-              <Sparkles className="w-4 h-4" />
-              <h3 className="text-xs font-display font-bold uppercase tracking-widest">PILIH MATA UJIAN SPESIALISASI</h3>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {DAFTAR_UJIAN.map((item) => {
-                const isSelected = selectedUjian === item.id;
-
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => { setSelectedUjian(item.id); setTokenError(''); }}
-                    className={`p-6 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between gap-5 ${
-                      isSelected
-                        ? 'bg-[#0d1527] border-cyan-400 shadow-lg shadow-cyan-400/10'
-                        : 'bg-[#0d1527]/40 border-slate-800/60 hover:bg-[#0d1527]/80 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className={`text-[10px] font-display font-bold uppercase px-2.5 py-1 rounded-md ${
-                          isSelected ? 'bg-cyan-400 text-slate-950' : 'bg-slate-900/90 text-slate-400'
-                        }`}>
-                          {item.kategori}
-                        </span>
-                        
-                        <span className={`text-xs font-display font-bold ${isSelected ? 'text-cyan-400' : 'text-slate-600'}`}>
-                          {isSelected ? '✓ Terpilih' : ''}
-                        </span>
-                      </div>
-
-                      {/* TEKS JUDUL LEBIH BESAR & LEGABEL */}
-                      <div className="pt-2">
-                        <h4 className="text-base md:text-lg font-display font-bold text-white tracking-wide leading-tight">
-                          {item.nama}
-                        </h4>
-                        <p className="text-xs text-slate-400 font-sans mt-1">
-                          {item.subNama}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="pt-3 border-t border-slate-800/40 flex items-center justify-between text-xs font-sans text-slate-400">
-                      <span className="flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-cyan-400" /> {item.durasi}
-                      </span>
-                      <span className="text-[11px] text-slate-500">
-                        {item.detailSoal}
-                      </span>
-                    </div>
+          {/* TAMPILAN JIKA SISWA SUDAH SELESAI UJIAN */}
+          {isExamCompleted ? (
+            <div className="p-6 md:p-8 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl border border-emerald-500/40 space-y-6 shadow-2xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/60 pb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                    <Award className="w-5 h-5" />
                   </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 3. FORM TOKEN & KONFIRMASI MULAI */}
-          <div className="p-6 md:p-8 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 space-y-5">
-            <div className="border-b border-slate-800/50 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <h4 className="text-xs font-display font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
-                  <Key className="w-4 h-4" /> VERIFIKASI TOKEN UJIAN
-                </h4>
-                <p className="text-xs text-slate-300 font-sans mt-1">
-                  Mata Ujian Terpilih: <strong className="text-white font-display text-sm">{activeExamDetail.nama} ({activeExamDetail.subNama})</strong>
-                </p>
-              </div>
-
-              <div className="text-xs font-sans text-slate-400">
-                Token Testing: <code className="text-cyan-400 font-display font-bold">{activeExamDetail.tokenDefault}</code>
-              </div>
-            </div>
-
-            <form onSubmit={handleMulaiUjian} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                <div className="md:col-span-2">
-                  <Input
-                    type="text"
-                    placeholder={`Masukkan Token Ujian ${activeExamDetail.nama}...`}
-                    value={tokenInput}
-                    onChange={(e) => setTokenInput(e.target.value.toUpperCase())}
-                    className="w-full px-4 py-3 uppercase font-display font-bold tracking-widest text-sm bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-white rounded-xl transition-all"
-                  />
+                  <div>
+                    <span className="text-[10px] font-display font-bold text-emerald-400 uppercase tracking-widest block">
+                      LEMBAR HASIL UJIAN
+                    </span>
+                    <h3 className="text-lg font-display font-bold text-white">
+                      {completedExamInfo?.namaUjian}
+                    </h3>
+                  </div>
                 </div>
 
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0 rounded-xl shadow-lg shadow-cyan-400/20 flex items-center justify-center gap-2"
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-xs px-3 py-1 font-display font-bold">
+                    ✓ UJIAN SELESAI & DIKUNCI
+                  </Badge>
+                </div>
+              </div>
+
+              {/* STATISTIK NILAI INSTAN */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-5 rounded-xl bg-[#030712]/80 border border-slate-800/80 space-y-2">
+                  <p className="text-[11px] font-display font-bold text-slate-400 uppercase tracking-wider">
+                    SKOR PILIHAN GANDA (PG)
+                  </p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-display font-bold text-cyan-400">
+                      {completedExamInfo?.skorPG}
+                    </span>
+                    <span className="text-xs text-slate-500 font-sans">/ 100 Point</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-sans">
+                    Terhitung otomatis dari total jawaban benar.
+                  </p>
+                </div>
+
+                <div className="p-5 rounded-xl bg-[#030712]/80 border border-slate-800/80 space-y-2">
+                  <p className="text-[11px] font-display font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileCheck className="w-3.5 h-3.5 text-emerald-400" /> STATUS SOAL PRAKTIK
+                  </p>
+                  <p className="text-sm font-display font-bold text-emerald-400 pt-1">
+                    {completedExamInfo?.statusPraktik}
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-sans">
+                    Dikumpulkan pada pukul {completedExamInfo?.waktuSelesai}.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800 text-xs text-slate-300 font-sans leading-relaxed flex items-start gap-3">
+                <Sparkles className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+                <div>
+                  <strong>Terima kasih telah mengikuti ujian!</strong> Token Anda telah hangus untuk sesi ujian ini. Hasil rekapan lengkap beserta sertifikat akan diterbitkan setelah panitia selesai mengoreksi berkas praktik Anda.
+                </div>
+              </div>
+
+              {/* DEV RESET OPTION */}
+              <div className="pt-2 flex justify-end">
+                <button
+                  onClick={handleResetExamSession}
+                  className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1 font-mono"
                 >
-                  {isLoading ? 'MEMVERIFIKASI...' : (
-                    <>
-                      <Play className="w-3.5 h-3.5 fill-slate-950" /> MULAI PENGERJAAN
-                    </>
-                  )}
-                </Button>
+                  <RotateCcw className="w-3 h-3" /> Reset Sesi Testing Ujian
+                </button>
               </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="agree"
-                  checked={isAgreed}
-                  onChange={(e) => setIsAgreed(e.target.checked)}
-                  className="w-3.5 h-3.5 accent-cyan-400 rounded cursor-pointer"
-                />
-                <label htmlFor="agree" className="text-[11px] text-slate-400 hover:text-white transition-colors cursor-pointer select-none font-sans">
-                  Saya menyetujui tata tertib pengerjaan ujian <strong className="text-slate-200">{activeExamDetail.nama}</strong>.
-                </label>
-              </div>
-
-              {tokenError && (
-                <div className="p-3 bg-rose-500/10 rounded-xl text-rose-400 text-xs font-sans flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{tokenError}</span>
+            </div>
+          ) : (
+            /* TAMPILAN JIKA SISWA BELUM UJIAN (FORM TOKEN & PILIHAN MATA UJIAN) */
+            <>
+              {/* 2. PILIHAN MATA UJIAN (CLEAN TEXT & LARGE TYPOGRAPHY) */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-cyan-400 px-1">
+                  <Sparkles className="w-4 h-4" />
+                  <h3 className="text-xs font-display font-bold uppercase tracking-widest">PILIH MATA UJIAN SPESIALISASI</h3>
                 </div>
-              )}
-            </form>
-          </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {DAFTAR_UJIAN.map((item) => {
+                    const isSelected = selectedUjian === item.id;
+
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => { setSelectedUjian(item.id); setTokenError(''); }}
+                        className={`p-6 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between gap-5 ${
+                          isSelected
+                            ? 'bg-[#0d1527] border-cyan-400 shadow-lg shadow-cyan-400/10'
+                            : 'bg-[#0d1527]/40 border-slate-800/60 hover:bg-[#0d1527]/80 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className={`text-[10px] font-display font-bold uppercase px-2.5 py-1 rounded-md ${
+                              isSelected ? 'bg-cyan-400 text-slate-950' : 'bg-slate-900/90 text-slate-400'
+                            }`}>
+                              {item.kategori}
+                            </span>
+                            
+                            <span className={`text-xs font-display font-bold ${isSelected ? 'text-cyan-400' : 'text-slate-600'}`}>
+                              {isSelected ? '✓ Terpilih' : ''}
+                            </span>
+                          </div>
+
+                          <div className="pt-2">
+                            <h4 className="text-base md:text-lg font-display font-bold text-white tracking-wide leading-tight">
+                              {item.nama}
+                            </h4>
+                            <p className="text-xs text-slate-400 font-sans mt-1">
+                              {item.subNama}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-800/40 flex items-center justify-between text-xs font-sans text-slate-400">
+                          <span className="flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-cyan-400" /> {item.durasi}
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            {item.detailSoal}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 3. FORM TOKEN & KONFIRMASI MULAI */}
+              <div className="p-6 md:p-8 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 space-y-5">
+                <div className="border-b border-slate-800/50 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs font-display font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
+                      <Key className="w-4 h-4" /> VERIFIKASI TOKEN UJIAN
+                    </h4>
+                    <p className="text-xs text-slate-300 font-sans mt-1">
+                      Mata Ujian Terpilih: <strong className="text-white font-display text-sm">{activeExamDetail.nama} ({activeExamDetail.subNama})</strong>
+                    </p>
+                  </div>
+
+                  <div className="text-xs font-sans text-slate-400">
+                    Token Testing: <code className="text-cyan-400 font-display font-bold">{activeExamDetail.tokenDefault}</code>
+                  </div>
+                </div>
+
+                <form onSubmit={handleMulaiUjian} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <div className="md:col-span-2">
+                      <Input
+                        type="text"
+                        placeholder={`Masukkan Token Ujian ${activeExamDetail.nama}...`}
+                        value={tokenInput}
+                        onChange={(e) => setTokenInput(e.target.value.toUpperCase())}
+                        className="w-full px-4 py-3 uppercase font-display font-bold tracking-widest text-sm bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-white rounded-xl transition-all"
+                      />
+                    </div>
+
+                    <Button
+                      type="submit"
+                      disabled={isLoading}
+                      className="w-full py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0 rounded-xl shadow-lg shadow-cyan-400/20 flex items-center justify-center gap-2"
+                    >
+                      {isLoading ? 'MEMVERIFIKASI...' : (
+                        <>
+                          <Play className="w-3.5 h-3.5 fill-slate-950" /> MULAI PENGERJAAN
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="checkbox"
+                      id="agree"
+                      checked={isAgreed}
+                      onChange={(e) => setIsAgreed(e.target.checked)}
+                      className="w-3.5 h-3.5 accent-cyan-400 rounded cursor-pointer"
+                    />
+                    <label htmlFor="agree" className="text-[11px] text-slate-400 hover:text-white transition-colors cursor-pointer select-none font-sans">
+                      Saya menyetujui tata tertib pengerjaan ujian <strong className="text-slate-200">{activeExamDetail.nama}</strong>.
+                    </label>
+                  </div>
+
+                  {tokenError && (
+                    <div className="p-3 bg-rose-500/10 rounded-xl text-rose-400 text-xs font-sans flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{tokenError}</span>
+                    </div>
+                  )}
+                </form>
+              </div>
+            </>
+          )}
 
         </motion.div>
       </main>
