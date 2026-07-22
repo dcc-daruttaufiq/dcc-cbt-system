@@ -57,6 +57,7 @@ export default function DashboardPeserta() {
 
   const [userName, setUserName] = useState('');
   const [techId, setTechId] = useState('');
+  const [currentUserObj, setCurrentUserObj] = useState(null);
   
   const [selectedUjian, setSelectedUjian] = useState(DAFTAR_UJIAN[0].id);
   const [tokenInput, setTokenInput] = useState('');
@@ -70,27 +71,52 @@ export default function DashboardPeserta() {
   const activeExamDetail = DAFTAR_UJIAN.find((u) => u.id === selectedUjian) || DAFTAR_UJIAN[0];
 
   useEffect(() => {
-    const storedName = localStorage.getItem('userName') || sessionStorage.getItem('userName') || 'ASSHYFA YUNITIASARI';
-    setUserName(storedName);
-    setTechId('DCC25-0072');
+    // 1. AMBIL PROFIL USER ASLI YANG SEDANG LOGIN
+    const savedUserStr = localStorage.getItem('currentUser');
+    let realUser = null;
 
-    // Cek apakah siswa sudah selesai ujian
-    const examSubmitted = sessionStorage.getItem('examSubmitted') || localStorage.getItem('examSubmitted');
-    const examName = sessionStorage.getItem('selectedExamName') || 'Microsoft Office';
+    if (savedUserStr) {
+      try {
+        realUser = JSON.parse(savedUserStr);
+      } catch (e) {}
+    }
 
-    if (examSubmitted === 'true') {
+    const nameToDisplay = realUser?.nama || realUser?.nama_lengkap || localStorage.getItem('userName') || 'Peserta Ujian';
+    const techIdToDisplay = realUser?.tech_id || localStorage.getItem('userTechId') || 'DCC25-000';
+
+    setUserName(nameToDisplay);
+    setTechId(techIdToDisplay);
+    setCurrentUserObj(realUser);
+
+    // Otomatis pilih mata ujian sesuai kategori peserta jika ada
+    if (realUser?.kategori) {
+      const matchedExam = DAFTAR_UJIAN.find(u => u.id === realUser.kategori.toLowerCase());
+      if (matchedExam) {
+        setSelectedUjian(matchedExam.id);
+      }
+    }
+
+    // 2. CEK STATUS SELESAI UJIAN PER PESERTA
+    const localSesi = JSON.parse(localStorage.getItem('dcc_sesi_peserta') || '[]');
+    const userRecord = localSesi.find(p => 
+      (realUser?.tech_id && p.tech_id === realUser.tech_id) || 
+      (realUser?.user_id && String(p.user_id) === String(realUser.user_id))
+    ) || realUser;
+
+    const isGlobalFinished = localStorage.getItem('isExamFinished') === 'true' || sessionStorage.getItem('examSubmitted') === 'true';
+    const isUserRecordFinished = userRecord?.status === 'selesai';
+
+    if (isGlobalFinished || isUserRecordFinished) {
       setIsExamCompleted(true);
       
-      // BACA SKOR ASLI DARI SESI PESERTA LOKAL (Bukan Angka Hardcode 85!)
-      const localSesi = JSON.parse(localStorage.getItem('dcc_sesi_peserta') || '[]');
-      const userRecord = localSesi.find(p => p.user_id === 1) || {};
-      const realSkorPG = userRecord.nilai_pg !== undefined ? userRecord.nilai_pg : (userRecord.nilai_akhir || 0);
+      const realSkorPG = userRecord?.nilai_pg !== undefined ? userRecord.nilai_pg : (userRecord?.nilai_akhir || 0);
+      const examName = sessionStorage.getItem('selectedExamName') || activeExamDetail.nama;
 
       setCompletedExamInfo({
         namaUjian: examName,
         skorPG: realSkorPG,
-        statusPraktik: 'Berkas Diterima & Dalam Koreksi Panitia',
-        waktuSelesai: userRecord.waktu_selesai || new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB'
+        statusPraktik: userRecord?.status_koreksi === 'dikoreksi' ? 'Selesai Dikoreksi Panitia' : 'Berkas Diterima & Dalam Koreksi Panitia',
+        waktuSelesai: userRecord?.waktu_selesai || new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB'
       });
     }
   }, []);
@@ -131,6 +157,16 @@ export default function DashboardPeserta() {
         sessionStorage.setItem('selectedExamName', activeExamDetail.nama);
         sessionStorage.setItem('examToken', tokenInput);
 
+        // Update status pengerjaan user di dcc_sesi_peserta menjadi 'berjalan'
+        const localSesi = JSON.parse(localStorage.getItem('dcc_sesi_peserta') || '[]');
+        const updatedSesi = localSesi.map(p => {
+          if ((currentUserObj?.tech_id && p.tech_id === currentUserObj.tech_id) || (currentUserObj?.user_id && String(p.user_id) === String(currentUserObj.user_id))) {
+            return { ...p, status: 'berjalan' };
+          }
+          return p;
+        });
+        localStorage.setItem('dcc_sesi_peserta', JSON.stringify(updatedSesi));
+
         navigate('/ruang-ujian');
       } else {
         setTokenError(`Token untuk ujian ${activeExamDetail.nama} tidak valid!`);
@@ -143,6 +179,7 @@ export default function DashboardPeserta() {
     if (confirm("Reset sesi testing ujian? (Hanya untuk keperluan pengujian dev)")) {
       sessionStorage.removeItem('examSubmitted');
       localStorage.removeItem('examSubmitted');
+      localStorage.removeItem('isExamFinished');
       sessionStorage.removeItem('examStarted');
       setIsExamCompleted(false);
     }
@@ -178,6 +215,7 @@ export default function DashboardPeserta() {
           className="max-w-4xl mx-auto space-y-6"
         >
 
+          {/* KARTU PROFIL REALTIME SISWA YANG LOGIN */}
           <div className="p-6 md:p-8 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 hover:border-cyan-500/30 transition-all duration-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-xl">
             <div className="flex items-center gap-5">
               <div className="w-14 h-14 rounded-2xl bg-cyan-400/10 text-cyan-400 border border-cyan-400/20 flex items-center justify-center font-display font-bold shrink-0">

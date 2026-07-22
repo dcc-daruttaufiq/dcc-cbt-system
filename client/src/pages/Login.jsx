@@ -24,39 +24,44 @@ export default function Login() {
     const inputUser = username.trim();
     const inputPass = password.trim();
 
-    // 1. CEK AKSES KREDENSIAL PANITIA & MASTER ADMIN (REAL / LOCAL BYPASS)
+    // 1. LOGIN SEBAGAI PANITIA / MASTER ADMIN
     if (selectedRole === 'master_admin') {
-      if ((inputUser === 'admin' && (inputPass === 'admin123' || inputPass === '123')) || inputPass === 'admin123') {
-        saveAndRedirect('master_admin', 'token-master-admin-real', 'Master Admin');
+      if ((inputUser.toLowerCase() === 'admin' && (inputPass === 'admin123' || inputPass === '123')) || inputPass === 'admin123') {
+        saveAndRedirect('master_admin', 'token-master-admin-real', 'Master Admin', 'ADMIN-001');
         return;
       }
     } else if (selectedRole === 'panitia') {
-      if ((inputUser === 'panitia' || inputUser === 'admin') && (inputPass === 'panitia123' || inputPass === 'admin123' || inputPass === '123')) {
-        saveAndRedirect('panitia', 'token-panitia-real', 'Panitia Ujian');
+      if ((inputUser.toLowerCase() === 'panitia' || inputUser.toLowerCase() === 'admin') && (inputPass === 'panitia123' || inputPass === 'admin123' || inputPass === '123')) {
+        saveAndRedirect('panitia', 'token-panitia-real', 'Panitia Ujian', 'PANITIA-001');
         return;
       }
     }
 
-    // 2. JIKA LOGIN SEBAGAI PESERTA: INTEGRASI REAL DENGAN DATA IMPORT EXCEL
+    // 2. LOGIN SEBAGAI PESERTA UJIAN (PRESISI DENGAN DATA IMPORT EXCEL)
     if (selectedRole === 'peserta') {
       const savedPesertaStr = localStorage.getItem('dcc_sesi_peserta');
       let listPeserta = savedPesertaStr ? JSON.parse(savedPesertaStr) : [];
 
-      // Cari peserta berdasarkan TechID atau Nama Lengkap
+      // Cari peserta berdasarkan TechID atau Nama Lengkap dari data hasil impor
       let matchedPeserta = listPeserta.find(
-        p => p.tech_id?.toLowerCase() === inputUser.toLowerCase() ||
-             p.nama?.toLowerCase() === inputUser.toLowerCase()
+        p => (p.tech_id && p.tech_id.toLowerCase() === inputUser.toLowerCase()) ||
+             (p.nama && p.nama.toLowerCase() === inputUser.toLowerCase()) ||
+             (p.nama_lengkap && p.nama_lengkap.toLowerCase() === inputUser.toLowerCase())
       );
 
       if (!matchedPeserta) {
-        // Jika belum ada di list impor, daftarkan otomatis sebagai peserta real baru
+        // Jika belum terdaftar di list impor, daftarkan otomatis dengan data yang diinput
+        const autoTechId = inputUser.toUpperCase().startsWith('DCC') 
+          ? inputUser.toUpperCase() 
+          : `DCC25-${String(Math.floor(Math.random() * 800) + 100)}`;
+
         matchedPeserta = {
           user_id: Date.now(),
           nama: inputUser,
           nama_lengkap: inputUser,
-          tech_id: inputUser.toUpperCase(),
+          tech_id: autoTechId,
           kategori: 'msoffice',
-          status: 'berjalan', // Mengubah status menjadi Sedang Ujian secara realtime
+          status: 'berjalan', // Status langsung berubah menjadi Sedang Ujian saat login
           status_koreksi: 'belum_dikoreksi',
           nilai_pg: 0,
           nilai_praktik: 0,
@@ -64,40 +69,51 @@ export default function Login() {
         };
         listPeserta.push(matchedPeserta);
       } else {
-        // Update status pengerjaan peserta menjadi 'berjalan' (Sedang Ujian)
+        // Update status pengerjaan peserta yang ditemukan menjadi 'berjalan'
+        matchedPeserta = {
+          ...matchedPeserta,
+          status: matchedPeserta.status === 'selesai' ? 'selesai' : 'berjalan'
+        };
+
         listPeserta = listPeserta.map(p => {
           if (p.tech_id === matchedPeserta.tech_id || String(p.user_id) === String(matchedPeserta.user_id)) {
-            return { ...p, status: 'berjalan' };
+            return matchedPeserta;
           }
           return p;
         });
       }
 
-      // Simpan perubahan ke storage untuk dibaca Dashboard Panitia
+      // KUNCI SIMPAN: Simpan profil siswa yang SEDANG LOGIN dengan SANGAT PRESISI
       localStorage.setItem('dcc_sesi_peserta', JSON.stringify(listPeserta));
       localStorage.setItem('currentUser', JSON.stringify(matchedPeserta));
-      localStorage.removeItem('isExamFinished');
+      localStorage.setItem('userName', matchedPeserta.nama || matchedPeserta.nama_lengkap);
+      localStorage.setItem('userTechId', matchedPeserta.tech_id);
+      
+      // Bersihkan penanda ujian lama
+      if (matchedPeserta.status !== 'selesai') {
+        localStorage.removeItem('isExamFinished');
+      }
 
-      saveAndRedirect('peserta', `token-peserta-${matchedPeserta.user_id}`, matchedPeserta.nama);
+      saveAndRedirect('peserta', `token-peserta-${matchedPeserta.user_id}`, matchedPeserta.nama || matchedPeserta.nama_lengkap, matchedPeserta.tech_id);
       return;
     }
 
-    // 3. TRY API BACKEND JIKA TERHUBUNG SERVER
+    // 3. TRY API BACKEND JIKA ADA SERVER REALS
     try {
       const res = await API.post('/auth/login', { 
         username: inputUser, 
         password: inputPass 
       });
       
-      const { token, role, nama } = res.data;
-      saveAndRedirect(role || selectedRole, token, nama);
+      const { token, role, nama, tech_id } = res.data;
+      saveAndRedirect(role || selectedRole, token, nama, tech_id);
 
     } catch (err) {
       console.error('Login Error:', err);
       const backendMessage = err.response?.data?.message || err.response?.data?.error;
       
       if (inputPass === '123' || inputPass === 'admin123') {
-        saveAndRedirect(selectedRole, `token-bypass-${selectedRole}`, inputUser || 'Official User');
+        saveAndRedirect(selectedRole, `token-bypass-${selectedRole}`, inputUser || 'Official User', inputUser);
       } else {
         setErrorMsg(backendMessage || `Gagal login sebagai ${selectedRole.toUpperCase()}. Periksa kredensial Anda!`);
       }
@@ -106,11 +122,18 @@ export default function Login() {
     }
   };
 
-  const saveAndRedirect = (role, token, nama = '') => {
-    const storage = rememberMe ? localStorage : sessionStorage;
-    storage.setItem('token', token);
-    storage.setItem('userRole', role);
-    if (nama) storage.setItem('userName', nama);
+  const saveAndRedirect = (role, token, nama = '', techId = '') => {
+    // Simpan di localStorage & sessionStorage agar terbaca di mana saja
+    localStorage.setItem('token', token);
+    localStorage.setItem('userRole', role);
+    if (nama) localStorage.setItem('userName', nama);
+    if (techId) localStorage.setItem('userTechId', techId);
+
+    if (rememberMe) {
+      sessionStorage.setItem('token', token);
+      sessionStorage.setItem('userRole', role);
+      if (nama) sessionStorage.setItem('userName', nama);
+    }
 
     const formattedRole = role.toLowerCase();
     if (formattedRole === 'master_admin' || formattedRole === 'admin') {
@@ -189,7 +212,7 @@ export default function Login() {
             </label>
             <Input
               type="text"
-              placeholder={selectedRole === 'peserta' ? 'Masukkan TechID (contoh: DCC25-001)...' : 'Masukkan username...'}
+              placeholder={selectedRole === 'peserta' ? 'Masukkan TechID (contoh: DCC25-002)...' : 'Masukkan username...'}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required

@@ -43,15 +43,23 @@ export default function BankSoal() {
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
-  // LOGIKA FETCH SOAL PERMANEN (ANTI-RESET SAAT APLIKASI MATI)
+  // LOGIKA FETCH SOAL PERMANEN (ANTI-RESET SAAT DI-REFRESH)
   const fetchSoal = async () => {
+    // 1. CEK DULU DI LOCALSTORAGE: Jika sudah ada data (hasil impor/edit), langsung pakai data ini!
     const savedLocal = localStorage.getItem('dcc_bank_soal');
-    let localData = [];
-
     if (savedLocal) {
-      try { localData = JSON.parse(savedLocal); } catch (e) { localData = []; }
+      try {
+        const parsed = JSON.parse(savedLocal);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setDataSoal(parsed);
+          return; // STOP! Jangan timpa dengan API/Dummy jika data lokal sudah ada
+        }
+      } catch (e) {
+        console.warn("Gagal membaca localStorage, mencoba cara lain...");
+      }
     }
 
+    // 2. JIKA LOKAL KOSONG, BARU AMBIL DARI API BACKEND
     try {
       let res = await API.get('/soal').catch(() => API.get('/ujian/soal'));
       if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
@@ -63,12 +71,9 @@ export default function BankSoal() {
       console.warn('API server offline, menggunakan penyimpanan lokal.');
     }
 
-    if (localData && localData.length > 0) {
-      setDataSoal(localData);
-    } else {
-      setDataSoal(initialDummySoal);
-      localStorage.setItem('dcc_bank_soal', JSON.stringify(initialDummySoal));
-    }
+    // 3. JIKA LOKAL DAN API KOSONG, BARU PAKAI DUMMY PERTAMA KALI
+    setDataSoal(initialDummySoal);
+    localStorage.setItem('dcc_bank_soal', JSON.stringify(initialDummySoal));
   };
 
   useEffect(() => {
@@ -166,7 +171,7 @@ export default function BankSoal() {
     } catch (err) {}
   };
 
-  // HANDLER IMPORT EXCEL / CSV DENGAN SMART MAPPING MATA UJIAN
+  // HANDLER IMPORT EXCEL / CSV DENGAN SMART MAPPER
   const handleImportExcelCSV = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -187,9 +192,9 @@ export default function BankSoal() {
         
         if (cols.length >= 3) {
           const rawKategori = (cols[0] || '').toLowerCase();
-          let finalKategori = 'msoffice'; // Default fallback
+          let finalKategori = 'msoffice';
 
-          // SMART MAPPER: Memetakan teks kategori Excel ke ID Kategori CBT yang Valid
+          // SMART MAPPER KATEGORI
           if (rawKategori.includes('canva') || rawKategori.includes('desain') || rawKategori.includes('poster') || rawKategori.includes('logo') || rawKategori.includes('grafis') || rawKategori.includes('elemen') || rawKategori.includes('tipografi') || rawKategori.includes('layout') || rawKategori.includes('warna')) {
             finalKategori = 'canva';
           } else if (rawKategori.includes('coding') || rawKategori.includes('web') || rawKategori.includes('html') || rawKategori.includes('css') || rawKategori.includes('javascript') || rawKategori.includes('js') || rawKategori.includes('programming')) {
@@ -221,7 +226,6 @@ export default function BankSoal() {
             });
           } else {
             const rubrikRaw = cols[8] || cols[3] || 'Kesesuaian hasil pengerjaan, Kerapihan berkas';
-            // Support pemisah rubrik menggunakan koma (,) maupun pipe (|)
             const rubrikArr = rubrikRaw.split(/[|,]/).map(r => r.trim()).filter(Boolean);
 
             importedSoalArr.push({
@@ -239,7 +243,7 @@ export default function BankSoal() {
         const combined = [...importedSoalArr, ...listSoal];
         setDataSoal(combined);
         localStorage.setItem('dcc_bank_soal', JSON.stringify(combined));
-        alert(`Berhasil mengimpor ${importedSoalArr.length} soal! Semua otomatis terpetakan ke mata ujian yang sesuai.`);
+        alert(`Berhasil mengimpor ${importedSoalArr.length} soal! Data tersimpan permanen.`);
       } else {
         alert('File tidak sesuai format kolom!');
       }
