@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import API from '../utils/api';
@@ -9,7 +9,7 @@ import Input from '../components/ui/Input';
 import Textarea from '../components/ui/Textarea';
 import Select from '../components/ui/Select';
 import Badge from '../components/ui/Badge';
-import { Plus, Trash2, Edit3, Save, X, Database, Layers } from 'lucide-react';
+import { Plus, Trash2, Edit3, Save, X, Database, Layers, Download, Upload } from 'lucide-react';
 
 const initialDummySoal = [
   { id: 101, kategori: 'msoffice', tipe: 'pg', pertanyaan: 'Shortcut keyboard untuk menyimpan dokumen pada Microsoft Word adalah...', opsi: ['A. Ctrl + S', 'B. Ctrl + P', 'C. Ctrl + C', 'D. Ctrl + V'], jawaban_benar: 'A' },
@@ -34,13 +34,29 @@ export default function BankSoal() {
   const [checklist, setChecklist] = useState([]);
   const [inputChecklist, setInputChecklist] = useState('');
 
+  const fileInputRef = useRef(null);
+
   const menuPanitia = [
     { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
     { label: 'Bank Soal', path: '/bank-soal', icon: '📚' },
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
+  // LOGIKA FETCH SOAL PERMANEN (ANTI-RESET SAAT APLIKASI MATI)
   const fetchSoal = async () => {
+    // 1. Cek dari localStorage terlebih dahulu agar data buatan user tidak tertimpa
+    const savedLocal = localStorage.getItem('dcc_bank_soal');
+    let localData = [];
+
+    if (savedLocal) {
+      try {
+        localData = JSON.parse(savedLocal);
+      } catch (e) {
+        localData = [];
+      }
+    }
+
+    // 2. Coba ambil dari Backend API
     try {
       let res = await API.get('/soal').catch(() => API.get('/ujian/soal'));
       if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
@@ -49,13 +65,14 @@ export default function BankSoal() {
         return;
       }
     } catch (err) {
-      console.warn('API server unreachable, fallback to local storage');
+      console.warn('API server offline, menggunakan penyimpanan lokal.');
     }
 
-    const savedLocal = localStorage.getItem('dcc_bank_soal');
-    if (savedLocal) {
-      setDataSoal(JSON.parse(savedLocal));
+    // 3. Jika localStorage ada isinya, pakai data lokal tersebut (JANGAN PAKAI DUMMY)
+    if (localData && localData.length > 0) {
+      setDataSoal(localData);
     } else {
+      // Hanya jika benar-benar belum pernah menginput sama sekali
       setDataSoal(initialDummySoal);
       localStorage.setItem('dcc_bank_soal', JSON.stringify(initialDummySoal));
     }
@@ -136,7 +153,6 @@ export default function BankSoal() {
       checklist: tipe === 'praktik' ? checklist : []
     };
 
-    // 1. UPDATE KE STATE & LOCALSTORAGE (LANGSUNG KEBACA LINTAS TAB PESERTA)
     let updatedList = [];
     if (editingId) {
       updatedList = listSoal.map((item) => (item.id === editingId ? newSoalItem : item));
@@ -148,7 +164,6 @@ export default function BankSoal() {
     localStorage.setItem('dcc_bank_soal', JSON.stringify(updatedList));
     setIsModalOpen(false);
 
-    // 2. KIRIM BACKGROUND KE BACKEND
     try {
       if (editingId) {
         await API.put(`/soal/${editingId}`, newSoalItem).catch(() => API.put(`/ujian/soal/${editingId}`, newSoalItem));
@@ -156,6 +171,40 @@ export default function BankSoal() {
         await API.post('/soal', newSoalItem).catch(() => API.post('/ujian/soal', newSoalItem));
       }
     } catch (err) {}
+  };
+
+  // FITUR EKSPOR BACKUP SOAL KE FILE JSON
+  const handleExportBackup = () => {
+    if (listSoal.length === 0) return alert('Belum ada soal untuk diekspor!');
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(listSoal, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `Backup_BankSoal_DCC_${Date.now()}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  // FITUR IMPOR BACKUP SOAL DARI FILE JSON
+  const handleImportBackup = (e) => {
+    const fileReader = new FileReader();
+    if (e.target.files && e.target.files[0]) {
+      fileReader.readAsText(e.target.files[0], "UTF-8");
+      fileReader.onload = (event) => {
+        try {
+          const parsed = JSON.parse(event.target.result);
+          if (Array.isArray(parsed)) {
+            setDataSoal(parsed);
+            localStorage.setItem('dcc_bank_soal', JSON.stringify(parsed));
+            alert(`Berhasil mengimpor ${parsed.length} soal ke Bank Soal!`);
+          } else {
+            alert('Format file backup tidak valid!');
+          }
+        } catch (err) {
+          alert('Gagal membaca file JSON!');
+        }
+      };
+    }
   };
 
   const filteredSoalList =
@@ -178,9 +227,33 @@ export default function BankSoal() {
               </div>
             </div>
 
-            <Button onClick={openCreateModal} className="text-xs bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold border-0 shadow-lg shadow-cyan-400/20">
-              <Plus className="w-4 h-4 mr-1.5" /> Tambah Soal Baru
-            </Button>
+            <div className="flex items-center gap-2">
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleImportBackup} 
+                accept=".json" 
+                className="hidden" 
+              />
+              
+              <Button 
+                onClick={() => fileInputRef.current.click()} 
+                className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 font-sans border-0"
+              >
+                <Upload className="w-3.5 h-3.5 mr-1.5" /> Impor Backup
+              </Button>
+
+              <Button 
+                onClick={handleExportBackup} 
+                className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 font-sans border-0"
+              >
+                <Download className="w-3.5 h-3.5 mr-1.5" /> Ekspor Backup
+              </Button>
+
+              <Button onClick={openCreateModal} className="text-xs bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold border-0 shadow-lg shadow-cyan-400/20">
+                <Plus className="w-4 h-4 mr-1.5" /> Tambah Soal Baru
+              </Button>
+            </div>
           </div>
         </Navbar>
 
