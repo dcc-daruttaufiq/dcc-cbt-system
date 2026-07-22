@@ -11,8 +11,14 @@ import Select from '../components/ui/Select';
 import Badge from '../components/ui/Badge';
 import { Plus, Trash2, Edit3, Save, X, Database, Layers } from 'lucide-react';
 
+const initialDummySoal = [
+  { id: 101, kategori: 'msoffice', tipe: 'pg', pertanyaan: 'Shortcut keyboard untuk menyimpan dokumen pada Microsoft Word adalah...', opsi: ['A. Ctrl + S', 'B. Ctrl + P', 'C. Ctrl + C', 'D. Ctrl + V'], jawaban_benar: 'A' },
+  { id: 102, kategori: 'canva', tipe: 'pg', pertanyaan: 'Format berkas gambar yang mendukung latar belakang transparan di Canva adalah...', opsi: ['A. JPG', 'B. PNG', 'C. PDF', 'D. BMP'], jawaban_benar: 'B' },
+  { id: 103, kategori: 'coding', tipe: 'praktik', pertanyaan: 'TUGAS PRAKTIK: Buatlah fungsi JavaScript untuk memfilter elemen array secara dinamis.', checklist: ['Fungsi valid', 'No syntax error'] }
+];
+
 export default function BankSoal() {
-  useDocumentTitle('Manajemen Bank Soal API - DCC CBT');
+  useDocumentTitle('Manajemen Bank Soal - DCC CBT');
 
   const [listSoal, setDataSoal] = useState([]);
   const [filterKategori, setFilterKategori] = useState('semua');
@@ -34,14 +40,25 @@ export default function BankSoal() {
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
+  // Fetch data dari API / Backup Storage
   const fetchSoal = async () => {
     try {
-      const response = await API.get('/soal');
-      if (response.data && Array.isArray(response.data)) {
-        setDataSoal(response.data);
+      let res = await API.get('/soal').catch(() => API.get('/ujian/soal'));
+      if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
+        setDataSoal(res.data);
+        sessionStorage.setItem('dcc_bank_soal', JSON.stringify(res.data));
+        return;
       }
     } catch (err) {
-      console.warn('Gagal ambil data soal server, menggunakan data standby');
+      console.warn('API server unreachable, fallback to local storage');
+    }
+
+    const savedLocal = sessionStorage.getItem('dcc_bank_soal');
+    if (savedLocal) {
+      setDataSoal(JSON.parse(savedLocal));
+    } else {
+      setDataSoal(initialDummySoal);
+      sessionStorage.setItem('dcc_bank_soal', JSON.stringify(initialDummySoal));
     }
   };
 
@@ -79,10 +96,10 @@ export default function BankSoal() {
     setPertanyaan(soal.pertanyaan);
     if (soal.tipe === 'pg') {
       setOpsi({
-        A: soal.opsi?.[0]?.replace('A. ', '') || '',
-        B: soal.opsi?.[1]?.replace('B. ', '') || '',
-        C: soal.opsi?.[2]?.replace('C. ', '') || '',
-        D: soal.opsi?.[3]?.replace('D. ', '') || ''
+        A: soal.opsi?.[0]?.replace(/^A\.\s*/, '') || '',
+        B: soal.opsi?.[1]?.replace(/^B\.\s*/, '') || '',
+        C: soal.opsi?.[2]?.replace(/^C\.\s*/, '') || '',
+        D: soal.opsi?.[3]?.replace(/^D\.\s*/, '') || ''
       });
       setJawabanBenar(soal.jawaban_benar || soal.jawabanBenar || 'A');
     } else {
@@ -92,13 +109,14 @@ export default function BankSoal() {
   };
 
   const handleDelete = async (id) => {
-    if (confirm('Apakah Anda yakin ingin menghapus soal ini dari database?')) {
+    if (confirm('Apakah Anda yakin ingin menghapus soal ini?')) {
       try {
-        await API.delete(`/soal/${id}`);
-        fetchSoal();
-      } catch (err) {
-        alert('Gagal menghapus data.');
-      }
+        await API.delete(`/soal/${id}`).catch(() => API.delete(`/ujian/soal/${id}`));
+      } catch (err) {}
+
+      const updated = listSoal.filter((item) => item.id !== id);
+      setDataSoal(updated);
+      sessionStorage.setItem('dcc_bank_soal', JSON.stringify(updated));
     }
   };
 
@@ -108,32 +126,46 @@ export default function BankSoal() {
 
     const formatOpsi = tipe === 'pg' ? [`A. ${opsi.A}`, `B. ${opsi.B}`, `C. ${opsi.C}`, `D. ${opsi.D}`] : [];
 
-    const payload = {
+    const newSoalItem = {
+      id: editingId || Date.now(),
       kategori,
       tipe,
       pertanyaan,
       opsi: formatOpsi,
+      jawaban_benar: tipe === 'pg' ? jawabanBenar : '',
       jawabanBenar: tipe === 'pg' ? jawabanBenar : '',
       checklist: tipe === 'praktik' ? checklist : []
     };
 
+    // 1. UPDATE LANGSUNG KE TAMPILAN REACT & STORAGE
+    let updatedList = [];
+    if (editingId) {
+      updatedList = listSoal.map((item) => (item.id === editingId ? newSoalItem : item));
+    } else {
+      updatedList = [newSoalItem, ...listSoal];
+    }
+
+    setDataSoal(updatedList);
+    sessionStorage.setItem('dcc_bank_soal', JSON.stringify(updatedList));
+    setIsModalOpen(false);
+
+    // 2. KIRIM BACKGROUND REQUEST KE BACKEND
     try {
       if (editingId) {
-        await API.put(`/soal/${editingId}`, payload);
+        await API.put(`/soal/${editingId}`, newSoalItem).catch(() => API.put(`/ujian/soal/${editingId}`, newSoalItem));
       } else {
-        await API.post('/soal', payload);
+        await API.post('/soal', newSoalItem).catch(() => API.post('/ujian/soal', newSoalItem));
       }
-      fetchSoal();
-      setIsModalOpen(false);
     } catch (err) {
-      alert('Gagal menyimpan data ke database.');
+      console.warn('Tersimpan di mode lokal fallback.');
     }
   };
 
   // Filter List Soal Berdasarkan Tab Terpilih
-  const filteredSoalList = filterKategori === 'semua'
-    ? listSoal
-    : listSoal.filter(item => (item.kategori || 'msoffice') === filterKategori);
+  const filteredSoalList =
+    filterKategori === 'semua'
+      ? listSoal
+      : listSoal.filter((item) => (item.kategori || 'msoffice') === filterKategori);
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
@@ -183,61 +215,67 @@ export default function BankSoal() {
 
             {/* MODERN BORDERLESS LIST */}
             <div className="space-y-3">
-              {filteredSoalList.map((row, index) => (
-                <div 
-                  key={row.id || index}
-                  className="p-5 bg-[#0d1527]/60 backdrop-blur-md border border-slate-800/50 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-[#0d1527] transition-all duration-200"
-                >
-                  <div className="flex items-start gap-4 flex-1">
-                    <span className="text-xs font-mono text-slate-500 bg-slate-900/60 px-2.5 py-1 rounded-lg shrink-0 mt-0.5">
-                      #{index + 1}
-                    </span>
+              {filteredSoalList.length === 0 ? (
+                <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
+                  Belum ada soal untuk kategori ini. Klik <strong>"Tambah Soal Baru"</strong> di atas.
+                </div>
+              ) : (
+                filteredSoalList.map((row, index) => (
+                  <div 
+                    key={row.id || index}
+                    className="p-5 bg-[#0d1527]/60 backdrop-blur-md border border-slate-800/50 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-[#0d1527] transition-all duration-200"
+                  >
+                    <div className="flex items-start gap-4 flex-1">
+                      <span className="text-xs font-mono text-slate-500 bg-slate-900/60 px-2.5 py-1 rounded-lg shrink-0 mt-0.5">
+                        #{index + 1}
+                      </span>
 
-                    <div className="space-y-2 flex-1">
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-cyan-400/10 text-cyan-400 border-cyan-400/20 text-[10px] uppercase font-display font-bold px-2 py-0.5">
-                          {row.kategori || 'MSOFFICE'}
-                        </Badge>
+                      <div className="space-y-2 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-cyan-400/10 text-cyan-400 border-cyan-400/20 text-[10px] uppercase font-display font-bold px-2 py-0.5">
+                            {row.kategori || 'MSOFFICE'}
+                          </Badge>
 
-                        <Badge variant={row.tipe === 'pg' ? 'primary' : 'secondary'} className="text-[10px] px-2 py-0.5 rounded-md">
-                          {row.tipe === 'pg' ? 'Pilihan Ganda' : 'Praktik'}
-                        </Badge>
+                          <Badge variant={row.tipe === 'pg' ? 'primary' : 'secondary'} className="text-[10px] px-2 py-0.5 rounded-md">
+                            {row.tipe === 'pg' ? 'Pilihan Ganda' : 'Praktik'}
+                          </Badge>
 
-                        {row.tipe === 'pg' ? (
-                          <span className="text-xs text-slate-400">
-                            Kunci: <strong className="text-cyan-400 font-mono">{row.jawaban_benar || row.jawabanBenar}</strong>
-                          </span>
-                        ) : (
-                          <span className="text-xs text-slate-400">
-                            {row.checklist?.length || 0} Kriteria Rubrik
-                          </span>
-                        )}
+                          {row.tipe === 'pg' ? (
+                            <span className="text-xs text-slate-400">
+                              Kunci: <strong className="text-cyan-400 font-mono">{row.jawaban_benar || row.jawabanBenar}</strong>
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400">
+                              {row.checklist?.length || 0} Kriteria Rubrik
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-sm font-medium text-slate-100 leading-relaxed whitespace-pre-wrap font-sans">
+                          {row.pertanyaan}
+                        </p>
                       </div>
+                    </div>
 
-                      <p className="text-sm font-medium text-slate-100 leading-relaxed whitespace-pre-wrap font-sans">
-                        {row.pertanyaan}
-                      </p>
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                      <button 
+                        onClick={() => openEditModal(row)} 
+                        className="p-2 rounded-xl bg-slate-800/60 text-slate-300 hover:text-cyan-400 hover:bg-slate-800 transition"
+                        title="Edit Soal"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(row.id)} 
+                        className="p-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition"
+                        title="Hapus Soal"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                    <button 
-                      onClick={() => openEditModal(row)} 
-                      className="p-2 rounded-xl bg-slate-800/60 text-slate-300 hover:text-cyan-400 hover:bg-slate-800 transition"
-                      title="Edit Soal"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(row.id)} 
-                      className="p-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition"
-                      title="Hapus Soal"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
 
           </div>
@@ -321,7 +359,7 @@ export default function BankSoal() {
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800/60">
                 <Button variant="outline" type="button" onClick={() => setIsModalOpen(false)} className="bg-slate-800 text-xs border-0">Batal</Button>
                 <Button variant="primary" onClick={handleSave} className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0">
-                  <Save className="w-4 h-4 mr-1.5" /> Simpan ke Database
+                  <Save className="w-4 h-4 mr-1.5" /> Simpan Soal
                 </Button>
               </div>
             </motion.div>
