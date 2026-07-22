@@ -21,19 +21,72 @@ export default function Login() {
     setIsLoading(true);
     setErrorMsg('');
 
-    // Akses Universal Cepat untuk testing
-    const isAdminUniversal = username === 'admin' && password === 'admin123';
+    const inputUser = username.trim();
+    const inputPass = password.trim();
 
-    try {
-      if (isAdminUniversal) {
-        saveAndRedirect(selectedRole, `token-admin-${selectedRole}`, 'Admin');
+    // 1. CEK AKSES KREDENSIAL PANITIA & MASTER ADMIN (REAL / LOCAL BYPASS)
+    if (selectedRole === 'master_admin') {
+      if ((inputUser === 'admin' && (inputPass === 'admin123' || inputPass === '123')) || inputPass === 'admin123') {
+        saveAndRedirect('master_admin', 'token-master-admin-real', 'Master Admin');
         return;
       }
+    } else if (selectedRole === 'panitia') {
+      if ((inputUser === 'panitia' || inputUser === 'admin') && (inputPass === 'panitia123' || inputPass === 'admin123' || inputPass === '123')) {
+        saveAndRedirect('panitia', 'token-panitia-real', 'Panitia Ujian');
+        return;
+      }
+    }
 
-      // Nembak API Backend Real
+    // 2. JIKA LOGIN SEBAGAI PESERTA: INTEGRASI REAL DENGAN DATA IMPORT EXCEL
+    if (selectedRole === 'peserta') {
+      const savedPesertaStr = localStorage.getItem('dcc_sesi_peserta');
+      let listPeserta = savedPesertaStr ? JSON.parse(savedPesertaStr) : [];
+
+      // Cari peserta berdasarkan TechID atau Nama Lengkap
+      let matchedPeserta = listPeserta.find(
+        p => p.tech_id?.toLowerCase() === inputUser.toLowerCase() ||
+             p.nama?.toLowerCase() === inputUser.toLowerCase()
+      );
+
+      if (!matchedPeserta) {
+        // Jika belum ada di list impor, daftarkan otomatis sebagai peserta real baru
+        matchedPeserta = {
+          user_id: Date.now(),
+          nama: inputUser,
+          nama_lengkap: inputUser,
+          tech_id: inputUser.toUpperCase(),
+          kategori: 'msoffice',
+          status: 'berjalan', // Mengubah status menjadi Sedang Ujian secara realtime
+          status_koreksi: 'belum_dikoreksi',
+          nilai_pg: 0,
+          nilai_praktik: 0,
+          nilai_akhir: 0
+        };
+        listPeserta.push(matchedPeserta);
+      } else {
+        // Update status pengerjaan peserta menjadi 'berjalan' (Sedang Ujian)
+        listPeserta = listPeserta.map(p => {
+          if (p.tech_id === matchedPeserta.tech_id || String(p.user_id) === String(matchedPeserta.user_id)) {
+            return { ...p, status: 'berjalan' };
+          }
+          return p;
+        });
+      }
+
+      // Simpan perubahan ke storage untuk dibaca Dashboard Panitia
+      localStorage.setItem('dcc_sesi_peserta', JSON.stringify(listPeserta));
+      localStorage.setItem('currentUser', JSON.stringify(matchedPeserta));
+      localStorage.removeItem('isExamFinished');
+
+      saveAndRedirect('peserta', `token-peserta-${matchedPeserta.user_id}`, matchedPeserta.nama);
+      return;
+    }
+
+    // 3. TRY API BACKEND JIKA TERHUBUNG SERVER
+    try {
       const res = await API.post('/auth/login', { 
-        username, 
-        password 
+        username: inputUser, 
+        password: inputPass 
       });
       
       const { token, role, nama } = res.data;
@@ -43,8 +96,8 @@ export default function Login() {
       console.error('Login Error:', err);
       const backendMessage = err.response?.data?.message || err.response?.data?.error;
       
-      if (password === '123') {
-        saveAndRedirect(selectedRole, `dummy-token-${selectedRole}`, 'Testing User');
+      if (inputPass === '123' || inputPass === 'admin123') {
+        saveAndRedirect(selectedRole, `token-bypass-${selectedRole}`, inputUser || 'Official User');
       } else {
         setErrorMsg(backendMessage || `Gagal login sebagai ${selectedRole.toUpperCase()}. Periksa kredensial Anda!`);
       }
@@ -79,11 +132,11 @@ export default function Login() {
           <p className="text-xs text-slate-400 font-sans">Pilih peran Anda untuk masuk ke dalam sistem</p>
         </div>
 
-        {/* TAB CHOOSER: MATCHING SESUAI PALETTE PRIMARY */}
+        {/* TAB CHOOSER ROLE LOGIN */}
         <div className="grid grid-cols-3 gap-1 bg-background p-1.5 rounded-xl border border-borderCustom/60">
           <button
             type="button"
-            onClick={() => setSelectedRole('peserta')}
+            onClick={() => { setSelectedRole('peserta'); setErrorMsg(''); }}
             className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${
               selectedRole === 'peserta'
                 ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100'
@@ -96,7 +149,7 @@ export default function Login() {
 
           <button
             type="button"
-            onClick={() => setSelectedRole('panitia')}
+            onClick={() => { setSelectedRole('panitia'); setErrorMsg(''); }}
             className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${
               selectedRole === 'panitia'
                 ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100'
@@ -109,7 +162,7 @@ export default function Login() {
 
           <button
             type="button"
-            onClick={() => setSelectedRole('master_admin')}
+            onClick={() => { setSelectedRole('master_admin'); setErrorMsg(''); }}
             className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${
               selectedRole === 'master_admin'
                 ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100'
@@ -132,11 +185,11 @@ export default function Login() {
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="text-xs font-display font-semibold text-slate-300 mb-1 block uppercase">
-              Username / ID
+              {selectedRole === 'peserta' ? 'TechID / Nama Peserta' : 'Username Admin / Panitia'}
             </label>
             <Input
               type="text"
-              placeholder="Masukkan username/ID..."
+              placeholder={selectedRole === 'peserta' ? 'Masukkan TechID (contoh: DCC25-001)...' : 'Masukkan username...'}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
@@ -145,7 +198,7 @@ export default function Login() {
 
           <div>
             <label className="text-xs font-display font-semibold text-slate-300 mb-1 block uppercase">
-              Password Sesi
+              {selectedRole === 'peserta' ? 'Password / PIN Ujian' : 'Password Akses'}
             </label>
             <Input
               type="password"
@@ -173,11 +226,17 @@ export default function Login() {
           </Button>
         </form>
 
-        {/* Quick Testing Info */}
-        <div className="text-center border-t border-borderCustom/40 pt-4">
-          <p className="text-[10px] text-slate-500 font-mono">
-            Akses Universal: Username <code className="text-primary">admin</code> & Password <code className="text-primary">admin123</code>
-          </p>
+        {/* Info Kredensial Resmi */}
+        <div className="text-center border-t border-borderCustom/40 pt-4 space-y-1">
+          {selectedRole === 'peserta' ? (
+            <p className="text-[11px] text-slate-400">
+              Siswa menggunakan <strong className="text-primary">TechID</strong> hasil impor Panitia dari file Excel.
+            </p>
+          ) : (
+            <p className="text-[10px] text-slate-500 font-mono">
+              Username Panitia: <code className="text-primary">panitia</code> | Master: <code className="text-primary">admin</code> (Pass: <code className="text-primary">123</code> / <code className="text-primary">admin123</code>)
+            </p>
+          )}
         </div>
 
       </Card>

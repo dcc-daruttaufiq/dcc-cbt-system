@@ -59,12 +59,12 @@ export default function DashboardPanitia() {
       }
     }
 
-    // Cek status sesi login real-time dari peserta aktif di browser
+    // Cek status sesi login real-time dari peserta aktif di browser/storage
     const currentActiveUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
     const isExamFinished = localStorage.getItem('isExamFinished') === 'true';
 
     const updatedWithRealStatus = listReal.map(p => {
-      // Jika user sedang aktif login/mengerjakan saat ini
+      // Sinkronisasi status user yang sedang aktif di device/browser
       if (currentActiveUser && (p.tech_id === currentActiveUser.tech_id || String(p.user_id) === String(currentActiveUser.user_id))) {
         return {
           ...p,
@@ -79,10 +79,10 @@ export default function DashboardPanitia() {
 
   useEffect(() => {
     loadPeserta();
-    // Auto-refresh setiap 5 detik untuk memantau pengerjaan siswa secara realtime
+    // Auto-refresh setiap 4 detik untuk memantau pengerjaan siswa secara realtime
     const interval = setInterval(() => {
       loadPeserta();
-    }, 5000);
+    }, 4000);
 
     return () => clearInterval(interval);
   }, []);
@@ -126,11 +126,9 @@ export default function DashboardPanitia() {
       });
 
       if (importedPesertaArr.length > 0) {
-        // Timpa / Gabungkan dengan data peserta terdaftar
-        const combined = [...importedPesertaArr];
-        setPeserta(combined);
-        localStorage.setItem('dcc_sesi_peserta', JSON.stringify(combined));
-        alert(`Berhasil mengimpor ${importedPesertaArr.length} peserta! Status awal semua peserta kini 'Belum Mulai'.`);
+        setPeserta(importedPesertaArr);
+        localStorage.setItem('dcc_sesi_peserta', JSON.stringify(importedPesertaArr));
+        alert(`Berhasil mengimpor ${importedPesertaArr.length} peserta! Status awal semua peserta: Belum Ujian.`);
       } else {
         alert('File tidak sesuai format! Pastikan Kolom A: Nama Lengkap, Kolom B: TechID.');
       }
@@ -151,21 +149,32 @@ export default function DashboardPanitia() {
       }
     } catch (err) {}
 
-    const savedJawabanStr = localStorage.getItem('jawabanLocal');
+    // BACA LEMBAR PENGERJAAN REAL PER PESERTA
+    const targetUser = peserta.find(p => p.user_id === userId);
+    const userTechId = targetUser?.tech_id;
+
+    const savedJawabanStr = localStorage.getItem(`jawabanLocal_${userId}`) || 
+                            localStorage.getItem(`jawabanLocal_${userTechId}`) || 
+                            localStorage.getItem('jawabanLocal');
+                            
     const questionsArr = JSON.parse(localStorage.getItem('activeExamQuestions') || localStorage.getItem('dcc_bank_soal') || '[]');
 
     if (savedJawabanStr) {
-      const parsedJwb = JSON.parse(savedJawabanStr);
-      detailJawaban = Object.keys(parsedJwb).map(soalId => {
-        const matchedSoal = questionsArr.find(s => String(s.id) === String(soalId)) || {};
-        return {
-          soal_id: soalId,
-          tipe: matchedSoal.tipe || (typeof parsedJwb[soalId] === 'object' ? 'praktik' : 'pg'),
-          pertanyaan: matchedSoal.pertanyaan || `Butir Soal #${soalId}`,
-          jawaban: parsedJwb[soalId],
-          checklist: matchedSoal.checklist || ['Hasil pengerjaan sesuai instruksi', 'Kerapihan & struktur berkas valid']
-        };
-      });
+      try {
+        const parsedJwb = JSON.parse(savedJawabanStr);
+        detailJawaban = Object.keys(parsedJwb).map(soalId => {
+          const matchedSoal = questionsArr.find(s => String(s.id) === String(soalId)) || {};
+          return {
+            soal_id: soalId,
+            tipe: matchedSoal.tipe || (typeof parsedJwb[soalId] === 'object' ? 'praktik' : 'pg'),
+            pertanyaan: matchedSoal.pertanyaan || `Butir Soal #${soalId}`,
+            jawaban: parsedJwb[soalId],
+            checklist: matchedSoal.checklist || ['Hasil pengerjaan sesuai instruksi', 'Kerapihan & struktur berkas valid']
+          };
+        });
+      } catch (e) {
+        detailJawaban = [];
+      }
     }
 
     setSoalPraktikList(detailJawaban);
@@ -225,16 +234,18 @@ export default function DashboardPanitia() {
     } catch (err) {}
 
     setIsSaved(true);
-    alert(`Nilai Praktik (${skorPraktikTotal}) Berhasil Disimpan!`);
+    alert(`Nilai Praktik (${skorPraktikTotal}) Berhasil Disimpan! Status siswa kini Selesai Dikoreksi.`);
   };
 
-  // FILTERING PESERTA REALTIME
+  // FILTERING PESERTA REALTIME (4 STATUS)
   const filteredPeserta = peserta.filter(p => {
     const statusP = p.status || 'belum_mulai';
+    const isDikoreksi = p.status_koreksi === 'dikoreksi';
+
     if (filterPeserta === 'belum_mulai') return statusP === 'belum_mulai';
     if (filterPeserta === 'berjalan') return statusP === 'berjalan';
-    if (filterPeserta === 'siap_koreksi') return statusP === 'selesai' && (!p.status_koreksi || p.status_koreksi !== 'dikoreksi');
-    if (filterPeserta === 'selesai') return statusP === 'selesai' && p.status_koreksi === 'dikoreksi';
+    if (filterPeserta === 'selesai_ujian') return statusP === 'selesai' && !isDikoreksi;
+    if (filterPeserta === 'selesai_dikoreksi') return statusP === 'selesai' && isDikoreksi;
     return true;
   });
 
@@ -244,9 +255,10 @@ export default function DashboardPanitia() {
     return true;
   });
 
-  const getBadgeStatus = (status) => {
-    if (status === 'berjalan') return { text: 'Sedang Ujian', variant: 'warning' };
-    if (status === 'selesai') return { text: 'Selesai Ujian', variant: 'primary' };
+  const getBadgeStatus = (p) => {
+    if (p.status === 'selesai' && p.status_koreksi === 'dikoreksi') return { text: 'Selesai Dikoreksi', variant: 'success' };
+    if (p.status === 'selesai') return { text: 'Selesai Ujian', variant: 'primary' };
+    if (p.status === 'berjalan') return { text: 'Sedang Ujian', variant: 'warning' };
     return { text: 'Belum Ujian', variant: 'secondary' };
   };
 
@@ -291,13 +303,14 @@ export default function DashboardPanitia() {
         <main className="p-8 flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* BILAH KIRI: ANTREAN PESERTA DENGAN TAB FILTER REALTIME */}
+            {/* BILAH KIRI: ANTREAN PESERTA DENGAN TAB FILTER STATUS LENGKAP */}
             <div className="space-y-4">
               <div className="flex flex-col gap-2 px-1">
                 <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
                   Daftar Peserta Terdaftar ({filteredPeserta.length})
                 </h2>
 
+                {/* FILTER TAB REALTIME STATUS */}
                 <div className="grid grid-cols-2 gap-1.5 bg-[#0d1527] p-2 rounded-xl border border-slate-800 text-xs font-display font-bold">
                   <button
                     onClick={() => setFilterPeserta('semua')}
@@ -324,12 +337,20 @@ export default function DashboardPanitia() {
                     Sedang Ujian
                   </button>
                   <button
-                    onClick={() => setFilterPeserta('siap_koreksi')}
+                    onClick={() => setFilterPeserta('selesai_ujian')}
                     className={`py-2 px-2.5 rounded-lg transition-all ${
-                      filterPeserta === 'siap_koreksi' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
+                      filterPeserta === 'selesai_ujian' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    Perlu Dikoreksi
+                    Selesai Ujian
+                  </button>
+                  <button
+                    onClick={() => setFilterPeserta('selesai_dikoreksi')}
+                    className={`col-span-2 py-2 px-2.5 rounded-lg transition-all ${
+                      filterPeserta === 'selesai_dikoreksi' ? 'bg-emerald-400 text-slate-950' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Selesai Dikoreksi
                   </button>
                 </div>
               </div>
@@ -342,7 +363,7 @@ export default function DashboardPanitia() {
               ) : (
                 <div className="space-y-3">
                   {filteredPeserta.map((p, idx) => {
-                    const statusInfo = getBadgeStatus(p.status);
+                    const statusInfo = getBadgeStatus(p);
                     const isSelected = selectedSiswa === p.user_id;
 
                     return (
