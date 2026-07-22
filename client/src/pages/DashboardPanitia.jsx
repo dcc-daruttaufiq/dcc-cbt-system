@@ -4,7 +4,7 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Sidebar from '../components/ui/Sidebar';
 import Navbar from '../components/ui/Navbar';
-import { CheckSquare, Square, Award, ClipboardList, User, FileCode, CheckCircle2, RefreshCw } from 'lucide-react';
+import { CheckSquare, Square, Award, ClipboardList, User, FileCode, CheckCircle2, RefreshCw, FileText } from 'lucide-react';
 
 export default function DashboardPanitia() {
   const [peserta, setPeserta] = useState([]);
@@ -27,10 +27,9 @@ export default function DashboardPanitia() {
         listReal = res.data;
       }
     } catch (err) {
-      console.warn("Gagal fetch dari backend, membaca sesi lokal peserta");
+      console.warn("Membaca sesi lokal peserta...");
     }
 
-    // Gabungkan dengan Sesi Lokal jika Backend offline/delay
     if (listReal.length === 0) {
       const localSesi = localStorage.getItem('dcc_sesi_peserta');
       if (localSesi) {
@@ -55,33 +54,28 @@ export default function DashboardPanitia() {
       if (res.data && Array.isArray(res.data) && res.data.length > 0) {
         detailJawaban = res.data;
       }
-    } catch (err) {
-      console.warn('Gagal muat jawaban live server, menggunakan storage lokal');
+    } catch (err) {}
+
+    // BACA HASIL JAWABAN REAL DARI LOCALSTORAGE
+    const savedJawabanStr = localStorage.getItem('jawabanLocal');
+    const bankSoal = JSON.parse(localStorage.getItem('dcc_bank_soal') || '[]');
+
+    if (savedJawabanStr) {
+      const parsedJwb = JSON.parse(savedJawabanStr);
+      detailJawaban = Object.keys(parsedJwb).map(soalId => {
+        const matchedSoal = bankSoal.find(s => String(s.id) === String(soalId)) || {};
+        return {
+          soal_id: soalId,
+          tipe: matchedSoal.tipe || (typeof parsedJwb[soalId] === 'object' ? 'praktik' : 'pg'),
+          pertanyaan: matchedSoal.pertanyaan || `Butir Soal #${soalId}`,
+          jawaban: parsedJwb[soalId],
+          checklist: matchedSoal.checklist || ['Hasil pengerjaan sesuai instruksi', 'Struktur & kerapihan berkas valid']
+        };
+      });
     }
 
-    // Fallback ke localStorage jika API belum mengembalikan data
-    if (detailJawaban.length === 0) {
-      const savedJawaban = localStorage.getItem('jawabanLocal');
-      const bankSoal = JSON.parse(localStorage.getItem('dcc_bank_soal') || '[]');
-      if (savedJawaban) {
-        const parsedJwb = JSON.parse(savedJawaban);
-        detailJawaban = Object.keys(parsedJwb).map(soalId => {
-          const matchedSoal = bankSoal.find(s => String(s.id) === String(soalId)) || {};
-          return {
-            soal_id: soalId,
-            tipe: matchedSoal.tipe || (typeof parsedJwb[soalId] === 'object' ? 'praktik' : 'pg'),
-            pertanyaan: matchedSoal.pertanyaan || `Pertanyaan Soal #${soalId}`,
-            jawaban: parsedJwb[soalId],
-            checklist: matchedSoal.checklist || ['Hasil pengerjaan sesuai instruksi', 'Kerapihan & struktur valid']
-          };
-        });
-      }
-    }
-
-    // Filter khusus soal praktik untuk dikoreksi rubriknya
-    const hanyaPraktik = detailJawaban.filter(j => j.tipe === 'praktik' || typeof j.jawaban === 'object');
-    setSoalPraktikList(hanyaPraktik.length > 0 ? hanyaPraktik : detailJawaban);
-    initChecklistData(hanyaPraktik.length > 0 ? hanyaPraktik : detailJawaban);
+    setSoalPraktikList(detailJawaban);
+    initChecklistData(detailJawaban);
   };
 
   const initChecklistData = (data) => {
@@ -113,7 +107,6 @@ export default function DashboardPanitia() {
   const submitSimpanNilaiPraktik = async () => {
     const skorPraktikTotal = hitungSkorPraktikLokal();
     
-    // Update local state peserta
     const updatedPeserta = peserta.map(p => {
       if (p.user_id === selectedSiswa) {
         const pg = p.nilai_pg || 80;
@@ -150,8 +143,8 @@ export default function DashboardPanitia() {
             <div className="flex items-center gap-3">
               <ClipboardList className="text-cyan-400 w-6 h-6" />
               <div>
-                <h1 className="text-base font-display font-bold text-white tracking-wide">PANEL KOREKSI PRAKTIK</h1>
-                <p className="text-[11px] text-slate-400">Pemeriksaan Realtime Hasil Soal Praktik Siswa</p>
+                <h1 className="text-base font-display font-bold text-white tracking-wide">PANEL KOREKSI UJIAN & PRAKTIK</h1>
+                <p className="text-[11px] text-slate-400">Pemeriksaan Realtime Hasil Pengerjaan Siswa</p>
               </div>
             </div>
             <Button size="sm" onClick={loadPeserta} className="bg-slate-800 hover:bg-slate-700 text-xs border-0 text-slate-300">
@@ -166,12 +159,12 @@ export default function DashboardPanitia() {
             {/* BILAH KIRI: ANTREAN PESERTA REAL */}
             <div className="space-y-4">
               <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider px-1">
-                Antrean Peserta Ujian ({peserta.length})
+                Daftar Peserta Ujian ({peserta.length})
               </h2>
 
               {peserta.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
-                  Belum ada peserta yang memulai / menyelesaikan ujian.
+                  Belum ada peserta yang menyelesaikan ujian.
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -206,11 +199,9 @@ export default function DashboardPanitia() {
                                 <Badge variant={isSelesai ? 'primary' : 'secondary'} className="text-[10px] px-2 py-0.5 rounded-md">
                                   {isSelesai ? 'Selesai Ujian' : 'Sedang Ujian'}
                                 </Badge>
-                                {(p.nilai_akhir > 0 || p.nilai_pg > 0) && (
-                                  <span className="text-xs font-mono font-bold text-emerald-400">
-                                    Skor PG: {p.nilai_pg || p.nilai_akhir}
-                                  </span>
-                                )}
+                                <span className="text-xs font-mono font-bold text-emerald-400">
+                                  Skor PG: {p.nilai_pg !== undefined ? p.nilai_pg : (p.nilai_akhir || 0)}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -226,49 +217,60 @@ export default function DashboardPanitia() {
               )}
             </div>
 
-            {/* BILAH KANAN: LEMBAR KOREKSI JAWABAN PESERTA */}
+            {/* BILAH KANAN: LEMBAR KOREKSI JAWABAN REAL PESERTA */}
             <div className="lg:col-span-2 space-y-6">
               {selectedSiswa ? (
                 <div className="space-y-6">
                   <div className="flex justify-between items-center px-1">
                     <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                      <FileCode className="text-cyan-400 w-4 h-4" /> JAWABAN REAL PESERTA #{selectedSiswa}
+                      <FileCode className="text-cyan-400 w-4 h-4" /> LEMBAR JAWABAN REAL PESERTA #{selectedSiswa}
                     </h2>
                   </div>
                   
                   {soalPraktikList.map((j, idx) => {
-                    const teksJawaban = typeof j.jawaban === 'object' ? j.jawaban.teks : (
-                      typeof j.jawaban === 'string' && j.jawaban.startsWith('{') 
+                    const isPraktikObj = typeof j.jawaban === 'object' && j.jawaban !== null;
+                    const isPGString = typeof j.jawaban === 'string';
+
+                    const teksJawaban = isPraktikObj ? j.jawaban.teks : (
+                      isPGString && j.jawaban.startsWith('{') 
                         ? JSON.parse(j.jawaban).teks 
                         : j.jawaban
                     );
 
-                    const fileAttachment = typeof j.jawaban === 'object' ? j.jawaban.fileName : (
-                      typeof j.jawaban === 'string' && j.jawaban.includes('fileName')
+                    const fileAttachment = isPraktikObj ? j.jawaban.fileName : (
+                      isPGString && j.jawaban.includes('fileName')
                         ? JSON.parse(j.jawaban).fileName
                         : null
                     );
 
                     return (
                       <div key={idx} className="p-6 bg-[#0d1527]/60 border border-slate-800/60 rounded-2xl space-y-5">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-cyan-400/10 text-cyan-400 text-[10px] uppercase font-bold">
+                            SOAL #{idx + 1} ({j.tipe === 'pg' ? 'PILIHAN GANDA' : 'PRAKTIK'})
+                          </Badge>
+                        </div>
+
                         <p className="text-sm text-slate-200 font-medium leading-relaxed">{j.pertanyaan}</p>
                         
-                        {/* Jawaban Teks / Kode Siswa */}
+                        {/* JAWABAN PESERTA */}
                         <div className="p-4 bg-[#030712]/80 border border-slate-800 rounded-xl text-sm space-y-2">
-                          <p className="text-[11px] text-slate-400 font-display font-bold uppercase tracking-wider">Hasil Pengerjaan / Kode Siswa:</p>
-                          <pre className="text-emerald-400 font-mono text-xs break-words bg-black/40 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">
-                            {teksJawaban || 'Peserta belum memasukkan kode teks.'}
-                          </pre>
+                          <p className="text-[11px] text-slate-400 font-display font-bold uppercase tracking-wider">Hasil Jawaban Peserta:</p>
+                          
+                          <div className="text-emerald-400 font-mono text-xs break-words bg-black/40 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">
+                            {teksJawaban || (isPGString ? `Opsi Terpilih: ${j.jawaban}` : 'Peserta tidak mengisikan teks.')}
+                          </div>
                           
                           {fileAttachment && (
-                            <div className="pt-2 flex items-center gap-2 text-xs text-cyan-400 font-mono">
-                              <span>📄 Lampiran Berkas:</span>
-                              <span className="underline font-bold">{fileAttachment}</span>
+                            <div className="pt-2 flex items-center gap-2 text-xs text-cyan-400 font-mono bg-cyan-400/10 p-2.5 rounded-lg border border-cyan-400/20">
+                              <FileText className="w-4 h-4 shrink-0" />
+                              <span>Berkas Lampiran Praktik:</span>
+                              <strong className="underline">{fileAttachment}</strong>
                             </div>
                           )}
                         </div>
 
-                        {/* Checklist Rubrik */}
+                        {/* CHECKLIST RUBRIK JIKA ADA */}
                         {j.checklist && (
                           <div className="p-4 bg-[#030712]/40 border border-slate-800 rounded-xl space-y-3">
                             <p className="text-[11px] font-display font-bold text-cyan-400 uppercase tracking-wider">Checklist Rubrik Penilaian:</p>
@@ -312,7 +314,7 @@ export default function DashboardPanitia() {
               ) : (
                 <div className="p-16 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800">
                   <User className="w-12 h-12 mx-auto mb-3 text-slate-600" />
-                  <p className="text-xs font-sans">Pilih salah satu peserta di sebelah kiri untuk memeriksa lembar pengerjaannya.</p>
+                  <p className="text-xs font-sans">Pilih peserta di sebelah kiri untuk memeriksa lembar pengerjaannya.</p>
                 </div>
               )}
             </div>

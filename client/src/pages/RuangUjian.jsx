@@ -48,7 +48,6 @@ export default function RuangUjian() {
     const startExam = async () => {
       let loadedSoal = [];
 
-      // 1. Coba ambil dari Backend API
       try {
         const res = await API.get(`/ujian/mulai?userId=1&kategori=${storedExamId}`);
         if (res.data && Array.isArray(res.data.soal) && res.data.soal.length > 0) {
@@ -59,7 +58,6 @@ export default function RuangUjian() {
         console.warn("API Server unreachable, reading local Bank Soal");
       }
 
-      // 2. Baca SELURUH SOAL dari Bank Soal (localStorage) sesuai kategori terpilih
       if (loadedSoal.length === 0) {
         const savedBank = localStorage.getItem('dcc_bank_soal') || sessionStorage.getItem('dcc_bank_soal');
         if (savedBank) {
@@ -158,12 +156,13 @@ export default function RuangUjian() {
     setFlags({ ...flags, [soalAktif.id]: !flags[soalAktif.id] });
   };
 
-  // FUNGSI SUBMIT REAL JAWABAN PESERTA KE PANITIA
+  // SUBMIT JAWABAN REAL PESERTA (KALKULASI MURNI)
   const handleAutoSubmit = async () => {
     clearInterval(timerRef.current);
     sessionStorage.setItem('examSubmitted', 'true');
+    localStorage.setItem('examSubmitted', 'true');
 
-    // 1. Hitung Nilai PG dari Jawaban Asli Peserta
+    // 1. Murni Hitung Nilai PG dari pilihan siswa
     let soalPG = listSoal.filter(s => s.tipe === 'pg');
     let benarCount = 0;
 
@@ -175,9 +174,10 @@ export default function RuangUjian() {
       }
     });
 
-    const calculatedSkorPG = soalPG.length > 0 ? Math.round((benarCount / soalPG.length) * 100) : 85;
+    // kalkulasi persentase asli (jika 0 soal PG, set 0)
+    const calculatedSkorPG = soalPG.length > 0 ? Math.round((benarCount / soalPG.length) * 100) : 0;
 
-    // 2. Simpan Rekapan Sesi Peserta Asli ke LocalStorage untuk Panel Panitia
+    // 2. Simpan Rekapan Sesi Peserta ke LocalStorage
     const recordPesertaAsli = {
       user_id: 1,
       nama: userName || 'ASSHYFA YUNITIASARI',
@@ -187,6 +187,7 @@ export default function RuangUjian() {
       nilai_pg: calculatedSkorPG,
       nilai_praktik: 0,
       nilai_akhir: calculatedSkorPG,
+      waktu_selesai: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
       total_dijawab: Object.keys(jawaban).length
     };
 
@@ -195,10 +196,10 @@ export default function RuangUjian() {
     listSesiLokal.unshift(recordPesertaAsli);
     localStorage.setItem('dcc_sesi_peserta', JSON.stringify(listSesiLokal));
 
-    // 3. Simpan Jawaban Peserta Asli
+    // 3. Simpan Jawaban Peserta Asli & List Soal Ujian Terkait
     localStorage.setItem('jawabanLocal', JSON.stringify(jawaban));
+    localStorage.setItem('activeExamQuestions', JSON.stringify(listSoal));
 
-    // 4. Kirim ke API Server Backend
     try {
       await API.post('/ujian/submit', { userId: 1, jawaban });
     } catch (err) {}

@@ -21,7 +21,6 @@ import {
   RotateCcw
 } from 'lucide-react';
 
-// Daftar Pilihan Mata Ujian / Kekhususan
 const DAFTAR_UJIAN = [
   {
     id: 'msoffice',
@@ -29,7 +28,7 @@ const DAFTAR_UJIAN = [
     subNama: 'Word, Excel, & Powerpoint',
     kategori: 'Perkantoran',
     durasi: '90 Menit',
-    detailSoal: '30 Soal PG + 1 Praktik Excel',
+    detailSoal: 'Soal PG + Praktik Excel',
     tokenDefault: 'OFFICE2026'
   },
   {
@@ -38,7 +37,7 @@ const DAFTAR_UJIAN = [
     subNama: 'Canva & Visual Design',
     kategori: 'Desain Grafis',
     durasi: '90 Menit',
-    detailSoal: '20 Soal PG + 1 Praktik Layout',
+    detailSoal: 'Soal PG + Praktik Layout',
     tokenDefault: 'CANVA2026'
   },
   {
@@ -47,7 +46,7 @@ const DAFTAR_UJIAN = [
     subNama: 'HTML, CSS, & JavaScript',
     kategori: 'Pemrograman',
     durasi: '120 Menit',
-    detailSoal: '25 Soal PG + 1 Praktik Web',
+    detailSoal: 'Soal PG + Praktik Web',
     tokenDefault: 'DCC2026'
   }
 ];
@@ -59,18 +58,15 @@ export default function DashboardPeserta() {
   const [userName, setUserName] = useState('');
   const [techId, setTechId] = useState('');
   
-  // State Pilihan Ujian & Token
   const [selectedUjian, setSelectedUjian] = useState(DAFTAR_UJIAN[0].id);
   const [tokenInput, setTokenInput] = useState('');
   const [tokenError, setTokenError] = useState('');
   const [isAgreed, setIsAgreed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // State Hasil Ujian Siswa
   const [isExamCompleted, setIsExamCompleted] = useState(false);
   const [completedExamInfo, setCompletedExamInfo] = useState(null);
 
-  // Detail Ujian Aktif
   const activeExamDetail = DAFTAR_UJIAN.find((u) => u.id === selectedUjian) || DAFTAR_UJIAN[0];
 
   useEffect(() => {
@@ -79,16 +75,22 @@ export default function DashboardPeserta() {
     setTechId('DCC25-0072');
 
     // Cek apakah siswa sudah selesai ujian
-    const examSubmitted = sessionStorage.getItem('examSubmitted');
-    const examName = sessionStorage.getItem('selectedExamName');
+    const examSubmitted = sessionStorage.getItem('examSubmitted') || localStorage.getItem('examSubmitted');
+    const examName = sessionStorage.getItem('selectedExamName') || 'Microsoft Office';
 
     if (examSubmitted === 'true') {
       setIsExamCompleted(true);
+      
+      // BACA SKOR ASLI DARI SESI PESERTA LOKAL (Bukan Angka Hardcode 85!)
+      const localSesi = JSON.parse(localStorage.getItem('dcc_sesi_peserta') || '[]');
+      const userRecord = localSesi.find(p => p.user_id === 1) || {};
+      const realSkorPG = userRecord.nilai_pg !== undefined ? userRecord.nilai_pg : (userRecord.nilai_akhir || 0);
+
       setCompletedExamInfo({
-        namaUjian: examName || 'Microsoft Office',
-        skorPG: 85,
+        namaUjian: examName,
+        skorPG: realSkorPG,
         statusPraktik: 'Berkas Diterima & Dalam Koreksi Panitia',
-        waktuSelesai: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB'
+        waktuSelesai: userRecord.waktu_selesai || new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB'
       });
     }
   }, []);
@@ -122,7 +124,6 @@ export default function DashboardPeserta() {
         inputUpper === 'DCC2026' || 
         inputUpper === '12345'
       ) {
-        // SIMPAN KATEGORI MATA UJIAN KE SEMUA LOKASI STORAGE (AGAR SYNC DENGAN RUANG UJIAN)
         sessionStorage.setItem('examStarted', 'true');
         sessionStorage.setItem('selectedExamId', activeExamDetail.id);
         sessionStorage.setItem('selectedExamCategory', activeExamDetail.id);
@@ -141,6 +142,7 @@ export default function DashboardPeserta() {
   const handleResetExamSession = () => {
     if (confirm("Reset sesi testing ujian? (Hanya untuk keperluan pengujian dev)")) {
       sessionStorage.removeItem('examSubmitted');
+      localStorage.removeItem('examSubmitted');
       sessionStorage.removeItem('examStarted');
       setIsExamCompleted(false);
     }
@@ -148,7 +150,6 @@ export default function DashboardPeserta() {
 
   return (
     <div className="min-h-screen bg-[#030712] text-slate-100 font-sans flex flex-col">
-      {/* NAVBAR */}
       <Navbar>
         <div className="flex justify-between items-center w-full max-w-5xl mx-auto px-4">
           <div className="flex items-center gap-3">
@@ -170,7 +171,6 @@ export default function DashboardPeserta() {
         </div>
       </Navbar>
 
-      {/* MAIN CONTENT */}
       <main className="flex-1 p-6 md:p-10 overflow-y-auto">
         <motion.div 
           initial={{ opacity: 0, y: 12 }}
@@ -178,7 +178,6 @@ export default function DashboardPeserta() {
           className="max-w-4xl mx-auto space-y-6"
         >
 
-          {/* 1. KARTU PROFIL PESERTA */}
           <div className="p-6 md:p-8 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 hover:border-cyan-500/30 transition-all duration-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-xl">
             <div className="flex items-center gap-5">
               <div className="w-14 h-14 rounded-2xl bg-cyan-400/10 text-cyan-400 border border-cyan-400/20 flex items-center justify-center font-display font-bold shrink-0">
@@ -206,7 +205,6 @@ export default function DashboardPeserta() {
             </div>
           </div>
 
-          {/* TAMPILAN JIKA SISWA SUDAH SELESAI UJIAN */}
           {isExamCompleted ? (
             <div className="p-6 md:p-8 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl border border-emerald-500/40 space-y-6 shadow-2xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/60 pb-5">
@@ -231,20 +229,20 @@ export default function DashboardPeserta() {
                 </div>
               </div>
 
-              {/* STATISTIK NILAI INSTAN */}
+              {/* NILAI ASLI REALTIME HASIL PERHITUNGAN JAWABAN */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-5 rounded-xl bg-[#030712]/80 border border-slate-800/80 space-y-2">
                   <p className="text-[11px] font-display font-bold text-slate-400 uppercase tracking-wider">
                     SKOR PILIHAN GANDA (PG)
                   </p>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-display font-bold text-white">
+                    <span className="text-3xl font-display font-bold text-emerald-400">
                       {completedExamInfo?.skorPG}
                     </span>
                     <span className="text-xs text-slate-400 font-sans">/ 100 Nilai</span>
                   </div>
                   <p className="text-[10px] text-slate-400 font-sans">
-                    Terhitung otomatis dari total jawaban benar.
+                    Terhitung murni dari jawaban benar yang Anda pilih.
                   </p>
                 </div>
 
@@ -264,11 +262,10 @@ export default function DashboardPeserta() {
               <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800 text-xs text-slate-300 font-sans leading-relaxed flex items-start gap-3">
                 <Sparkles className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
                 <div>
-                  <strong>Terima kasih telah mengikuti ujian!</strong> Token Anda telah hangus untuk sesi ujian ini. Hasil rekapan lengkap beserta sertifikat akan diterbitkan setelah panitia selesai mengoreksi berkas praktik Anda.
+                  <strong>Terima kasih telah mengikuti ujian!</strong> Hasil rekapan lengkap beserta sertifikat akan diterbitkan setelah panitia selesai mengoreksi berkas praktik Anda.
                 </div>
               </div>
 
-              {/* DEV RESET OPTION */}
               <div className="pt-2 flex justify-end">
                 <button
                   onClick={handleResetExamSession}
@@ -279,9 +276,7 @@ export default function DashboardPeserta() {
               </div>
             </div>
           ) : (
-            /* TAMPILAN JIKA SISWA BELUM UJIAN */
             <>
-              {/* PILIHAN MATA UJIAN */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-cyan-400 px-1">
                   <Sparkles className="w-4 h-4" />
@@ -339,7 +334,6 @@ export default function DashboardPeserta() {
                 </div>
               </div>
 
-              {/* FORM TOKEN & KONFIRMASI MULAI */}
               <div className="p-6 md:p-8 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 space-y-5">
                 <div className="border-b border-slate-800/50 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
