@@ -19,40 +19,14 @@ import {
   X
 } from 'lucide-react';
 
-const dummyBackupSoal = [
-  {
-    id: 991,
-    kategori: 'msoffice',
-    tipe: 'pg',
-    pertanyaan: 'Perintah pintas keyboard (shortcut) untuk menyimpan dokumen di Microsoft Word adalah...',
-    opsi: ['A. Ctrl + S', 'B. Ctrl + P', 'C. Ctrl + C', 'D. Ctrl + V']
-  },
-  {
-    id: 992,
-    kategori: 'canva',
-    tipe: 'pg',
-    pertanyaan: 'Format berkas visual yang mendukung transparansi latar belakang di Canva adalah...',
-    opsi: ['A. JPG', 'B. PNG', 'C. PDF', 'D. BMP']
-  },
-  {
-    id: 993,
-    kategori: 'coding',
-    tipe: 'praktik',
-    pertanyaan: 'TUGAS PRAKTIK: Buatlah fungsi JavaScript/React untuk memfilter elemen array secara dinamis.',
-    placeholder: 'Tuliskan kode jawaban Anda di sini...'
-  }
-];
-
 export default function RuangUjian() {
   useDocumentTitle('Ruang Ujian Berjalan - DCC CBT');
   const navigate = useNavigate();
 
-  // State Identitas & Sesi
   const [userName, setUserName] = useState('');
   const [techId, setTechId] = useState('');
   const [examName, setExamName] = useState('');
 
-  // States Manajemen Ujian Live DB
   const [listSoal, setListSoal] = useState([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [jawaban, setJawaban] = useState({}); 
@@ -62,11 +36,10 @@ export default function RuangUjian() {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const timerRef = useRef(null);
 
-  // Ambil data identitas & paket soal REAL sesuai KATEGORI MATA UJIAN
   useEffect(() => {
     const storedName = localStorage.getItem('userName') || sessionStorage.getItem('userName') || 'ASSHYFA YUNITIASARI';
     const storedExamName = sessionStorage.getItem('selectedExamName') || 'Microsoft Office';
-    const storedExamId = sessionStorage.getItem('selectedExamId') || 'msoffice';
+    const storedExamId = localStorage.getItem('selectedExamCategory') || sessionStorage.getItem('selectedExamId') || 'msoffice';
 
     setUserName(storedName);
     setTechId('DCC25-0072');
@@ -75,7 +48,7 @@ export default function RuangUjian() {
     const startExam = async () => {
       let loadedSoal = [];
 
-      // 1. Coba Ambil dari API Server Backend
+      // 1. Coba ambil dari Backend API
       try {
         const res = await API.get(`/ujian/mulai?userId=1&kategori=${storedExamId}`);
         if (res.data && Array.isArray(res.data.soal) && res.data.soal.length > 0) {
@@ -83,26 +56,19 @@ export default function RuangUjian() {
           setTimeLeft(res.data.sisaDetik || 5400);
         }
       } catch (err) {
-        console.warn("API Server offline / error, lanjut ke storage lokal");
+        console.warn("API Server unreachable, reading local Bank Soal");
       }
 
-      // 2. Fallback: Jika API server kosong / offline, ambil dari Bank Soal Lokal
+      // 2. Baca SELURUH SOAL dari Bank Soal (localStorage) sesuai kategori terpilih
       if (loadedSoal.length === 0) {
-        const savedBank = sessionStorage.getItem('dcc_bank_soal') || sessionStorage.getItem('bankSoalBackup');
+        const savedBank = localStorage.getItem('dcc_bank_soal') || sessionStorage.getItem('dcc_bank_soal');
         if (savedBank) {
           const parsedBank = JSON.parse(savedBank);
-          // Filter soal yang kategorinya cocok dengan mata ujian terpilih
           const filtered = parsedBank.filter(s => (s.kategori || 'msoffice').toLowerCase() === storedExamId.toLowerCase());
           if (filtered.length > 0) {
             loadedSoal = filtered;
           }
         }
-      }
-
-      // 3. Fallback Terakhir: Jika masih kosong, pakai dummy backup terfilter
-      if (loadedSoal.length === 0) {
-        loadedSoal = dummyBackupSoal.filter(s => s.kategori === storedExamId);
-        if (loadedSoal.length === 0) loadedSoal = dummyBackupSoal;
       }
 
       setListSoal(loadedSoal);
@@ -111,7 +77,6 @@ export default function RuangUjian() {
     startExam();
   }, []);
 
-  // Logic Hitung Mundur Timer Terpusat & Auto Submit jika Waktu Habis
   useEffect(() => {
     if (timeLeft > 0) {
       timerRef.current = setInterval(() => {
@@ -127,7 +92,6 @@ export default function RuangUjian() {
     return () => clearInterval(timerRef.current);
   }, [timeLeft]);
 
-  // Format Detik ke Jam:Menit:Detik
   const formatTime = (seconds) => {
     const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
     const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
@@ -135,22 +99,17 @@ export default function RuangUjian() {
     return `${h}:${m}:${s}`;
   };
 
-  // Fungsi AUTOSAVE Hybrid (API dengan Fallback Lokal)
   const executeAutosave = async (soalId, dataJawaban) => {
     setIsSaving(true);
-    
     try {
-      const savedLocal = JSON.parse(sessionStorage.getItem('jawabanLocal') || '{}');
+      const savedLocal = JSON.parse(localStorage.getItem('jawabanLocal') || '{}');
       savedLocal[soalId] = dataJawaban;
-      sessionStorage.setItem('jawabanLocal', JSON.stringify(savedLocal));
-    } catch (e) {
-      console.warn("Storage lokal penuh");
-    }
+      localStorage.setItem('jawabanLocal', JSON.stringify(savedLocal));
+    } catch (e) {}
 
     try {
       await API.post('/ujian/autosave', { soalId, jawaban: dataJawaban, userId: 1 });
     } catch (err) {
-      // Silent catch
     } finally {
       setTimeout(() => setIsSaving(false), 400);
     }
@@ -190,7 +149,6 @@ export default function RuangUjian() {
         setJawaban({ ...jawaban, [soalAktif.id]: dataBaru });
       }
     } catch (err) {
-      // Fallback lokal
     } finally {
       executeAutosave(soalAktif.id, dataBaru);
     }
@@ -200,24 +158,21 @@ export default function RuangUjian() {
     setFlags({ ...flags, [soalAktif.id]: !flags[soalAktif.id] });
   };
 
-  // Fungsi Submit Ujian
   const handleAutoSubmit = async () => {
     clearInterval(timerRef.current);
-    sessionStorage.removeItem('examStarted');
     sessionStorage.setItem('examSubmitted', 'true');
 
     try {
       await API.post('/ujian/submit', { userId: 1 });
-    } catch (err) {
-      // Tetap redirect
-    }
+    } catch (err) {}
     navigate('/dashboard-peserta');
   };
 
   if (listSoal.length === 0) {
     return (
-      <div className="min-h-screen bg-[#030712] text-white flex items-center justify-center font-display font-bold">
-        Menghubungkan ke Central Core Ujian...
+      <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center font-display gap-3 p-4 text-center">
+        <p className="text-sm font-bold text-cyan-400">Belum ada soal untuk mata ujian ini di Bank Soal.</p>
+        <p className="text-xs text-slate-400 font-sans">Silakan tambah soal terlebih dahulu lewat Panel Panitia (Bank Soal).</p>
       </div>
     );
   }
@@ -227,8 +182,6 @@ export default function RuangUjian() {
 
   return (
     <div className="min-h-screen bg-[#030712] text-slate-100 font-sans flex flex-col select-none">
-      
-      {/* NAVBAR RUANG UJIAN ULTRA CLEAN */}
       <Navbar>
         <div className="flex justify-between items-center w-full max-w-6xl mx-auto px-4">
           <div className="flex items-center gap-3">
@@ -241,7 +194,6 @@ export default function RuangUjian() {
             </div>
           </div>
 
-          {/* TIMER */}
           <div className="p-2 px-4 rounded-xl bg-[#0d1527] border border-slate-800 flex items-center gap-2">
             <Clock className="w-4 h-4 text-cyan-400 animate-pulse" />
             <span className="font-display font-bold text-sm tracking-wider text-emerald-400">
@@ -251,13 +203,8 @@ export default function RuangUjian() {
         </div>
       </Navbar>
 
-      {/* MAIN CONTENT RUANG UJIAN */}
       <main className="flex-1 p-4 md:p-6 max-w-6xl w-full mx-auto grid grid-cols-1 lg:grid-cols-4 gap-6 overflow-y-auto">
-        
-        {/* KIRI: LEMBAR PERTANYAAN (3 KOLOM) */}
         <div className="lg:col-span-3 space-y-5">
-          
-          {/* HEADER INFORMASI SOAL & AUTOSAVE STATUS */}
           <div className="p-4 rounded-2xl bg-[#0d1527]/50 border border-slate-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <Badge variant="primary" className="text-xs px-3 py-1 font-display font-bold">
@@ -282,14 +229,12 @@ export default function RuangUjian() {
             </AnimatePresence>
           </div>
 
-          {/* KOTAK UTAMA SOAL */}
           <div className="p-6 md:p-8 rounded-2xl bg-[#0d1527]/40 border border-slate-800/50 min-h-[340px] flex flex-col justify-between space-y-6">
             <div className="space-y-6">
               <p className="text-base md:text-lg font-sans leading-relaxed text-slate-100">
                 {soalAktif.pertanyaan}
               </p>
 
-              {/* TIPE PILIHAN GANDA */}
               {soalAktif.tipe === 'pg' ? (
                 <div className="grid grid-cols-1 gap-3 pt-2">
                   {soalAktif.opsi && soalAktif.opsi.map((opsiTeks, idx) => {
@@ -318,7 +263,6 @@ export default function RuangUjian() {
                   })}
                 </div>
               ) : (
-                /* TIPE PRAKTIK */
                 <div className="space-y-4 pt-2">
                   <textarea
                     rows={5}
@@ -348,7 +292,6 @@ export default function RuangUjian() {
               )}
             </div>
 
-            {/* NAVIGASI FOOTER UJIAN */}
             <div className="flex items-center justify-between border-t border-slate-800/40 pt-5 mt-6 gap-2">
               <Button
                 onClick={() => setCurrentIdx(Math.max(0, currentIdx - 1))}
@@ -386,7 +329,6 @@ export default function RuangUjian() {
           </div>
         </div>
 
-        {/* KANAN: SIDEBAR NAVIGASI GRID NOMOR SOAL (1 KOLOM) */}
         <div className="space-y-5">
           <div className="p-6 rounded-2xl bg-[#0d1527]/40 border border-slate-800/50 space-y-4">
             <div className="flex justify-between items-center border-b border-slate-800/40 pb-3">
@@ -398,7 +340,6 @@ export default function RuangUjian() {
               </span>
             </div>
 
-            {/* GRID NOMOR SOAL */}
             <div className="grid grid-cols-5 gap-2">
               {listSoal.map((item, index) => {
                 const isCurrent = index === currentIdx;
@@ -432,7 +373,6 @@ export default function RuangUjian() {
               })}
             </div>
 
-            {/* KETERANGAN INDIKATOR */}
             <div className="pt-3 border-t border-slate-800/40 space-y-2 text-[10px] font-sans text-slate-400">
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded bg-emerald-500/20 border border-emerald-500/50 inline-block"></span>
@@ -448,7 +388,6 @@ export default function RuangUjian() {
               </div>
             </div>
 
-            {/* TOMBOL SUBMIT FINAL */}
             <div className="pt-2">
               <Button
                 onClick={() => setShowSubmitModal(true)}
@@ -462,7 +401,6 @@ export default function RuangUjian() {
 
       </main>
 
-      {/* MODAL KONFIRMASI SUBMIT */}
       {showSubmitModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#0d1527] border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
@@ -476,13 +414,8 @@ export default function RuangUjian() {
             </div>
 
             <p className="text-xs text-slate-300 font-sans leading-relaxed">
-              Apakah Anda yakin ingin menyelesaikan sesi ujian ini? Setelah disubmit, jawaban Anda akan langsung dikunci dan tidak dapat diubah kembali.
+              Apakah Anda yakin ingin menyelesaikan sesi ujian ini?
             </p>
-
-            <div className="p-3 bg-[#030712] rounded-xl text-[11px] font-sans text-slate-400 space-y-1">
-              <p>• Terjawab: <strong className="text-emerald-400">{totalSoalTerjawab}</strong> dari {listSoal.length} Soal</p>
-              <p>• Ragu-ragu: <strong className="text-amber-400">{Object.keys(flags).filter(k => flags[k]).length}</strong> Soal</p>
-            </div>
 
             <div className="flex gap-3 pt-2">
               <Button

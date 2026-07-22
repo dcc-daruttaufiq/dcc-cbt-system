@@ -40,25 +40,24 @@ export default function BankSoal() {
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
-  // Fetch data dari API / Backup Storage
   const fetchSoal = async () => {
     try {
       let res = await API.get('/soal').catch(() => API.get('/ujian/soal'));
       if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
         setDataSoal(res.data);
-        sessionStorage.setItem('dcc_bank_soal', JSON.stringify(res.data));
+        localStorage.setItem('dcc_bank_soal', JSON.stringify(res.data));
         return;
       }
     } catch (err) {
       console.warn('API server unreachable, fallback to local storage');
     }
 
-    const savedLocal = sessionStorage.getItem('dcc_bank_soal');
+    const savedLocal = localStorage.getItem('dcc_bank_soal');
     if (savedLocal) {
       setDataSoal(JSON.parse(savedLocal));
     } else {
       setDataSoal(initialDummySoal);
-      sessionStorage.setItem('dcc_bank_soal', JSON.stringify(initialDummySoal));
+      localStorage.setItem('dcc_bank_soal', JSON.stringify(initialDummySoal));
     }
   };
 
@@ -116,7 +115,7 @@ export default function BankSoal() {
 
       const updated = listSoal.filter((item) => item.id !== id);
       setDataSoal(updated);
-      sessionStorage.setItem('dcc_bank_soal', JSON.stringify(updated));
+      localStorage.setItem('dcc_bank_soal', JSON.stringify(updated));
     }
   };
 
@@ -137,7 +136,7 @@ export default function BankSoal() {
       checklist: tipe === 'praktik' ? checklist : []
     };
 
-    // 1. UPDATE LANGSUNG KE TAMPILAN REACT & STORAGE
+    // 1. UPDATE KE STATE & LOCALSTORAGE (LANGSUNG KEBACA LINTAS TAB PESERTA)
     let updatedList = [];
     if (editingId) {
       updatedList = listSoal.map((item) => (item.id === editingId ? newSoalItem : item));
@@ -146,22 +145,19 @@ export default function BankSoal() {
     }
 
     setDataSoal(updatedList);
-    sessionStorage.setItem('dcc_bank_soal', JSON.stringify(updatedList));
+    localStorage.setItem('dcc_bank_soal', JSON.stringify(updatedList));
     setIsModalOpen(false);
 
-    // 2. KIRIM BACKGROUND REQUEST KE BACKEND
+    // 2. KIRIM BACKGROUND KE BACKEND
     try {
       if (editingId) {
         await API.put(`/soal/${editingId}`, newSoalItem).catch(() => API.put(`/ujian/soal/${editingId}`, newSoalItem));
       } else {
         await API.post('/soal', newSoalItem).catch(() => API.post('/ujian/soal', newSoalItem));
       }
-    } catch (err) {
-      console.warn('Tersimpan di mode lokal fallback.');
-    }
+    } catch (err) {}
   };
 
-  // Filter List Soal Berdasarkan Tab Terpilih
   const filteredSoalList =
     filterKategori === 'semua'
       ? listSoal
@@ -191,13 +187,11 @@ export default function BankSoal() {
         <main className="p-8 flex-1 overflow-y-auto">
           <div className="max-w-5xl mx-auto space-y-4">
             
-            {/* HEADER & TAB FILTER KATEGORI */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
               <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
                 Daftar Soal Tersedia ({filteredSoalList.length})
               </h2>
 
-              {/* TAB FILTER MATA UJIAN */}
               <div className="flex gap-1 bg-[#0d1527] p-1 rounded-xl border border-slate-800/80 text-[11px]">
                 {['semua', 'msoffice', 'canva', 'coding'].map((kat) => (
                   <button
@@ -213,7 +207,6 @@ export default function BankSoal() {
               </div>
             </div>
 
-            {/* MODERN BORDERLESS LIST */}
             <div className="space-y-3">
               {filteredSoalList.length === 0 ? (
                 <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
@@ -261,14 +254,12 @@ export default function BankSoal() {
                       <button 
                         onClick={() => openEditModal(row)} 
                         className="p-2 rounded-xl bg-slate-800/60 text-slate-300 hover:text-cyan-400 hover:bg-slate-800 transition"
-                        title="Edit Soal"
                       >
                         <Edit3 className="w-4 h-4" />
                       </button>
                       <button 
                         onClick={() => handleDelete(row.id)} 
                         className="p-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition"
-                        title="Hapus Soal"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -282,7 +273,6 @@ export default function BankSoal() {
         </main>
       </div>
 
-      {/* MODAL FORM OVERLAY CLEAN */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -294,10 +284,7 @@ export default function BankSoal() {
                 <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
               </div>
 
-              {/* AREA SCROLL MODAL */}
               <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-                
-                {/* 1. MATA UJIAN / KATEGORI */}
                 <div>
                   <label className="text-xs font-display font-bold text-slate-300 mb-1.5 flex items-center gap-1.5 uppercase">
                     <Layers className="w-3.5 h-3.5 text-cyan-400" /> Mata Ujian Spesialisasi
@@ -309,7 +296,6 @@ export default function BankSoal() {
                   </Select>
                 </div>
 
-                {/* 2. TIPE SOAL */}
                 <div>
                   <label className="text-xs font-display font-bold text-slate-300 mb-1.5 block uppercase">Tipe Konten Pertanyaan</label>
                   <Select value={tipe} onChange={(e) => { setTipe(e.target.value); setChecklist([]); }} disabled={!!editingId} className="bg-[#030712]/60 border border-slate-800 text-sm rounded-xl">
