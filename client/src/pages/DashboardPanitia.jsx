@@ -24,7 +24,7 @@ export default function DashboardPanitia() {
   const [checklistPraktik, setChecklistPraktik] = useState({});
   const [isSaved, setIsSaved] = useState(false);
 
-  // States Filter
+  // Filter Status
   const [filterPeserta, setFilterPeserta] = useState('semua');
   const [filterTipeJawaban, setFilterTipeJawaban] = useState('praktik');
 
@@ -36,6 +36,7 @@ export default function DashboardPanitia() {
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
+  // LOGIKA PEMBACAAN STATUS PESERTA SECARA REAL-TIME
   const loadPeserta = async () => {
     let listReal = [];
     try {
@@ -50,18 +51,43 @@ export default function DashboardPanitia() {
     if (listReal.length === 0) {
       const localSesi = localStorage.getItem('dcc_sesi_peserta');
       if (localSesi) {
-        listReal = JSON.parse(localSesi);
+        try {
+          listReal = JSON.parse(localSesi);
+        } catch (e) {
+          listReal = [];
+        }
       }
     }
 
-    setPeserta(listReal);
+    // Cek status sesi login real-time dari peserta aktif di browser
+    const currentActiveUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const isExamFinished = localStorage.getItem('isExamFinished') === 'true';
+
+    const updatedWithRealStatus = listReal.map(p => {
+      // Jika user sedang aktif login/mengerjakan saat ini
+      if (currentActiveUser && (p.tech_id === currentActiveUser.tech_id || String(p.user_id) === String(currentActiveUser.user_id))) {
+        return {
+          ...p,
+          status: isExamFinished ? 'selesai' : 'berjalan'
+        };
+      }
+      return p;
+    });
+
+    setPeserta(updatedWithRealStatus);
   };
 
   useEffect(() => {
     loadPeserta();
+    // Auto-refresh setiap 5 detik untuk memantau pengerjaan siswa secara realtime
+    const interval = setInterval(() => {
+      loadPeserta();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  // HANDLER IMPORT PESERTA DARI FILE EXCEL / CSV
+  // HANDLER IMPOR PESERTA EXCEL / CSV (STATUS AWAL WAJIB 'belum_mulai')
   const handleImportPesertaExcelCSV = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -73,7 +99,6 @@ export default function DashboardPanitia() {
       const importedPesertaArr = [];
 
       lines.forEach((line, index) => {
-        // Skip header jika ada
         if (index === 0 && (line.toLowerCase().includes('nama') || line.toLowerCase().includes('techid'))) {
           return;
         }
@@ -81,8 +106,8 @@ export default function DashboardPanitia() {
         const cols = line.split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
         
         if (cols.length >= 2) {
-          const nama = cols[0] || `Peserta #${index}`;
-          const techId = cols[1] || `DCC25-${String(index).padStart(3, '0')}`;
+          const nama = cols[0] || `Peserta #${index + 1}`;
+          const techId = cols[1] || `DCC25-${String(index + 1).padStart(3, '0')}`;
           const mataUjian = (cols[2] || 'msoffice').toLowerCase();
 
           importedPesertaArr.push({
@@ -91,7 +116,8 @@ export default function DashboardPanitia() {
             nama_lengkap: nama,
             tech_id: techId,
             kategori: mataUjian,
-            status: 'belum_mulai',
+            status: 'belum_mulai', // WAJIB BELUM MULAI SAAT BARU DI-IMPOR
+            status_koreksi: 'belum_dikoreksi',
             nilai_pg: 0,
             nilai_praktik: 0,
             nilai_akhir: 0
@@ -100,12 +126,13 @@ export default function DashboardPanitia() {
       });
 
       if (importedPesertaArr.length > 0) {
-        const combined = [...importedPesertaArr, ...peserta];
+        // Timpa / Gabungkan dengan data peserta terdaftar
+        const combined = [...importedPesertaArr];
         setPeserta(combined);
         localStorage.setItem('dcc_sesi_peserta', JSON.stringify(combined));
-        alert(`Berhasil mengimpor ${importedPesertaArr.length} peserta secara otomatis!`);
+        alert(`Berhasil mengimpor ${importedPesertaArr.length} peserta! Status awal semua peserta kini 'Belum Mulai'.`);
       } else {
-        alert('File tidak sesuai format kolom! Pastikan Kolom A: Nama Lengkap, Kolom B: TechID.');
+        alert('File tidak sesuai format! Pastikan Kolom A: Nama Lengkap, Kolom B: TechID.');
       }
     };
 
@@ -201,10 +228,13 @@ export default function DashboardPanitia() {
     alert(`Nilai Praktik (${skorPraktikTotal}) Berhasil Disimpan!`);
   };
 
+  // FILTERING PESERTA REALTIME
   const filteredPeserta = peserta.filter(p => {
-    if (filterPeserta === 'berjalan') return p.status === 'berjalan';
-    if (filterPeserta === 'siap_koreksi') return p.status === 'selesai' && (!p.status_koreksi || p.status_koreksi !== 'dikoreksi');
-    if (filterPeserta === 'selesai') return p.status === 'selesai' && p.status_koreksi === 'dikoreksi';
+    const statusP = p.status || 'belum_mulai';
+    if (filterPeserta === 'belum_mulai') return statusP === 'belum_mulai';
+    if (filterPeserta === 'berjalan') return statusP === 'berjalan';
+    if (filterPeserta === 'siap_koreksi') return statusP === 'selesai' && (!p.status_koreksi || p.status_koreksi !== 'dikoreksi');
+    if (filterPeserta === 'selesai') return statusP === 'selesai' && p.status_koreksi === 'dikoreksi';
     return true;
   });
 
@@ -213,6 +243,12 @@ export default function DashboardPanitia() {
     if (filterTipeJawaban === 'pg') return j.tipe === 'pg' && typeof j.jawaban !== 'object';
     return true;
   });
+
+  const getBadgeStatus = (status) => {
+    if (status === 'berjalan') return { text: 'Sedang Ujian', variant: 'warning' };
+    if (status === 'selesai') return { text: 'Selesai Ujian', variant: 'primary' };
+    return { text: 'Belum Ujian', variant: 'secondary' };
+  };
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
@@ -255,58 +291,58 @@ export default function DashboardPanitia() {
         <main className="p-8 flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* BILAH KIRI: ANTREAN PESERTA DENGAN TAB FILTER */}
+            {/* BILAH KIRI: ANTREAN PESERTA DENGAN TAB FILTER REALTIME */}
             <div className="space-y-4">
               <div className="flex flex-col gap-2 px-1">
                 <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
-                  Daftar Peserta ({filteredPeserta.length})
+                  Daftar Peserta Terdaftar ({filteredPeserta.length})
                 </h2>
 
                 <div className="grid grid-cols-2 gap-1.5 bg-[#0d1527] p-2 rounded-xl border border-slate-800 text-xs font-display font-bold">
                   <button
                     onClick={() => setFilterPeserta('semua')}
-                    className={`py-2 px-3 rounded-lg transition-all ${
+                    className={`py-2 px-2.5 rounded-lg transition-all ${
                       filterPeserta === 'semua' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
                     Semua ({peserta.length})
                   </button>
                   <button
-                    onClick={() => setFilterPeserta('siap_koreksi')}
-                    className={`py-2 px-3 rounded-lg transition-all ${
-                      filterPeserta === 'siap_koreksi' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
+                    onClick={() => setFilterPeserta('belum_mulai')}
+                    className={`py-2 px-2.5 rounded-lg transition-all ${
+                      filterPeserta === 'belum_mulai' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    Perlu Dikoreksi
+                    Belum Ujian
                   </button>
                   <button
                     onClick={() => setFilterPeserta('berjalan')}
-                    className={`py-2 px-3 rounded-lg transition-all ${
+                    className={`py-2 px-2.5 rounded-lg transition-all ${
                       filterPeserta === 'berjalan' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
                     Sedang Ujian
                   </button>
                   <button
-                    onClick={() => setFilterPeserta('selesai')}
-                    className={`py-2 px-3 rounded-lg transition-all ${
-                      filterPeserta === 'selesai' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
+                    onClick={() => setFilterPeserta('siap_koreksi')}
+                    className={`py-2 px-2.5 rounded-lg transition-all ${
+                      filterPeserta === 'siap_koreksi' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    Selesai Nilai
+                    Perlu Dikoreksi
                   </button>
                 </div>
               </div>
 
               {filteredPeserta.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs space-y-1">
-                  <p className="font-semibold text-slate-400">Tidak ada peserta pada kategori ini.</p>
-                  <p className="text-[11px] text-slate-500">Klik "Import Peserta Excel / CSV" untuk menambah peserta.</p>
+                  <p className="font-semibold text-slate-400">Tidak ada peserta pada status ini.</p>
+                  <p className="text-[11px] text-slate-500">Klik "Import Peserta Excel / CSV" untuk mendaftarkan siswa.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {filteredPeserta.map((p, idx) => {
-                    const isSelesai = p.status === 'selesai';
+                    const statusInfo = getBadgeStatus(p.status);
                     const isSelected = selectedSiswa === p.user_id;
 
                     return (
@@ -333,12 +369,14 @@ export default function DashboardPanitia() {
                               </p>
                               
                               <div className="mt-2 flex items-center gap-2">
-                                <Badge variant={isSelesai ? 'primary' : 'secondary'} className="text-[10px] px-2 py-0.5 rounded-md">
-                                  {isSelesai ? 'Selesai Ujian' : 'Sedang Ujian'}
+                                <Badge variant={statusInfo.variant} className="text-[10px] px-2 py-0.5 rounded-md">
+                                  {statusInfo.text}
                                 </Badge>
-                                <span className="text-xs font-mono font-bold text-emerald-400">
-                                  Skor PG: {p.nilai_pg !== undefined ? p.nilai_pg : (p.nilai_akhir || 0)}
-                                </span>
+                                {p.status === 'selesai' && (
+                                  <span className="text-xs font-mono font-bold text-emerald-400">
+                                    PG: {p.nilai_pg || 0}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -359,7 +397,6 @@ export default function DashboardPanitia() {
               {selectedSiswa ? (
                 <div className="space-y-6">
                   
-                  {/* HEADER LEMBAR KOREKSI + QUICK FILTER JAWABAN */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1 border-b border-slate-800/60 pb-3">
                     <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                       <FileCode className="text-cyan-400 w-4 h-4" /> LEMBAR JAWABAN PESERTA #{selectedSiswa}
@@ -395,7 +432,7 @@ export default function DashboardPanitia() {
 
                   {filteredJawabanList.length === 0 ? (
                     <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
-                      Tidak ada butir soal pada kategori filter ini.
+                      Peserta belum mengirimkan jawaban untuk kategori ini.
                     </div>
                   ) : (
                     filteredJawabanList.map((j, idx) => {
@@ -424,7 +461,6 @@ export default function DashboardPanitia() {
 
                           <p className="text-sm text-slate-200 font-medium leading-relaxed">{j.pertanyaan}</p>
                           
-                          {/* JAWABAN PESERTA */}
                           <div className="p-4 bg-[#030712]/80 border border-slate-800 rounded-xl text-sm space-y-2">
                             <p className="text-xs text-slate-400 font-display font-bold uppercase tracking-wider">Hasil Jawaban Peserta:</p>
                             
@@ -441,7 +477,6 @@ export default function DashboardPanitia() {
                             )}
                           </div>
 
-                          {/* CHECKLIST RUBRIK JIKA ADA */}
                           {j.checklist && (
                             <div className="p-4 bg-[#030712]/40 border border-slate-800 rounded-xl space-y-3">
                               <p className="text-xs font-display font-bold text-cyan-400 uppercase tracking-wider">Checklist Rubrik Penilaian:</p>
@@ -468,7 +503,6 @@ export default function DashboardPanitia() {
                     })
                   )}
 
-                  {/* ACTION CARD SIMPAN SKOR */}
                   <div className="p-6 bg-gradient-to-r from-cyan-950/40 to-[#0d1527] border border-cyan-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div>
                       <h3 className="font-display font-bold text-base flex items-center gap-2 text-white">
