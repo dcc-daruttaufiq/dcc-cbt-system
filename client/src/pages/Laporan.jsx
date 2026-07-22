@@ -22,6 +22,13 @@ const dummyLaporan = {
 export default function Laporan() {
   const [laporan, setLaporan] = useState(dummyLaporan);
 
+  // Menu Sidebar Panitia
+  const menuPanitia = [
+    { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
+    { label: 'Bank Soal', path: '/bank-soal', icon: '📚' },
+    { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
+  ];
+
   useEffect(() => {
     fetchLaporan();
   }, []);
@@ -89,8 +96,8 @@ export default function Laporan() {
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
-      {/* SIDEBAR CLEAN */}
-      <Sidebar userRole="Panitia" />
+      {/* SIDEBAR DENGAN PROP LINKS */}
+      <Sidebar links={menuPanitia} userRole="Panitia" />
 
       {/* KONTEN UTAMA */}
       <div className="flex-1 flex flex-col min-w-0">
@@ -182,7 +189,7 @@ export default function Laporan() {
                         </p>
                       </div>
 
-                      {/* BADGE LULUS / REMIDI: DIKUNCI PRESISI SEJAJAR DENGAN LEBAR LEBIH RAPI */}
+                      {/* BADGE LULUS / REMIDI */}
                       <div className="w-24 shrink-0 hidden sm:block">
                         <Badge variant={isLulus ? 'primary' : 'secondary'} className="text-[10px] font-display font-bold px-2.5 py-1 rounded-md uppercase tracking-wider inline-block text-center w-full">
                           {isLulus ? 'LULUS' : 'REMIDI'}
@@ -192,7 +199,6 @@ export default function Laporan() {
 
                     {/* Detail Nilai */}
                     <div className="flex items-center justify-between md:justify-end gap-6 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-800/40">
-                      {/* Status untuk versi Mobile */}
                       <div className="sm:hidden">
                         <Badge variant={isLulus ? 'primary' : 'secondary'} className="text-[10px] font-display font-bold px-2 py-0.5 rounded-md uppercase">
                           {isLulus ? 'LULUS' : 'REMIDI'}
