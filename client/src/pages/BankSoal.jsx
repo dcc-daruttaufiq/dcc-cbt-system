@@ -169,7 +169,7 @@ export default function BankSoal() {
     } catch (err) {}
   };
 
-  // HANDLER IMPORT EXCEL / CSV DENGAN MAPPING 5 KATEGORI MURNI
+  // HANDLER IMPORT EXCEL / CSV CANGGIH (MULTIPLE DELIMITER DETECTOR: KOMA, TITIK KOMA, ATAU TAB)
   const handleImportExcelCSV = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -177,21 +177,28 @@ export default function BankSoal() {
     const reader = new FileReader();
     reader.onload = (evt) => {
       const text = evt.target.result;
-      const lines = text.split('\n').filter(line => line.trim() !== '');
+      const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
       const importedSoalArr = [];
 
       lines.forEach((line, index) => {
+        // Skip header
         if (index === 0 && (line.toLowerCase().includes('kategori') || line.toLowerCase().includes('pertanyaan'))) {
           return;
         }
 
-        const cols = line.split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
+        // DETEKSI OTOMATIS PEMISAH KOLOM (TITIK KOMA, KOMA, ATAU TAB)
+        let delimiter = ',';
+        if (line.includes(';')) delimiter = ';';
+        else if (line.includes('\t')) delimiter = '\t';
+
+        const regex = new RegExp(`${delimiter}(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)`);
+        const cols = line.split(regex).map(c => c.replace(/^"|"$/g, '').trim());
         
         if (cols.length >= 3) {
           const rawKategori = (cols[0] || '').toLowerCase();
           let finalKategori = 'word';
 
-          // MAPPER 5 KATEGORI TERPISAH
+          // MAPPER 5 KATEGORI RESMI
           if (rawKategori.includes('excel')) {
             finalKategori = 'excel';
           } else if (rawKategori.includes('power') || rawKategori.includes('ppt') || rawKategori.includes('point')) {
@@ -209,33 +216,35 @@ export default function BankSoal() {
           const tpe = (cols[1] || 'pg').toLowerCase();
           const tnya = cols[2];
           
-          if (tpe === 'pg') {
-            const opsA = cols[3] || '';
-            const opsB = cols[4] || '';
-            const opsC = cols[5] || '';
-            const opsD = cols[6] || '';
-            const knci = (cols[7] || 'A').toUpperCase();
+          if (tnya && !tnya.toLowerCase().includes('pertanyaan')) {
+            if (tpe === 'pg') {
+              const opsA = cols[3] || '';
+              const opsB = cols[4] || '';
+              const opsC = cols[5] || '';
+              const opsD = cols[6] || '';
+              const knci = (cols[7] || 'A').toUpperCase();
 
-            importedSoalArr.push({
-              id: Date.now() + index,
-              kategori: finalKategori,
-              tipe: 'pg',
-              pertanyaan: tnya,
-              opsi: [`A. ${opsA}`, `B. ${opsB}`, `C. ${opsC}`, `D. ${opsD}`],
-              jawaban_benar: knci,
-              jawabanBenar: knci
-            });
-          } else {
-            const rubrikRaw = cols[8] || cols[3] || 'Kesesuaian pengerjaan, Kerapihan berkas';
-            const rubrikArr = rubrikRaw.split(/[|,]/).map(r => r.trim()).filter(Boolean);
+              importedSoalArr.push({
+                id: Date.now() + index,
+                kategori: finalKategori,
+                tipe: 'pg',
+                pertanyaan: tnya,
+                opsi: [`A. ${opsA}`, `B. ${opsB}`, `C. ${opsC}`, `D. ${opsD}`],
+                jawaban_benar: knci,
+                jawabanBenar: knci
+              });
+            } else {
+              const rubrikRaw = cols[8] || cols[3] || 'Kesesuaian pengerjaan, Kerapihan berkas';
+              const rubrikArr = rubrikRaw.split(/[|,]/).map(r => r.trim()).filter(Boolean);
 
-            importedSoalArr.push({
-              id: Date.now() + index,
-              kategori: finalKategori,
-              tipe: 'praktik',
-              pertanyaan: tnya,
-              checklist: rubrikArr
-            });
+              importedSoalArr.push({
+                id: Date.now() + index,
+                kategori: finalKategori,
+                tipe: 'praktik',
+                pertanyaan: tnya,
+                checklist: rubrikArr
+              });
+            }
           }
         }
       });

@@ -83,7 +83,7 @@ export default function DashboardPanitia() {
     return () => clearInterval(interval);
   }, []);
 
-  // HANDLER IMPOR PESERTA EXCEL / CSV DENGAN MAPPING 5 KATEGORI RESMI
+  // HANDLER IMPOR PESERTA EXCEL / CSV DENGAN DETEKSI MULTI-DELIMITER (KOMA, TITIK KOMA, TAB)
   const handleImportPesertaExcelCSV = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -91,7 +91,7 @@ export default function DashboardPanitia() {
     const reader = new FileReader();
     reader.onload = (evt) => {
       const text = evt.target.result;
-      const lines = text.split('\n').filter(line => line.trim() !== '');
+      const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
       const importedPesertaArr = [];
 
       lines.forEach((line, index) => {
@@ -99,7 +99,13 @@ export default function DashboardPanitia() {
           return;
         }
 
-        const cols = line.split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
+        // DETEKSI OTOMATIS PEMISAH KOLOM (TITIK KOMA, KOMA, ATAU TAB)
+        let delimiter = ',';
+        if (line.includes(';')) delimiter = ';';
+        else if (line.includes('\t')) delimiter = '\t';
+
+        const regex = new RegExp(`${delimiter}(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)`);
+        const cols = line.split(regex).map(c => c.replace(/^"|"$/g, '').trim());
         
         if (cols.length >= 2) {
           const nama = cols[0] || `Peserta #${index + 1}`;
@@ -115,18 +121,20 @@ export default function DashboardPanitia() {
           else if (rawMataUjian.includes('desain') || rawMataUjian.includes('canva')) finalKat = 'desain';
           else if (rawMataUjian.includes('pemrograman') || rawMataUjian.includes('coding') || rawMataUjian.includes('web')) finalKat = 'pemrograman';
 
-          importedPesertaArr.push({
-            user_id: Date.now() + index,
-            nama: nama,
-            nama_lengkap: nama,
-            tech_id: techId,
-            kategori: finalKat,
-            status: 'belum_mulai',
-            status_koreksi: 'belum_dikoreksi',
-            nilai_pg: 0,
-            nilai_praktik: 0,
-            nilai_akhir: 0
-          });
+          if (nama && !nama.toLowerCase().includes('nama lengkap')) {
+            importedPesertaArr.push({
+              user_id: Date.now() + index,
+              nama: nama,
+              nama_lengkap: nama,
+              tech_id: techId,
+              kategori: finalKat,
+              status: 'belum_mulai',
+              status_koreksi: 'belum_dikoreksi',
+              nilai_pg: 0,
+              nilai_praktik: 0,
+              nilai_akhir: 0
+            });
+          }
         }
       });
 
