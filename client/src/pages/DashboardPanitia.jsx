@@ -24,7 +24,7 @@ export default function DashboardPanitia() {
   const [checklistPraktik, setChecklistPraktik] = useState({});
   const [isSaved, setIsSaved] = useState(false);
 
-  // Filter Status (6 Tab Utama)
+  // Filter Status (6 Tab Utama Murni Teks)
   const [filterPeserta, setFilterPeserta] = useState('perlu_dikoreksi');
   const [filterTipeJawaban, setFilterTipeJawaban] = useState('praktik');
 
@@ -83,6 +83,7 @@ export default function DashboardPanitia() {
     return () => clearInterval(interval);
   }, []);
 
+  // HANDLER IMPOR PESERTA EXCEL / CSV DENGAN MAPPING 5 KATEGORI RESMI
   const handleImportPesertaExcelCSV = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -103,14 +104,23 @@ export default function DashboardPanitia() {
         if (cols.length >= 2) {
           const nama = cols[0] || `Peserta #${index + 1}`;
           const techId = cols[1] || `DCC25-${String(index + 1).padStart(3, '0')}`;
-          const mataUjian = (cols[2] || 'msoffice').toLowerCase();
+          
+          // SMART MAPPER 5 KATEGORI RESMI PER SEMESTER
+          const rawMataUjian = (cols[2] || '').toLowerCase();
+          let finalKat = 'word';
+
+          if (rawMataUjian.includes('excel')) finalKat = 'excel';
+          else if (rawMataUjian.includes('power') || rawMataUjian.includes('ppt')) finalKat = 'powerpoint';
+          else if (rawMataUjian.includes('word') || rawMataUjian.includes('doc')) finalKat = 'word';
+          else if (rawMataUjian.includes('desain') || rawMataUjian.includes('canva')) finalKat = 'desain';
+          else if (rawMataUjian.includes('pemrograman') || rawMataUjian.includes('coding') || rawMataUjian.includes('web')) finalKat = 'pemrograman';
 
           importedPesertaArr.push({
             user_id: Date.now() + index,
             nama: nama,
             nama_lengkap: nama,
             tech_id: techId,
-            kategori: mataUjian,
+            kategori: finalKat,
             status: 'belum_mulai',
             status_koreksi: 'belum_dikoreksi',
             nilai_pg: 0,
@@ -123,9 +133,9 @@ export default function DashboardPanitia() {
       if (importedPesertaArr.length > 0) {
         setPeserta(importedPesertaArr);
         localStorage.setItem('dcc_sesi_peserta', JSON.stringify(importedPesertaArr));
-        alert(`Berhasil mengimpor ${importedPesertaArr.length} peserta real! Status awal: Belum Ujian.`);
+        alert(`Berhasil mengimpor ${importedPesertaArr.length} peserta! Status awal semua peserta: Belum Ujian.`);
       } else {
-        alert('File tidak sesuai format! Pastikan Kolom A: Nama Lengkap, Kolom B: TechID.');
+        alert('File tidak sesuai format! Pastikan Kolom A: Nama Lengkap, Kolom B: TechID, Kolom C: Mata Ujian.');
       }
     };
 

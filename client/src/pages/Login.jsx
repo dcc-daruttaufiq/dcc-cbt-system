@@ -27,12 +27,12 @@ export default function Login() {
     // 1. LOGIN SEBAGAI PANITIA / MASTER ADMIN
     if (selectedRole === 'master_admin') {
       if ((inputUser.toLowerCase() === 'admin' && (inputPass === 'admin123' || inputPass === '123')) || inputPass === 'admin123') {
-        saveAndRedirect('master_admin', 'token-master-admin-real', 'Master Admin', 'ADMIN-001');
+        saveAndRedirect('master_admin', 'token-master-admin-real', 'Master Admin', 'ADMIN-001', 'all');
         return;
       }
     } else if (selectedRole === 'panitia') {
       if ((inputUser.toLowerCase() === 'panitia' || inputUser.toLowerCase() === 'admin') && (inputPass === 'panitia123' || inputPass === 'admin123' || inputPass === '123')) {
-        saveAndRedirect('panitia', 'token-panitia-real', 'Panitia Ujian', 'PANITIA-001');
+        saveAndRedirect('panitia', 'token-panitia-real', 'Panitia Ujian', 'PANITIA-001', 'all');
         return;
       }
     }
@@ -60,7 +60,7 @@ export default function Login() {
           nama: inputUser,
           nama_lengkap: inputUser,
           tech_id: autoTechId,
-          kategori: 'msoffice',
+          kategori: 'word', // Default fallback kategori resmi
           status: 'berjalan', // Status langsung berubah menjadi Sedang Ujian saat login
           status_koreksi: 'belum_dikoreksi',
           nilai_pg: 0,
@@ -88,13 +88,15 @@ export default function Login() {
       localStorage.setItem('currentUser', JSON.stringify(matchedPeserta));
       localStorage.setItem('userName', matchedPeserta.nama || matchedPeserta.nama_lengkap);
       localStorage.setItem('userTechId', matchedPeserta.tech_id);
+      localStorage.setItem('userKategori', matchedPeserta.kategori || 'word');
       
       // Bersihkan penanda ujian lama
       if (matchedPeserta.status !== 'selesai') {
         localStorage.removeItem('isExamFinished');
+        sessionStorage.removeItem('examSubmitted');
       }
 
-      saveAndRedirect('peserta', `token-peserta-${matchedPeserta.user_id}`, matchedPeserta.nama || matchedPeserta.nama_lengkap, matchedPeserta.tech_id);
+      saveAndRedirect('peserta', `token-peserta-${matchedPeserta.user_id}`, matchedPeserta.nama || matchedPeserta.nama_lengkap, matchedPeserta.tech_id, matchedPeserta.kategori || 'word');
       return;
     }
 
@@ -105,15 +107,15 @@ export default function Login() {
         password: inputPass 
       });
       
-      const { token, role, nama, tech_id } = res.data;
-      saveAndRedirect(role || selectedRole, token, nama, tech_id);
+      const { token, role, nama, tech_id, kategori } = res.data;
+      saveAndRedirect(role || selectedRole, token, nama, tech_id, kategori || 'word');
 
     } catch (err) {
       console.error('Login Error:', err);
       const backendMessage = err.response?.data?.message || err.response?.data?.error;
       
       if (inputPass === '123' || inputPass === 'admin123') {
-        saveAndRedirect(selectedRole, `token-bypass-${selectedRole}`, inputUser || 'Official User', inputUser);
+        saveAndRedirect(selectedRole, `token-bypass-${selectedRole}`, inputUser || 'Official User', inputUser, 'word');
       } else {
         setErrorMsg(backendMessage || `Gagal login sebagai ${selectedRole.toUpperCase()}. Periksa kredensial Anda!`);
       }
@@ -122,12 +124,13 @@ export default function Login() {
     }
   };
 
-  const saveAndRedirect = (role, token, nama = '', techId = '') => {
+  const saveAndRedirect = (role, token, nama = '', techId = '', kategori = 'word') => {
     // Simpan di localStorage & sessionStorage agar terbaca di mana saja
     localStorage.setItem('token', token);
     localStorage.setItem('userRole', role);
     if (nama) localStorage.setItem('userName', nama);
     if (techId) localStorage.setItem('userTechId', techId);
+    if (kategori) localStorage.setItem('userKategori', kategori);
 
     if (rememberMe) {
       sessionStorage.setItem('token', token);
@@ -253,7 +256,7 @@ export default function Login() {
         <div className="text-center border-t border-borderCustom/40 pt-4 space-y-1">
           {selectedRole === 'peserta' ? (
             <p className="text-[11px] text-slate-400">
-              Siswa menggunakan <strong className="text-primary">TechID</strong> hasil impor Panitia dari file Excel.
+              Siswa menggunakan <strong className="text-primary">TechID / Nama</strong> hasil impor Panitia dari file Excel.
             </p>
           ) : (
             <p className="text-[10px] text-slate-500 font-mono">
