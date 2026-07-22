@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import API from '../utils/api';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -13,7 +13,8 @@ import {
   FileCode, 
   CheckCircle2, 
   RefreshCw, 
-  FileText
+  FileText,
+  FileSpreadsheet
 } from 'lucide-react';
 
 export default function DashboardPanitia() {
@@ -26,6 +27,8 @@ export default function DashboardPanitia() {
   // States Filter
   const [filterPeserta, setFilterPeserta] = useState('semua');
   const [filterTipeJawaban, setFilterTipeJawaban] = useState('praktik');
+
+  const pesertaFileInputRef = useRef(null);
 
   const menuPanitia = [
     { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
@@ -57,6 +60,57 @@ export default function DashboardPanitia() {
   useEffect(() => {
     loadPeserta();
   }, []);
+
+  // HANDLER IMPORT PESERTA DARI FILE EXCEL / CSV
+  const handleImportPesertaExcelCSV = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target.result;
+      const lines = text.split('\n').filter(line => line.trim() !== '');
+      const importedPesertaArr = [];
+
+      lines.forEach((line, index) => {
+        // Skip header jika ada
+        if (index === 0 && (line.toLowerCase().includes('nama') || line.toLowerCase().includes('techid'))) {
+          return;
+        }
+
+        const cols = line.split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
+        
+        if (cols.length >= 2) {
+          const nama = cols[0] || `Peserta #${index}`;
+          const techId = cols[1] || `DCC25-${String(index).padStart(3, '0')}`;
+          const mataUjian = (cols[2] || 'msoffice').toLowerCase();
+
+          importedPesertaArr.push({
+            user_id: Date.now() + index,
+            nama: nama,
+            nama_lengkap: nama,
+            tech_id: techId,
+            kategori: mataUjian,
+            status: 'belum_mulai',
+            nilai_pg: 0,
+            nilai_praktik: 0,
+            nilai_akhir: 0
+          });
+        }
+      });
+
+      if (importedPesertaArr.length > 0) {
+        const combined = [...importedPesertaArr, ...peserta];
+        setPeserta(combined);
+        localStorage.setItem('dcc_sesi_peserta', JSON.stringify(combined));
+        alert(`Berhasil mengimpor ${importedPesertaArr.length} peserta secara otomatis!`);
+      } else {
+        alert('File tidak sesuai format kolom! Pastikan Kolom A: Nama Lengkap, Kolom B: TechID.');
+      }
+    };
+
+    reader.readAsText(file);
+  };
 
   const handlePeriksa = async (userId) => {
     setSelectedSiswa(userId);
@@ -174,9 +228,27 @@ export default function DashboardPanitia() {
                 <p className="text-xs text-slate-400">Pemeriksaan Realtime Hasil Pengerjaan Siswa</p>
               </div>
             </div>
-            <Button size="sm" onClick={loadPeserta} className="bg-slate-800 hover:bg-slate-700 text-xs border-0 text-slate-300">
-              <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh Status
-            </Button>
+
+            <div className="flex items-center gap-2">
+              <input 
+                type="file" 
+                ref={pesertaFileInputRef} 
+                onChange={handleImportPesertaExcelCSV} 
+                accept=".csv,.xlsx" 
+                className="hidden" 
+              />
+              
+              <Button 
+                onClick={() => pesertaFileInputRef.current.click()} 
+                className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-display font-bold border-0 shadow-lg shadow-emerald-500/20"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Import Peserta Excel / CSV
+              </Button>
+
+              <Button size="sm" onClick={loadPeserta} className="bg-slate-800 hover:bg-slate-700 text-xs border-0 text-slate-300">
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh Status
+              </Button>
+            </div>
           </div>
         </Navbar>
 
@@ -190,7 +262,6 @@ export default function DashboardPanitia() {
                   Daftar Peserta ({filteredPeserta.length})
                 </h2>
 
-                {/* TAB FILTER STATUS UJIAN (UKURAN LEBIH BESAR, TANPA IKON) */}
                 <div className="grid grid-cols-2 gap-1.5 bg-[#0d1527] p-2 rounded-xl border border-slate-800 text-xs font-display font-bold">
                   <button
                     onClick={() => setFilterPeserta('semua')}
@@ -230,7 +301,7 @@ export default function DashboardPanitia() {
               {filteredPeserta.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs space-y-1">
                   <p className="font-semibold text-slate-400">Tidak ada peserta pada kategori ini.</p>
-                  <p className="text-[11px] text-slate-500">Coba pilih tab filter lain di atas.</p>
+                  <p className="text-[11px] text-slate-500">Klik "Import Peserta Excel / CSV" untuk menambah peserta.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -288,13 +359,12 @@ export default function DashboardPanitia() {
               {selectedSiswa ? (
                 <div className="space-y-6">
                   
-                  {/* HEADER LEMBAR KOREKSI + QUICK FILTER JAWABAN (UKURAN LEBIH LEGA) */}
+                  {/* HEADER LEMBAR KOREKSI + QUICK FILTER JAWABAN */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1 border-b border-slate-800/60 pb-3">
                     <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                       <FileCode className="text-cyan-400 w-4 h-4" /> LEMBAR JAWABAN PESERTA #{selectedSiswa}
                     </h2>
 
-                    {/* FILTER TIPE JAWABAN (TANPA IKON, TEKS LEBIH BESAR) */}
                     <div className="flex gap-1.5 bg-[#0d1527] p-1.5 rounded-xl border border-slate-800 text-xs font-display font-bold">
                       <button
                         onClick={() => setFilterTipeJawaban('praktik')}
