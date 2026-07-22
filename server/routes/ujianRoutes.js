@@ -36,12 +36,14 @@ function formatSoal(rows) {
   });
 }
 
-// 1. [GET] API MULAI UJIAN
+// 1. [GET] API MULAI UJIAN (Filter Otomatis Berdasarkan Kategori Mata Ujian)
 router.get('/mulai', async (req, res) => {
   const userId = req.query.userId || 1;
+  // Tangkap kategori dari query parameter (contoh: msoffice / canva / coding)
+  const kategori = req.query.kategori || req.query.examId || 'msoffice';
 
   try {
-    // Cek sesi berjalan (Aman dengan Try-Catch)
+    // Cek sesi berjalan
     let sesi = null;
     try {
       const [sesiRows] = await db.query('SELECT * FROM sesi_ujian WHERE user_id = ? AND status = "berjalan"', { replacements: [userId] });
@@ -70,37 +72,43 @@ router.get('/mulai', async (req, res) => {
 
     const sisaDetik = Math.max(0, Math.floor((waktuSelesaiServer - new Date()) / 1000));
 
-    // Ambil Soal dari DB (Compat MySQL RAND & SQLite RANDOM)
+    // AMBIL SOAL BERDASARKAN KATEGORI MATA UJIAN TERPILIH
     let rows = [];
     try {
-      const [data] = await db.query('SELECT id, tipe, pertanyaan, opsi, checklist FROM soal');
+      const [data] = await db.query(
+        'SELECT id, tipe, pertanyaan, opsi, checklist FROM soal WHERE kategori = ? OR mata_ujian = ? ORDER BY id ASC',
+        { replacements: [kategori, kategori] }
+      );
       rows = data || [];
     } catch (err) {
       try {
-        const [data2] = await db.query('SELECT id, tipe, pertanyaan, opsi, checklist FROM soals');
+        const [data2] = await db.query(
+          'SELECT id, tipe, pertanyaan, opsi, checklist FROM soals WHERE kategori = ? OR mata_ujian = ? ORDER BY id ASC',
+          { replacements: [kategori, kategori] }
+        );
         rows = data2 || [];
       } catch (e2) {
-        rows = [];
+        // Fallback jika belum ada kolom kategori di DB
+        const [dataAll] = await db.query('SELECT id, tipe, pertanyaan, opsi, checklist FROM soal ORDER BY id ASC');
+        rows = dataAll || [];
       }
     }
 
-    return res.json({ sisaDetik, soal: formatSoal(rows) });
+    return res.status(200).json({ sisaDetik, soal: formatSoal(rows) });
 
   } catch (error) {
     console.error("❌ Error Mulai Ujian:", error);
-    // Return status 200 JSON agar frontend Vercel tidak melempar Error 500
-    return res.json({ sisaDetik: 5400, soal: [] });
+    return res.status(200).json({ sisaDetik: 5400, soal: [] });
   }
 });
 
-// 2. [POST] API AUTOSAVE (FIX DUAL DIALECT MYSQL / SQLITE)
+// 2. [POST] API AUTOSAVE (DUAL DIALECT MYSQL / SQLITE AMAN)
 router.post('/autosave', async (req, res) => {
   const { soalId, jawaban, userId = 1 } = req.body;
 
   try {
     const dataJawaban = typeof jawaban === 'object' ? JSON.stringify(jawaban) : jawaban;
 
-    // Kueri Universal MySQL / SQLite Aman
     try {
       await db.query(
         `INSERT INTO jawaban_siswa (user_id, soal_id, jawaban) VALUES (?, ?, ?) 
@@ -108,7 +116,6 @@ router.post('/autosave', async (req, res) => {
         { replacements: [userId, soalId, dataJawaban] }
       );
     } catch (e) {
-      // Fallback untuk SQLite
       await db.query(
         `INSERT OR REPLACE INTO jawaban_siswa (user_id, soal_id, jawaban) VALUES (?, ?, ?)`,
         { replacements: [userId, soalId, dataJawaban] }
@@ -118,7 +125,6 @@ router.post('/autosave', async (req, res) => {
     return res.json({ success: true, message: 'Autosave tersimpan' });
   } catch (err) {
     console.error("❌ Autosave Error Catched:", err.message);
-    // Tetap return 200 OK ke client dengan flag success: false agar console kinclong
     return res.json({ success: false, message: err.message });
   }
 });

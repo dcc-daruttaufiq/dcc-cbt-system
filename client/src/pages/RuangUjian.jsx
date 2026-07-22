@@ -16,13 +16,10 @@ import {
   FileText, 
   Send, 
   AlertTriangle, 
-  X, 
-  CheckCircle2, 
-  User, 
-  CreditCard 
+  X
 } from 'lucide-react';
 
-// Data Dummy Cadangan (Dipakai otomatis jika database di backend masih kosong / error 500)
+// Data Dummy Cadangan (Hanya muncul jika DB di backend untuk kategori terpilih masih kosong)
 const dummyBackupSoal = [
   {
     id: 1,
@@ -69,31 +66,36 @@ export default function RuangUjian() {
   const [jawaban, setJawaban] = useState({}); 
   const [flags, setFlags] = useState({}); 
   const [isSaving, setIsSaving] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(7200); 
+  const [timeLeft, setTimeLeft] = useState(5400); 
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const timerRef = useRef(null);
 
-  // 1. Ambil data identitas & paket soal dari server
+  // 1. Ambil data identitas & paket soal REAL sesuai KATEGORI MATA UJIAN
   useEffect(() => {
     const storedName = localStorage.getItem('userName') || sessionStorage.getItem('userName') || 'ASSHYFA YUNITIASARI';
-    const storedExam = sessionStorage.getItem('selectedExamName') || 'Sertifikasi Keahlian Komputer';
+    const storedExamName = sessionStorage.getItem('selectedExamName') || 'Microsoft Office';
+    // Ambil ID Mata Ujian dari Dashboard (msoffice / canva / coding)
+    const storedExamId = sessionStorage.getItem('selectedExamId') || 'msoffice';
 
     setUserName(storedName);
     setTechId('DCC25-0072');
-    setExamName(storedExam);
+    setExamName(storedExamName);
 
     const startExam = async () => {
       try {
-        const res = await API.get('/ujian/mulai?userId=1');
+        // Kirim ID Kategori ke API Mulai Ujian
+        const res = await API.get(`/ujian/mulai?userId=1&kategori=${storedExamId}`);
         
-        if (res.data && res.data.soal && res.data.soal.length > 0) {
+        if (res.data && Array.isArray(res.data.soal) && res.data.soal.length > 0) {
+          console.log(`✅ Soal ${storedExamName} (${storedExamId}) berhasil dimuat dari DB:`, res.data.soal.length, "soal");
           setListSoal(res.data.soal);
-          setTimeLeft(res.data.sisaDetik || 7200);
+          setTimeLeft(res.data.sisaDetik || 5400);
         } else {
+          console.warn(`⚠️ Soal untuk ${storedExamName} belum ada di DB, menggunakan backup.`);
           setListSoal(dummyBackupSoal);
         }
       } catch (err) {
-        // Silent Fallback ke dummy agar console bersih
+        console.error("❌ Gagal load soal dari API:", err);
         setListSoal(dummyBackupSoal);
       }
     };
@@ -128,7 +130,7 @@ export default function RuangUjian() {
   const executeAutosave = async (soalId, dataJawaban) => {
     setIsSaving(true);
     
-    // Simpan dulu ke SessionStorage Lokal (Sangat Aman)
+    // Simpan dulu ke SessionStorage Lokal
     try {
       const savedLocal = JSON.parse(sessionStorage.getItem('jawabanLocal') || '{}');
       savedLocal[soalId] = dataJawaban;
@@ -137,17 +139,16 @@ export default function RuangUjian() {
       console.warn("Storage lokal penuh");
     }
 
-    // Coba kirim ke Backend Render
+    // Kirim ke Backend Render
     try {
       await API.post('/ujian/autosave', { soalId, jawaban: dataJawaban, userId: 1 });
     } catch (err) {
-      // Catch dikosongkan agar console bersih
+      // Silent catch
     } finally {
       setTimeout(() => setIsSaving(false), 400);
     }
   };
 
-  // Pilihan PG disimpan fleksibel
   const handleSelectPG = (opsiTeks, labelHuruf) => {
     const nilaiSimpan = labelHuruf || opsiTeks;
     setJawaban((prev) => ({ ...prev, [soalAktif.id]: nilaiSimpan }));
@@ -182,7 +183,7 @@ export default function RuangUjian() {
         setJawaban({ ...jawaban, [soalAktif.id]: dataBaru });
       }
     } catch (err) {
-      // Tetap gunakan nama file lokal
+      // Fallback lokal
     } finally {
       executeAutosave(soalAktif.id, dataBaru);
     }
@@ -192,16 +193,16 @@ export default function RuangUjian() {
     setFlags({ ...flags, [soalAktif.id]: !flags[soalAktif.id] });
   };
 
-  // 4. Fungsi Submit Ujian (Mencatat Status Selesai ke Session)
+  // 4. Fungsi Submit Ujian
   const handleAutoSubmit = async () => {
     clearInterval(timerRef.current);
     sessionStorage.removeItem('examStarted');
-    sessionStorage.setItem('examSubmitted', 'true'); // Penanda status submit untuk Dashboard
+    sessionStorage.setItem('examSubmitted', 'true');
 
     try {
       await API.post('/ujian/submit', { userId: 1 });
     } catch (err) {
-      // Tetap redirect walau API error
+      // Tetap redirect
     }
     navigate('/dashboard-peserta');
   };
