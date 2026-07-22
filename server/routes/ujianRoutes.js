@@ -13,7 +13,7 @@ function shuffleArray(array) {
   return newArray;
 }
 
-// Helper format soal
+// Helper format soal (SUDAH DIPERBAIKI: Menambahkan properti kategori)
 function formatSoal(rows) {
   if (!Array.isArray(rows)) return [];
   return rows.map(soal => {
@@ -28,6 +28,7 @@ function formatSoal(rows) {
     }
     return {
       id: soal.id,
+      kategori: soal.kategori || soal.mata_ujian || 'msoffice', // <--- PENTING: Bawa kategori ke frontend!
       tipe: soal.tipe,
       pertanyaan: soal.pertanyaan,
       opsi: opsiDiacak,
@@ -58,6 +59,7 @@ const handleGetSoal = async (req, res) => {
 
     const formattedRows = rows.map(row => ({
       ...row,
+      kategori: row.kategori || row.mata_ujian || 'msoffice',
       opsi: row.opsi ? (typeof row.opsi === 'string' ? JSON.parse(row.opsi) : row.opsi) : [],
       checklist: row.checklist ? (typeof row.checklist === 'string' ? JSON.parse(row.checklist) : row.checklist) : []
     }));
@@ -69,7 +71,7 @@ const handleGetSoal = async (req, res) => {
   }
 };
 
-// Handler Post Soal
+// Handler Post Soal (SUDAH DIPERBAIKI: Wajib simpan kategori di semua cabang query)
 const handlePostSoal = async (req, res) => {
   const { tipe, pertanyaan, opsi, jawabanBenar, checklist, kategori = 'msoffice' } = req.body;
 
@@ -85,16 +87,17 @@ const handlePostSoal = async (req, res) => {
       );
     } catch (e) {
       try {
+        // Fallback jika nama kolom di DB adalah 'mata_ujian'
         await db.query(
-          `INSERT INTO soal (tipe, pertanyaan, opsi, jawaban_benar, checklist) 
-           VALUES (?, ?, ?, ?, ?)`,
-          { replacements: [tipe, pertanyaan, stringOpsi, jawabanBenar || null, stringChecklist] }
+          `INSERT INTO soal (tipe, pertanyaan, opsi, jawaban_benar, checklist, mata_ujian) 
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          { replacements: [tipe, pertanyaan, stringOpsi, jawabanBenar || null, stringChecklist, kategori] }
         );
       } catch (e2) {
         await db.query(
-          `INSERT INTO soals (tipe, pertanyaan, opsi, jawaban_benar, checklist) 
-           VALUES (?, ?, ?, ?, ?)`,
-          { replacements: [tipe, pertanyaan, stringOpsi, jawabanBenar || null, stringChecklist] }
+          `INSERT INTO soals (tipe, pertanyaan, opsi, jawaban_benar, checklist, kategori) 
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          { replacements: [tipe, pertanyaan, stringOpsi, jawabanBenar || null, stringChecklist, kategori] }
         );
       }
     }
@@ -125,9 +128,9 @@ const handlePutSoal = async (req, res) => {
     } catch (e) {
       await db.query(
         `UPDATE soal 
-         SET tipe = ?, pertanyaan = ?, opsi = ?, jawaban_benar = ?, checklist = ?
+         SET tipe = ?, pertanyaan = ?, opsi = ?, jawaban_benar = ?, checklist = ?, mata_ujian = ?
          WHERE id = ?`,
-        { replacements: [tipe, pertanyaan, stringOpsi, jawabanBenar || null, stringChecklist, id] }
+        { replacements: [tipe, pertanyaan, stringOpsi, jawabanBenar || null, stringChecklist, kategori, id] }
       );
     }
 
@@ -170,7 +173,7 @@ router.delete('/ujian/soal/:id', handleDeleteSoal);
 // 🚀 API SISTEM UJIAN (SISWA & PENILAIAN)
 // =========================================================
 
-// 1. [GET] API MULAI UJIAN
+// 1. [GET] API MULAI UJIAN (Ambil soal berdasarkan Kategori Mata Ujian)
 router.get('/mulai', async (req, res) => {
   const userId = req.query.userId || 1;
   const kategori = req.query.kategori || req.query.examId || 'msoffice';
@@ -206,15 +209,16 @@ router.get('/mulai', async (req, res) => {
 
     let rows = [];
     try {
+      // Ambil soal spesifik kategori, jika tidak ketemu coba ambil semua
       const [data] = await db.query(
-        'SELECT id, tipe, pertanyaan, opsi, checklist FROM soal WHERE kategori = ? OR mata_ujian = ? ORDER BY id ASC',
+        'SELECT id, tipe, pertanyaan, opsi, checklist, kategori FROM soal WHERE kategori = ? OR mata_ujian = ? ORDER BY id ASC',
         { replacements: [kategori, kategori] }
       );
       rows = data || [];
     } catch (err) {
       try {
         const [data2] = await db.query(
-          'SELECT id, tipe, pertanyaan, opsi, checklist FROM soals WHERE kategori = ? OR mata_ujian = ? ORDER BY id ASC',
+          'SELECT id, tipe, pertanyaan, opsi, checklist, kategori FROM soals WHERE kategori = ? OR mata_ujian = ? ORDER BY id ASC',
           { replacements: [kategori, kategori] }
         );
         rows = data2 || [];

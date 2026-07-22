@@ -86,7 +86,7 @@ export default function DashboardPeserta() {
       setIsExamCompleted(true);
       setCompletedExamInfo({
         namaUjian: examName || 'Microsoft Office',
-        skorPG: 85, // Kalkulasi skor instan
+        skorPG: 85,
         statusPraktik: 'Berkas Diterima & Dalam Koreksi Panitia',
         waktuSelesai: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB'
       });
@@ -122,16 +122,20 @@ export default function DashboardPeserta() {
         inputUpper === 'DCC2026' || 
         inputUpper === '12345'
       ) {
+        // SIMPAN KATEGORI MATA UJIAN KE SEMUA LOKASI STORAGE (AGAR SYNC DENGAN RUANG UJIAN)
         sessionStorage.setItem('examStarted', 'true');
         sessionStorage.setItem('selectedExamId', activeExamDetail.id);
+        sessionStorage.setItem('selectedExamCategory', activeExamDetail.id);
+        localStorage.setItem('selectedExamCategory', activeExamDetail.id);
         sessionStorage.setItem('selectedExamName', activeExamDetail.nama);
         sessionStorage.setItem('examToken', tokenInput);
+
         navigate('/ruang-ujian');
       } else {
         setTokenError(`Token untuk ujian ${activeExamDetail.nama} tidak valid!`);
         setIsLoading(false);
       }
-    }, 500);
+    }, 400);
   };
 
   const handleResetExamSession = () => {
@@ -235,9 +239,9 @@ export default function DashboardPeserta() {
                   </p>
                   <div className="flex items-baseline gap-2">
                     <span className="text-3xl font-display font-bold text-white">
-  {completedExamInfo?.skorPG}
-</span>
-<span className="text-xs text-slate-400 font-sans">/ 100 Nilai</span>
+                      {completedExamInfo?.skorPG}
+                    </span>
+                    <span className="text-xs text-slate-400 font-sans">/ 100 Nilai</span>
                   </div>
                   <p className="text-[10px] text-slate-400 font-sans">
                     Terhitung otomatis dari total jawaban benar.
@@ -275,9 +279,9 @@ export default function DashboardPeserta() {
               </div>
             </div>
           ) : (
-            /* TAMPILAN JIKA SISWA BELUM UJIAN (FORM TOKEN & PILIHAN MATA UJIAN) */
+            /* TAMPILAN JIKA SISWA BELUM UJIAN */
             <>
-              {/* 2. PILIHAN MATA UJIAN (CLEAN TEXT & LARGE TYPOGRAPHY) */}
+              {/* PILIHAN MATA UJIAN */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-cyan-400 px-1">
                   <Sparkles className="w-4 h-4" />
@@ -335,7 +339,7 @@ export default function DashboardPeserta() {
                 </div>
               </div>
 
-              {/* 3. FORM TOKEN & KONFIRMASI MULAI */}
+              {/* FORM TOKEN & KONFIRMASI MULAI */}
               <div className="p-6 md:p-8 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 space-y-5">
                 <div className="border-b border-slate-800/50 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>

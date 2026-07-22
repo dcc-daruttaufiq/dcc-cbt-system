@@ -19,34 +19,26 @@ import {
   X
 } from 'lucide-react';
 
-// Data Dummy Cadangan (Hanya muncul jika DB di backend untuk kategori terpilih masih kosong)
 const dummyBackupSoal = [
   {
-    id: 1,
+    id: 991,
+    kategori: 'msoffice',
     tipe: 'pg',
-    pertanyaan: 'Manakah di bawah ini yang merupakan keuntungan utama menggunakan arsitektur frontend berbasis komponen seperti React?',
-    opsi: [
-      'Mempercepat waktu rendering database backend secara langsung.',
-      'Mempermudah penggunaan kembali kode (reusability) dan mempercepat pengembangan.',
-      'Menghilangkan kebutuhan akan bahasa pemrograman CSS sepenuhnya.',
-      'Membuat aplikasi otomatis aman dari serangan siber tanpa konfigurasi.'
-    ]
+    pertanyaan: 'Perintah pintas keyboard (shortcut) untuk menyimpan dokumen di Microsoft Word adalah...',
+    opsi: ['A. Ctrl + S', 'B. Ctrl + P', 'C. Ctrl + C', 'D. Ctrl + V']
   },
   {
-    id: 2,
+    id: 992,
+    kategori: 'canva',
     tipe: 'pg',
-    pertanyaan: 'Fungsi utama dari modifikator "class" pada konfigurasi darkMode di Tailwind CSS adalah untuk...',
-    opsi: [
-      'Mengaktifkan tema gelap secara otomatis berdasarkan jam sistem operasi.',
-      'Memungkinkan kendali manual tema gelap dengan memicu class "dark" pada elemen HTML/Body.',
-      'Mengubah seluruh warna teks menjadi hitam secara paksa.',
-      'Mempercepat load data gambar pada malam hari.'
-    ]
+    pertanyaan: 'Format berkas visual yang mendukung transparansi latar belakang di Canva adalah...',
+    opsi: ['A. JPG', 'B. PNG', 'C. PDF', 'D. BMP']
   },
   {
-    id: 3,
+    id: 993,
+    kategori: 'coding',
     tipe: 'praktik',
-    pertanyaan: 'TUGAS PRAKTIK: Buatlah sebuah fungsi utilitas sederhana menggunakan JavaScript/React untuk menggabungkan class Tailwind secara dinamis. Tuliskan kode jawaban Anda dan unggah berkas screenshot hasil ujinya di bawah ini.',
+    pertanyaan: 'TUGAS PRAKTIK: Buatlah fungsi JavaScript/React untuk memfilter elemen array secara dinamis.',
     placeholder: 'Tuliskan kode jawaban Anda di sini...'
   }
 ];
@@ -70,11 +62,10 @@ export default function RuangUjian() {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const timerRef = useRef(null);
 
-  // 1. Ambil data identitas & paket soal REAL sesuai KATEGORI MATA UJIAN
+  // Ambil data identitas & paket soal REAL sesuai KATEGORI MATA UJIAN
   useEffect(() => {
     const storedName = localStorage.getItem('userName') || sessionStorage.getItem('userName') || 'ASSHYFA YUNITIASARI';
     const storedExamName = sessionStorage.getItem('selectedExamName') || 'Microsoft Office';
-    // Ambil ID Mata Ujian dari Dashboard (msoffice / canva / coding)
     const storedExamId = sessionStorage.getItem('selectedExamId') || 'msoffice';
 
     setUserName(storedName);
@@ -82,27 +73,45 @@ export default function RuangUjian() {
     setExamName(storedExamName);
 
     const startExam = async () => {
+      let loadedSoal = [];
+
+      // 1. Coba Ambil dari API Server Backend
       try {
-        // Kirim ID Kategori ke API Mulai Ujian
         const res = await API.get(`/ujian/mulai?userId=1&kategori=${storedExamId}`);
-        
         if (res.data && Array.isArray(res.data.soal) && res.data.soal.length > 0) {
-          console.log(`✅ Soal ${storedExamName} (${storedExamId}) berhasil dimuat dari DB:`, res.data.soal.length, "soal");
-          setListSoal(res.data.soal);
+          loadedSoal = res.data.soal;
           setTimeLeft(res.data.sisaDetik || 5400);
-        } else {
-          console.warn(`⚠️ Soal untuk ${storedExamName} belum ada di DB, menggunakan backup.`);
-          setListSoal(dummyBackupSoal);
         }
       } catch (err) {
-        console.error("❌ Gagal load soal dari API:", err);
-        setListSoal(dummyBackupSoal);
+        console.warn("API Server offline / error, lanjut ke storage lokal");
       }
+
+      // 2. Fallback: Jika API server kosong / offline, ambil dari Bank Soal Lokal
+      if (loadedSoal.length === 0) {
+        const savedBank = sessionStorage.getItem('dcc_bank_soal') || sessionStorage.getItem('bankSoalBackup');
+        if (savedBank) {
+          const parsedBank = JSON.parse(savedBank);
+          // Filter soal yang kategorinya cocok dengan mata ujian terpilih
+          const filtered = parsedBank.filter(s => (s.kategori || 'msoffice').toLowerCase() === storedExamId.toLowerCase());
+          if (filtered.length > 0) {
+            loadedSoal = filtered;
+          }
+        }
+      }
+
+      // 3. Fallback Terakhir: Jika masih kosong, pakai dummy backup terfilter
+      if (loadedSoal.length === 0) {
+        loadedSoal = dummyBackupSoal.filter(s => s.kategori === storedExamId);
+        if (loadedSoal.length === 0) loadedSoal = dummyBackupSoal;
+      }
+
+      setListSoal(loadedSoal);
     };
+
     startExam();
   }, []);
 
-  // 2. Logic Hitung Mundur Timer Terpusat & Auto Submit jika Waktu Habis
+  // Logic Hitung Mundur Timer Terpusat & Auto Submit jika Waktu Habis
   useEffect(() => {
     if (timeLeft > 0) {
       timerRef.current = setInterval(() => {
@@ -126,11 +135,10 @@ export default function RuangUjian() {
     return `${h}:${m}:${s}`;
   };
 
-  // 3. Fungsi AUTOSAVE Hybrid (API dengan Fallback Lokal)
+  // Fungsi AUTOSAVE Hybrid (API dengan Fallback Lokal)
   const executeAutosave = async (soalId, dataJawaban) => {
     setIsSaving(true);
     
-    // Simpan dulu ke SessionStorage Lokal
     try {
       const savedLocal = JSON.parse(sessionStorage.getItem('jawabanLocal') || '{}');
       savedLocal[soalId] = dataJawaban;
@@ -139,7 +147,6 @@ export default function RuangUjian() {
       console.warn("Storage lokal penuh");
     }
 
-    // Kirim ke Backend Render
     try {
       await API.post('/ujian/autosave', { soalId, jawaban: dataJawaban, userId: 1 });
     } catch (err) {
@@ -193,7 +200,7 @@ export default function RuangUjian() {
     setFlags({ ...flags, [soalAktif.id]: !flags[soalAktif.id] });
   };
 
-  // 4. Fungsi Submit Ujian
+  // Fungsi Submit Ujian
   const handleAutoSubmit = async () => {
     clearInterval(timerRef.current);
     sessionStorage.removeItem('examStarted');
@@ -215,7 +222,7 @@ export default function RuangUjian() {
     );
   }
 
-  const soalAktif = listSoal[currentIdx];
+  const soalAktif = listSoal[currentIdx] || listSoal[0];
   const totalSoalTerjawab = Object.keys(jawaban).length;
 
   return (
@@ -285,7 +292,7 @@ export default function RuangUjian() {
               {/* TIPE PILIHAN GANDA */}
               {soalAktif.tipe === 'pg' ? (
                 <div className="grid grid-cols-1 gap-3 pt-2">
-                  {soalAktif.opsi.map((opsiTeks, idx) => {
+                  {soalAktif.opsi && soalAktif.opsi.map((opsiTeks, idx) => {
                     const teksPilihan = typeof opsiTeks === 'object' ? opsiTeks.teks : opsiTeks;
                     const labelHuruf = String.fromCharCode(65 + idx);
                     const isSelected = jawaban[soalAktif.id] === labelHuruf || jawaban[soalAktif.id] === teksPilihan;
