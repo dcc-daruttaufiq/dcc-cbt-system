@@ -6,17 +6,6 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import { Clock, ChevronLeft, ChevronRight, Save, Send, AlertTriangle, X } from 'lucide-react';
 
-// BANK SOAL DEFAULT AGAR SOAL TIDAK PERNAH KOSONG DI BROWSER SISWA MANAPUN
-const DEFAULT_BANK_SOAL = [
-  { id: 101, kategori: 'word', tipe: 'pg', pertanyaan: 'Shortcut keyboard untuk menyimpan dokumen pada Microsoft Word adalah...', opsi: ['A. Ctrl + S', 'B. Ctrl + P', 'C. Ctrl + C', 'D. Ctrl + V'], jawaban_benar: 'A' },
-  { id: 102, kategori: 'excel', tipe: 'pg', pertanyaan: 'Fungsi Excel yang digunakan untuk menjumlahkan sekumpulan data numerik adalah...', opsi: ['A. AVERAGE', 'B. SUM', 'C. COUNT', 'D. MAX'], jawaban_benar: 'B' },
-  { id: 103, kategori: 'powerpoint', tipe: 'pg', pertanyaan: 'Shortcut untuk memulai presentasi slide show dari awal pada PowerPoint adalah...', opsi: ['A. F5', 'B. Shift + F5', 'C. Ctrl + P', 'D. Esc'], jawaban_benar: 'A' },
-  { id: 104, kategori: 'desain', tipe: 'pg', pertanyaan: 'Format berkas gambar yang mendukung latar belakang transparan adalah...', opsi: ['A. JPG', 'B. PNG', 'C. PDF', 'D. BMP'], jawaban_benar: 'B' },
-  { id: 105, kategori: 'pemrograman', tipe: 'pg', pertanyaan: 'Tag HTML yang digunakan untuk membuat judul utama (heading 1) adalah...', opsi: ['A. <head>', 'B. <h1>', 'C. <title>', 'D. <header>'], jawaban_benar: 'B' },
-  { id: 106, kategori: 'word', tipe: 'praktik', pertanyaan: 'TUGAS PRAKTIK: Buatlah surat resmi menggunakan fitur Mail Merge dengan format rapi.', checklist: ['Mail Merge Aktif', 'Format Surat Rapi'] },
-  { id: 107, kategori: 'excel', tipe: 'praktik', pertanyaan: 'TUGAS PRAKTIK: Buat tabel laporan keuangan sederhana menggunakan rumus SUM dan VLOOKUP.', checklist: ['Rumus SUM benar', 'VLOOKUP berfungsi'] }
-];
-
 export default function RuangUjian() {
   useDocumentTitle('Ruang Ujian Berjalan - DCC CBT');
   const navigate = useNavigate();
@@ -38,7 +27,7 @@ export default function RuangUjian() {
     const realName = currentUser.nama || currentUser.nama_lengkap || localStorage.getItem('userName') || 'Peserta Ujian';
     const realTechId = currentUser.tech_id || localStorage.getItem('userTechId') || 'DCC25-000';
     
-    // BACA ID KATEGORI TERPILIH SANGAT PRESISI
+    // BACA ID KATEGORI YANG DIPILIH SISWA DI DASHBOARD
     const storedExamId = (
       localStorage.getItem('selectedExamCategory') || 
       sessionStorage.getItem('selectedExamCategory') || 
@@ -49,31 +38,29 @@ export default function RuangUjian() {
     setUserName(realName);
     setTechId(realTechId);
 
-    // 1. Ambil Bank Soal dari Storage
-    let allBank = JSON.parse(localStorage.getItem('dcc_bank_soal') || '[]');
+    // 1. AMBIL BANK SOAL MURNI HASIL IMPOR PANITIA DARI LOCALSTORAGE
+    let bankSoalImpor = JSON.parse(localStorage.getItem('dcc_bank_soal') || '[]');
 
-    // 2. AUTO-SEED JIKA LOCALSTORAGE KOSONG
-    if (!Array.isArray(allBank) || allBank.length === 0) {
-      allBank = DEFAULT_BANK_SOAL;
-      localStorage.setItem('dcc_bank_soal', JSON.stringify(DEFAULT_BANK_SOAL));
-    }
+    // 2. LOGIKA FILTER SOAL SERBA BISA (LENTUR / SMART MATCHING)
+    let filteredSoal = [];
+    
+    if (Array.isArray(bankSoalImpor) && bankSoalImpor.length > 0) {
+      filteredSoal = bankSoalImpor.filter(s => {
+        const kat = (s.kategori || '').toLowerCase().trim();
 
-    // 3. SMART CATEGORY FILTER
-    let filteredSoal = allBank.filter(s => {
-      const kat = (s.kategori || '').toLowerCase().trim();
+        if (storedExamId.includes('word')) return kat.includes('word') || kat.includes('doc');
+        if (storedExamId.includes('excel')) return kat.includes('excel') || kat.includes('sheet') || kat.includes('data');
+        if (storedExamId.includes('power') || storedExamId.includes('ppt')) return kat.includes('power') || kat.includes('ppt') || kat.includes('slide');
+        if (storedExamId.includes('desain')) return kat.includes('desain') || kat.includes('canva') || kat.includes('design') || kat.includes('grafis');
+        if (storedExamId.includes('pemrograman') || storedExamId.includes('coding')) return kat.includes('pemrograman') || kat.includes('coding') || kat.includes('web') || kat.includes('html');
 
-      if (storedExamId.includes('word')) return kat.includes('word') || kat.includes('doc');
-      if (storedExamId.includes('excel')) return kat.includes('excel') || kat.includes('sheet');
-      if (storedExamId.includes('power') || storedExamId.includes('ppt')) return kat.includes('power') || kat.includes('ppt');
-      if (storedExamId.includes('desain')) return kat.includes('desain') || kat.includes('canva') || kat.includes('design');
-      if (storedExamId.includes('pemrograman') || storedExamId.includes('coding')) return kat.includes('pemrograman') || kat.includes('coding') || kat.includes('web');
+        return kat === storedExamId;
+      });
 
-      return kat === storedExamId;
-    });
-
-    // 4. AUTO-RESCUE FALLBACK JIKA SOAL KATEGORI TERSEBUT TIDAK DITEMUKAN
-    if (filteredSoal.length === 0) {
-      filteredSoal = allBank;
+      // BILA FILTER SPESIFIK TIDAK MENEMUKAN HASIL, TAMPILKAN SELURUH BANK SOAL HASIL IMPOR
+      if (filteredSoal.length === 0) {
+        filteredSoal = bankSoalImpor;
+      }
     }
 
     setListSoal(filteredSoal);
@@ -137,7 +124,6 @@ export default function RuangUjian() {
     clearInterval(timerRef.current);
     localStorage.setItem('isExamFinished', 'true');
 
-    // Hitung Nilai PG
     let soalPG = listSoal.filter(s => s.tipe === 'pg');
     let benarCount = 0;
 
@@ -149,7 +135,6 @@ export default function RuangUjian() {
 
     const calculatedSkorPG = soalPG.length > 0 ? Math.round((benarCount / soalPG.length) * 100) : 0;
 
-    // Update Status Sesi Peserta
     let listSesiLokal = JSON.parse(localStorage.getItem('dcc_sesi_peserta') || '[]');
     listSesiLokal = listSesiLokal.map(p => {
       if (p.tech_id?.toLowerCase().trim() === techId.toLowerCase().trim()) {
@@ -169,7 +154,19 @@ export default function RuangUjian() {
     navigate('/dashboard-peserta');
   };
 
-  const soalAktif = listSoal[currentIdx] || listSoal[0] || DEFAULT_BANK_SOAL[0];
+  if (listSoal.length === 0) {
+    return (
+      <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center gap-3 p-4 text-center">
+        <p className="text-sm font-bold text-cyan-400">Belum ada soal impor di Bank Soal.</p>
+        <p className="text-xs text-slate-400">Silakan login sebagai Panitia lalu impor file Excel Bank Soal terlebih dahulu pada browser ini.</p>
+        <Button onClick={() => navigate('/dashboard-peserta')} className="mt-2 bg-slate-800 text-xs text-slate-300">
+          ← Kembali ke Dashboard
+        </Button>
+      </div>
+    );
+  }
+
+  const soalAktif = listSoal[currentIdx] || listSoal[0];
 
   return (
     <div className="min-h-screen bg-[#030712] text-slate-100 font-sans flex flex-col select-none">
@@ -178,7 +175,7 @@ export default function RuangUjian() {
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-cyan-400 flex items-center justify-center text-slate-950 font-bold">D</div>
             <div>
-              <h1 className="text-xs font-bold text-cyan-400 uppercase tracking-widest">{soalAktif?.kategori || 'UJIAN'}</h1>
+              <h1 className="text-xs font-bold text-cyan-400 uppercase tracking-widest">{soalAktif?.kategori || 'MATA UJIAN'}</h1>
               <p className="text-[11px] text-slate-300">{userName} • TechID: {techId}</p>
             </div>
           </div>
@@ -251,7 +248,6 @@ export default function RuangUjian() {
           </div>
         </div>
 
-        {/* NAVIGASI NOMOR SOAL */}
         <div className="p-6 rounded-2xl bg-[#0d1527]/40 border border-slate-800/50 space-y-4">
           <h3 className="text-xs font-bold text-slate-300 uppercase tracking-widest border-b border-slate-800 pb-3">NAVIGASI SOAL</h3>
           <div className="grid grid-cols-5 gap-2">

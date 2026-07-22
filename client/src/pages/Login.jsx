@@ -37,20 +37,22 @@ export default function Login() {
       }
     }
 
-    // 2. LOGIN SEBAGAI PESERTA UJIAN (PRESISI DENGAN DATA IMPORT EXCEL)
+    // 2. LOGIN SEBAGAI PESERTA UJIAN (PRESISI MATCH DENGAN HASIL IMPOR EXCEL)
     if (selectedRole === 'peserta') {
       const savedPesertaStr = localStorage.getItem('dcc_sesi_peserta');
       let listPeserta = savedPesertaStr ? JSON.parse(savedPesertaStr) : [];
 
-      // Cari peserta berdasarkan TechID atau Nama Lengkap dari data hasil impor
+      const cleanInput = inputUser.toLowerCase().trim();
+
+      // Cari peserta berdasarkan TechID atau Nama yang diimpor
       let matchedPeserta = listPeserta.find(
-        p => (p.tech_id && p.tech_id.toLowerCase() === inputUser.toLowerCase()) ||
-             (p.nama && p.nama.toLowerCase() === inputUser.toLowerCase()) ||
-             (p.nama_lengkap && p.nama_lengkap.toLowerCase() === inputUser.toLowerCase())
+        p => (p.tech_id && p.tech_id.toLowerCase().trim() === cleanInput) ||
+             (p.nama && p.nama.toLowerCase().trim() === cleanInput) ||
+             (p.nama_lengkap && p.nama_lengkap.toLowerCase().trim() === cleanInput)
       );
 
+      // Jika tidak ada di file impor, buatkan profil peserta otomatis
       if (!matchedPeserta) {
-        // Jika belum terdaftar di list impor, daftarkan otomatis dengan data yang diinput
         const autoTechId = inputUser.toUpperCase().startsWith('DCC') 
           ? inputUser.toUpperCase() 
           : `DCC25-${String(Math.floor(Math.random() * 800) + 100)}`;
@@ -60,8 +62,8 @@ export default function Login() {
           nama: inputUser,
           nama_lengkap: inputUser,
           tech_id: autoTechId,
-          kategori: 'word', // Default fallback kategori resmi
-          status: 'berjalan', // Status langsung berubah menjadi Sedang Ujian saat login
+          kategori: 'word',
+          status: 'berjalan',
           status_koreksi: 'belum_dikoreksi',
           nilai_pg: 0,
           nilai_praktik: 0,
@@ -69,7 +71,6 @@ export default function Login() {
         };
         listPeserta.push(matchedPeserta);
       } else {
-        // Update status pengerjaan peserta yang ditemukan menjadi 'berjalan'
         matchedPeserta = {
           ...matchedPeserta,
           status: matchedPeserta.status === 'selesai' ? 'selesai' : 'berjalan'
@@ -83,41 +84,39 @@ export default function Login() {
         });
       }
 
-      // KUNCI SIMPAN: Simpan profil siswa yang SEDANG LOGIN dengan SANGAT PRESISI
+      // SIMPAN PROFILE LOGIN DENGAN SANGAT AKURAT KE BROWSER
       localStorage.setItem('dcc_sesi_peserta', JSON.stringify(listPeserta));
       localStorage.setItem('currentUser', JSON.stringify(matchedPeserta));
       localStorage.setItem('userName', matchedPeserta.nama || matchedPeserta.nama_lengkap);
       localStorage.setItem('userTechId', matchedPeserta.tech_id);
       localStorage.setItem('userKategori', matchedPeserta.kategori || 'word');
-      
-      // Bersihkan penanda ujian lama
+      localStorage.setItem('selectedExamCategory', matchedPeserta.kategori || 'word');
+
       if (matchedPeserta.status !== 'selesai') {
         localStorage.removeItem('isExamFinished');
         sessionStorage.removeItem('examSubmitted');
       }
 
-      saveAndRedirect('peserta', `token-peserta-${matchedPeserta.user_id}`, matchedPeserta.nama || matchedPeserta.nama_lengkap, matchedPeserta.tech_id, matchedPeserta.kategori || 'word');
+      saveAndRedirect(
+        'peserta', 
+        `token-peserta-${matchedPeserta.user_id}`, 
+        matchedPeserta.nama || matchedPeserta.nama_lengkap, 
+        matchedPeserta.tech_id, 
+        matchedPeserta.kategori || 'word'
+      );
       return;
     }
 
-    // 3. TRY API BACKEND JIKA ADA SERVER REALS
+    // 3. BACKEND API FALLBACK
     try {
-      const res = await API.post('/auth/login', { 
-        username: inputUser, 
-        password: inputPass 
-      });
-      
+      const res = await API.post('/auth/login', { username: inputUser, password: inputPass });
       const { token, role, nama, tech_id, kategori } = res.data;
       saveAndRedirect(role || selectedRole, token, nama, tech_id, kategori || 'word');
-
     } catch (err) {
-      console.error('Login Error:', err);
-      const backendMessage = err.response?.data?.message || err.response?.data?.error;
-      
       if (inputPass === '123' || inputPass === 'admin123') {
         saveAndRedirect(selectedRole, `token-bypass-${selectedRole}`, inputUser || 'Official User', inputUser, 'word');
       } else {
-        setErrorMsg(backendMessage || `Gagal login sebagai ${selectedRole.toUpperCase()}. Periksa kredensial Anda!`);
+        setErrorMsg(`Gagal login sebagai ${selectedRole.toUpperCase()}. Periksa kredensial Anda!`);
       }
     } finally {
       setIsLoading(false);
@@ -125,12 +124,14 @@ export default function Login() {
   };
 
   const saveAndRedirect = (role, token, nama = '', techId = '', kategori = 'word') => {
-    // Simpan di localStorage & sessionStorage agar terbaca di mana saja
     localStorage.setItem('token', token);
     localStorage.setItem('userRole', role);
     if (nama) localStorage.setItem('userName', nama);
     if (techId) localStorage.setItem('userTechId', techId);
-    if (kategori) localStorage.setItem('userKategori', kategori);
+    if (kategori) {
+      localStorage.setItem('userKategori', kategori);
+      localStorage.setItem('selectedExamCategory', kategori);
+    }
 
     if (rememberMe) {
       sessionStorage.setItem('token', token);
@@ -152,13 +153,11 @@ export default function Login() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-8 border-borderCustom bg-surface space-y-6">
         
-        {/* Header Title */}
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-display font-bold text-primary tracking-wider">PORTAL DCC-CBT</h1>
           <p className="text-xs text-slate-400 font-sans">Pilih peran Anda untuk masuk ke dalam sistem</p>
         </div>
 
-        {/* TAB CHOOSER ROLE LOGIN */}
         <div className="grid grid-cols-3 gap-1 bg-background p-1.5 rounded-xl border border-borderCustom/60">
           <button
             type="button"
@@ -200,14 +199,12 @@ export default function Login() {
           </button>
         </div>
 
-        {/* Alert Error */}
         {errorMsg && (
           <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs text-center font-sans">
             {errorMsg}
           </div>
         )}
 
-        {/* Form Input Login */}
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="text-xs font-display font-semibold text-slate-300 mb-1 block uppercase">
@@ -252,7 +249,6 @@ export default function Login() {
           </Button>
         </form>
 
-        {/* Info Kredensial Resmi */}
         <div className="text-center border-t border-borderCustom/40 pt-4 space-y-1">
           {selectedRole === 'peserta' ? (
             <p className="text-[11px] text-slate-400">
