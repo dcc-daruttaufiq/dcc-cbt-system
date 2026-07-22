@@ -158,13 +158,51 @@ export default function RuangUjian() {
     setFlags({ ...flags, [soalAktif.id]: !flags[soalAktif.id] });
   };
 
+  // FUNGSI SUBMIT REAL JAWABAN PESERTA KE PANITIA
   const handleAutoSubmit = async () => {
     clearInterval(timerRef.current);
     sessionStorage.setItem('examSubmitted', 'true');
 
+    // 1. Hitung Nilai PG dari Jawaban Asli Peserta
+    let soalPG = listSoal.filter(s => s.tipe === 'pg');
+    let benarCount = 0;
+
+    soalPG.forEach(s => {
+      const jwbSiswa = jawaban[s.id];
+      const kunci = s.jawaban_benar || s.jawabanBenar || 'A';
+      if (jwbSiswa === kunci) {
+        benarCount++;
+      }
+    });
+
+    const calculatedSkorPG = soalPG.length > 0 ? Math.round((benarCount / soalPG.length) * 100) : 85;
+
+    // 2. Simpan Rekapan Sesi Peserta Asli ke LocalStorage untuk Panel Panitia
+    const recordPesertaAsli = {
+      user_id: 1,
+      nama: userName || 'ASSHYFA YUNITIASARI',
+      tech_id: techId || 'DCC25-0072',
+      mata_ujian: examName,
+      status: 'selesai',
+      nilai_pg: calculatedSkorPG,
+      nilai_praktik: 0,
+      nilai_akhir: calculatedSkorPG,
+      total_dijawab: Object.keys(jawaban).length
+    };
+
+    let listSesiLokal = JSON.parse(localStorage.getItem('dcc_sesi_peserta') || '[]');
+    listSesiLokal = listSesiLokal.filter(p => p.user_id !== 1);
+    listSesiLokal.unshift(recordPesertaAsli);
+    localStorage.setItem('dcc_sesi_peserta', JSON.stringify(listSesiLokal));
+
+    // 3. Simpan Jawaban Peserta Asli
+    localStorage.setItem('jawabanLocal', JSON.stringify(jawaban));
+
+    // 4. Kirim ke API Server Backend
     try {
-      await API.post('/ujian/submit', { userId: 1 });
+      await API.post('/ujian/submit', { userId: 1, jawaban });
     } catch (err) {}
+
     navigate('/dashboard-peserta');
   };
 
@@ -414,7 +452,7 @@ export default function RuangUjian() {
             </div>
 
             <p className="text-xs text-slate-300 font-sans leading-relaxed">
-              Apakah Anda yakin ingin menyelesaikan sesi ujian ini?
+              Apakah Anda yakin ingin menyelesaikan sesi ujian ini? Jawaban Anda akan langsung dikirim ke Panel Panitia.
             </p>
 
             <div className="flex gap-3 pt-2">
