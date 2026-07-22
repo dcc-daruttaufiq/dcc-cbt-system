@@ -234,10 +234,10 @@ export default function DashboardPeserta() {
                     SKOR PILIHAN GANDA (PG)
                   </p>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-display font-bold text-cyan-400">
-                      {completedExamInfo?.skorPG}
-                    </span>
-                    <span className="text-xs text-slate-500 font-sans">/ 100 Point</span>
+                    <span className="text-3xl font-display font-bold text-white">
+  {completedExamInfo?.skorPG}
+</span>
+<span className="text-xs text-slate-400 font-sans">/ 100 Nilai</span>
                   </div>
                   <p className="text-[10px] text-slate-400 font-sans">
                     Terhitung otomatis dari total jawaban benar.
