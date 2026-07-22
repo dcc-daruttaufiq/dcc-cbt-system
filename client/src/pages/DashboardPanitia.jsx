@@ -4,7 +4,21 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Sidebar from '../components/ui/Sidebar';
 import Navbar from '../components/ui/Navbar';
-import { CheckSquare, Square, Award, ClipboardList, User, FileCode, CheckCircle2, RefreshCw, FileText } from 'lucide-react';
+import { 
+  CheckSquare, 
+  Square, 
+  Award, 
+  ClipboardList, 
+  User, 
+  FileCode, 
+  CheckCircle2, 
+  RefreshCw, 
+  FileText,
+  Filter,
+  Layers,
+  Clock,
+  Sparkles
+} from 'lucide-react';
 
 export default function DashboardPanitia() {
   const [peserta, setPeserta] = useState([]);
@@ -12,6 +26,10 @@ export default function DashboardPanitia() {
   const [soalPraktikList, setSoalPraktikList] = useState([]);
   const [checklistPraktik, setChecklistPraktik] = useState({});
   const [isSaved, setIsSaved] = useState(false);
+
+  // States Filter
+  const [filterPeserta, setFilterPeserta] = useState('semua'); // 'semua' | 'berjalan' | 'siap_koreksi' | 'selesai'
+  const [filterTipeJawaban, setFilterTipeJawaban] = useState('praktik'); // 'praktik' | 'semua' | 'pg'
 
   const menuPanitia = [
     { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
@@ -47,7 +65,7 @@ export default function DashboardPanitia() {
   const handlePeriksa = async (userId) => {
     setSelectedSiswa(userId);
     setIsSaved(false);
-    
+
     let detailJawaban = [];
     try {
       const res = await API.get(`/ujian/peserta/${userId}`);
@@ -56,20 +74,20 @@ export default function DashboardPanitia() {
       }
     } catch (err) {}
 
-    // BACA HASIL JAWABAN REAL DARI LOCALSTORAGE
+    // BACA LEMBAR PENGERJAAN REAL SINKRON DARI LOCALSTORAGE
     const savedJawabanStr = localStorage.getItem('jawabanLocal');
-    const bankSoal = JSON.parse(localStorage.getItem('dcc_bank_soal') || '[]');
+    const questionsArr = JSON.parse(localStorage.getItem('activeExamQuestions') || localStorage.getItem('dcc_bank_soal') || '[]');
 
     if (savedJawabanStr) {
       const parsedJwb = JSON.parse(savedJawabanStr);
       detailJawaban = Object.keys(parsedJwb).map(soalId => {
-        const matchedSoal = bankSoal.find(s => String(s.id) === String(soalId)) || {};
+        const matchedSoal = questionsArr.find(s => String(s.id) === String(soalId)) || {};
         return {
           soal_id: soalId,
           tipe: matchedSoal.tipe || (typeof parsedJwb[soalId] === 'object' ? 'praktik' : 'pg'),
           pertanyaan: matchedSoal.pertanyaan || `Butir Soal #${soalId}`,
           jawaban: parsedJwb[soalId],
-          checklist: matchedSoal.checklist || ['Hasil pengerjaan sesuai instruksi', 'Struktur & kerapihan berkas valid']
+          checklist: matchedSoal.checklist || ['Hasil pengerjaan sesuai instruksi', 'Kerapihan & struktur berkas valid']
         };
       });
     }
@@ -109,11 +127,12 @@ export default function DashboardPanitia() {
     
     const updatedPeserta = peserta.map(p => {
       if (p.user_id === selectedSiswa) {
-        const pg = p.nilai_pg || 80;
+        const pg = p.nilai_pg || 0;
         return {
           ...p,
           nilai_praktik: skorPraktikTotal,
-          nilai_akhir: Math.round((pg + skorPraktikTotal) / 2)
+          nilai_akhir: Math.round((pg + skorPraktikTotal) / 2),
+          status_koreksi: 'dikoreksi'
         };
       }
       return p;
@@ -132,6 +151,21 @@ export default function DashboardPanitia() {
     setIsSaved(true);
     alert(`Nilai Praktik (${skorPraktikTotal}) Berhasil Disimpan!`);
   };
+
+  // FILTERING PESERTA REALTIME
+  const filteredPeserta = peserta.filter(p => {
+    if (filterPeserta === 'berjalan') return p.status === 'berjalan';
+    if (filterPeserta === 'siap_koreksi') return p.status === 'selesai' && (!p.status_koreksi || p.status_koreksi !== 'dikoreksi');
+    if (filterPeserta === 'selesai') return p.status === 'selesai' && p.status_koreksi === 'dikoreksi';
+    return true;
+  });
+
+  // FILTERING LEMBAR JAWABAN
+  const filteredJawabanList = soalPraktikList.filter(j => {
+    if (filterTipeJawaban === 'praktik') return j.tipe === 'praktik' || typeof j.jawaban === 'object';
+    if (filterTipeJawaban === 'pg') return j.tipe === 'pg' && typeof j.jawaban !== 'object';
+    return true;
+  });
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
@@ -156,19 +190,59 @@ export default function DashboardPanitia() {
         <main className="p-8 flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* BILAH KIRI: ANTREAN PESERTA REAL */}
+            {/* BILAH KIRI: ANTREAN PESERTA DENGAN TAB FILTER STATUS */}
             <div className="space-y-4">
-              <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider px-1">
-                Daftar Peserta Ujian ({peserta.length})
-              </h2>
+              <div className="flex flex-col gap-2 px-1">
+                <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                  <span>Daftar Peserta ({filteredPeserta.length})</span>
+                  <Filter className="w-3.5 h-3.5 text-cyan-400" />
+                </h2>
 
-              {peserta.length === 0 ? (
-                <div className="p-8 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
-                  Belum ada peserta yang menyelesaikan ujian.
+                {/* TAB FILTER STATUS UJIAN */}
+                <div className="grid grid-cols-2 gap-1 bg-[#0d1527] p-1.5 rounded-xl border border-slate-800 text-[10px]">
+                  <button
+                    onClick={() => setFilterPeserta('semua')}
+                    className={`py-1.5 px-2 rounded-lg font-display font-bold transition-all ${
+                      filterPeserta === 'semua' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Semua ({peserta.length})
+                  </button>
+                  <button
+                    onClick={() => setFilterPeserta('siap_koreksi')}
+                    className={`py-1.5 px-2 rounded-lg font-display font-bold transition-all ${
+                      filterPeserta === 'siap_koreksi' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    ⚡ Perlu Dikoreksi
+                  </button>
+                  <button
+                    onClick={() => setFilterPeserta('berjalan')}
+                    className={`py-1.5 px-2 rounded-lg font-display font-bold transition-all ${
+                      filterPeserta === 'berjalan' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    ⏳ Sedang Ujian
+                  </button>
+                  <button
+                    onClick={() => setFilterPeserta('selesai')}
+                    className={`py-1.5 px-2 rounded-lg font-display font-bold transition-all ${
+                      filterPeserta === 'selesai' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    ✓ Selesai Nilai
+                  </button>
+                </div>
+              </div>
+
+              {filteredPeserta.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs space-y-1">
+                  <p className="font-semibold text-slate-400">Tidak ada peserta pada kategori ini.</p>
+                  <p className="text-[11px] text-slate-500">Coba pilih tab filter lain di atas.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {peserta.map((p, idx) => {
+                  {filteredPeserta.map((p, idx) => {
                     const isSelesai = p.status === 'selesai';
                     const isSelected = selectedSiswa === p.user_id;
 
@@ -217,84 +291,120 @@ export default function DashboardPanitia() {
               )}
             </div>
 
-            {/* BILAH KANAN: LEMBAR KOREKSI JAWABAN REAL PESERTA */}
+            {/* BILAH KANAN: LEMBAR KOREKSI JAWABAN REAL PESERTA (DENGAN QUICK TAB FILTER) */}
             <div className="lg:col-span-2 space-y-6">
               {selectedSiswa ? (
                 <div className="space-y-6">
-                  <div className="flex justify-between items-center px-1">
-                    <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                      <FileCode className="text-cyan-400 w-4 h-4" /> LEMBAR JAWABAN REAL PESERTA #{selectedSiswa}
-                    </h2>
-                  </div>
                   
-                  {soalPraktikList.map((j, idx) => {
-                    const isPraktikObj = typeof j.jawaban === 'object' && j.jawaban !== null;
-                    const isPGString = typeof j.jawaban === 'string';
+                  {/* HEADER LEMBAR KOREKSI + QUICK FILTER SOAL */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1 border-b border-slate-800/60 pb-3">
+                    <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                      <FileCode className="text-cyan-400 w-4 h-4" /> LEMBAR JAWABAN PESERTA #{selectedSiswa}
+                    </h2>
 
-                    const teksJawaban = isPraktikObj ? j.jawaban.teks : (
-                      isPGString && j.jawaban.startsWith('{') 
-                        ? JSON.parse(j.jawaban).teks 
-                        : j.jawaban
-                    );
+                    {/* FILTER TIPE JAWABAN (PRAKTIK DULIAN SUPAYA PANITIA GA CABEK SCROLL) */}
+                    <div className="flex gap-1 bg-[#0d1527] p-1 rounded-xl border border-slate-800 text-[10px]">
+                      <button
+                        onClick={() => setFilterTipeJawaban('praktik')}
+                        className={`px-3 py-1 rounded-lg font-display font-bold transition-all flex items-center gap-1 ${
+                          filterTipeJawaban === 'praktik' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <Sparkles className="w-3 h-3" /> Hanya Praktik
+                      </button>
+                      <button
+                        onClick={() => setFilterTipeJawaban('semua')}
+                        className={`px-3 py-1 rounded-lg font-display font-bold transition-all ${
+                          filterTipeJawaban === 'semua' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Semua Soal
+                      </button>
+                      <button
+                        onClick={() => setFilterTipeJawaban('pg')}
+                        className={`px-3 py-1 rounded-lg font-display font-bold transition-all ${
+                          filterTipeJawaban === 'pg' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Hanya PG
+                      </button>
+                    </div>
+                  </div>
 
-                    const fileAttachment = isPraktikObj ? j.jawaban.fileName : (
-                      isPGString && j.jawaban.includes('fileName')
-                        ? JSON.parse(j.jawaban).fileName
-                        : null
-                    );
+                  {filteredJawabanList.length === 0 ? (
+                    <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
+                      Tidak ada butir soal pada kategori filter ini.
+                    </div>
+                  ) : (
+                    filteredJawabanList.map((j, idx) => {
+                      const isPraktikObj = typeof j.jawaban === 'object' && j.jawaban !== null;
+                      const isPGString = typeof j.jawaban === 'string';
 
-                    return (
-                      <div key={idx} className="p-6 bg-[#0d1527]/60 border border-slate-800/60 rounded-2xl space-y-5">
-                        <div className="flex items-center gap-2">
-                          <Badge className="bg-cyan-400/10 text-cyan-400 text-[10px] uppercase font-bold">
-                            SOAL #{idx + 1} ({j.tipe === 'pg' ? 'PILIHAN GANDA' : 'PRAKTIK'})
-                          </Badge>
-                        </div>
+                      const teksJawaban = isPraktikObj ? j.jawaban.teks : (
+                        isPGString && j.jawaban.startsWith('{') 
+                          ? JSON.parse(j.jawaban).teks 
+                          : j.jawaban
+                      );
 
-                        <p className="text-sm text-slate-200 font-medium leading-relaxed">{j.pertanyaan}</p>
-                        
-                        {/* JAWABAN PESERTA */}
-                        <div className="p-4 bg-[#030712]/80 border border-slate-800 rounded-xl text-sm space-y-2">
-                          <p className="text-[11px] text-slate-400 font-display font-bold uppercase tracking-wider">Hasil Jawaban Peserta:</p>
-                          
-                          <div className="text-emerald-400 font-mono text-xs break-words bg-black/40 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">
-                            {teksJawaban || (isPGString ? `Opsi Terpilih: ${j.jawaban}` : 'Peserta tidak mengisikan teks.')}
+                      const fileAttachment = isPraktikObj ? j.jawaban.fileName : (
+                        isPGString && j.jawaban.includes('fileName')
+                          ? JSON.parse(j.jawaban).fileName
+                          : null
+                      );
+
+                      return (
+                        <div key={idx} className="p-6 bg-[#0d1527]/60 border border-slate-800/60 rounded-2xl space-y-5">
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-cyan-400/10 text-cyan-400 text-[10px] uppercase font-bold">
+                              SOAL #{idx + 1} ({j.tipe === 'pg' ? 'PILIHAN GANDA' : 'PRAKTIK'})
+                            </Badge>
                           </div>
+
+                          <p className="text-sm text-slate-200 font-medium leading-relaxed">{j.pertanyaan}</p>
                           
-                          {fileAttachment && (
-                            <div className="pt-2 flex items-center gap-2 text-xs text-cyan-400 font-mono bg-cyan-400/10 p-2.5 rounded-lg border border-cyan-400/20">
-                              <FileText className="w-4 h-4 shrink-0" />
-                              <span>Berkas Lampiran Praktik:</span>
-                              <strong className="underline">{fileAttachment}</strong>
+                          {/* JAWABAN PESERTA */}
+                          <div className="p-4 bg-[#030712]/80 border border-slate-800 rounded-xl text-sm space-y-2">
+                            <p className="text-[11px] text-slate-400 font-display font-bold uppercase tracking-wider">Hasil Jawaban Peserta:</p>
+                            
+                            <div className="text-emerald-400 font-mono text-xs break-words bg-black/40 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">
+                              {teksJawaban || (isPGString ? `Opsi Terpilih: ${j.jawaban}` : 'Peserta tidak mengisikan teks.')}
+                            </div>
+                            
+                            {fileAttachment && (
+                              <div className="pt-2 flex items-center gap-2 text-xs text-cyan-400 font-mono bg-cyan-400/10 p-2.5 rounded-lg border border-cyan-400/20">
+                                <FileText className="w-4 h-4 shrink-0" />
+                                <span>Berkas Lampiran Praktik:</span>
+                                <strong className="underline">{fileAttachment}</strong>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* CHECKLIST RUBRIK JIKA ADA */}
+                          {j.checklist && (
+                            <div className="p-4 bg-[#030712]/40 border border-slate-800 rounded-xl space-y-3">
+                              <p className="text-[11px] font-display font-bold text-cyan-400 uppercase tracking-wider">Checklist Rubrik Penilaian:</p>
+                              <div className="space-y-2">
+                                {(typeof j.checklist === 'string' ? JSON.parse(j.checklist) : j.checklist).map((kriteria, kIdx) => {
+                                  const key = `${j.soal_id}-${kIdx}`;
+                                  const isChecked = checklistPraktik[key];
+                                  return (
+                                    <div 
+                                      key={kIdx} 
+                                      onClick={() => toggleChecklist(key)} 
+                                      className="flex items-center gap-3 p-3 bg-[#0d1527]/40 border border-slate-800/40 rounded-xl cursor-pointer hover:bg-slate-800/50 transition text-sm select-none"
+                                    >
+                                      {isChecked ? <CheckSquare className="w-5 h-5 text-cyan-400 shrink-0" /> : <Square className="w-5 h-5 text-slate-600 shrink-0" />}
+                                      <span className={isChecked ? 'text-slate-200 font-medium' : 'text-slate-500'}>{kriteria}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
                           )}
                         </div>
-
-                        {/* CHECKLIST RUBRIK JIKA ADA */}
-                        {j.checklist && (
-                          <div className="p-4 bg-[#030712]/40 border border-slate-800 rounded-xl space-y-3">
-                            <p className="text-[11px] font-display font-bold text-cyan-400 uppercase tracking-wider">Checklist Rubrik Penilaian:</p>
-                            <div className="space-y-2">
-                              {(typeof j.checklist === 'string' ? JSON.parse(j.checklist) : j.checklist).map((kriteria, kIdx) => {
-                                const key = `${j.soal_id}-${kIdx}`;
-                                const isChecked = checklistPraktik[key];
-                                return (
-                                  <div 
-                                    key={kIdx} 
-                                    onClick={() => toggleChecklist(key)} 
-                                    className="flex items-center gap-3 p-3 bg-[#0d1527]/40 border border-slate-800/40 rounded-xl cursor-pointer hover:bg-slate-800/50 transition text-sm select-none"
-                                  >
-                                    {isChecked ? <CheckSquare className="w-5 h-5 text-cyan-400 shrink-0" /> : <Square className="w-5 h-5 text-slate-600 shrink-0" />}
-                                    <span className={isChecked ? 'text-slate-200 font-medium' : 'text-slate-500'}>{kriteria}</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
 
                   {/* ACTION CARD SIMPAN SKOR */}
                   <div className="p-6 bg-gradient-to-r from-cyan-950/40 to-[#0d1527] border border-cyan-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
