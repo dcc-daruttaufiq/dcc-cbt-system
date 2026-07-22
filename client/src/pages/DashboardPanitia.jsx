@@ -13,11 +13,7 @@ import {
   FileCode, 
   CheckCircle2, 
   RefreshCw, 
-  FileText,
-  Filter,
-  Layers,
-  Clock,
-  Sparkles
+  FileText
 } from 'lucide-react';
 
 export default function DashboardPanitia() {
@@ -28,8 +24,8 @@ export default function DashboardPanitia() {
   const [isSaved, setIsSaved] = useState(false);
 
   // States Filter
-  const [filterPeserta, setFilterPeserta] = useState('semua'); // 'semua' | 'berjalan' | 'siap_koreksi' | 'selesai'
-  const [filterTipeJawaban, setFilterTipeJawaban] = useState('praktik'); // 'praktik' | 'semua' | 'pg'
+  const [filterPeserta, setFilterPeserta] = useState('semua');
+  const [filterTipeJawaban, setFilterTipeJawaban] = useState('praktik');
 
   const menuPanitia = [
     { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
@@ -74,7 +70,6 @@ export default function DashboardPanitia() {
       }
     } catch (err) {}
 
-    // BACA LEMBAR PENGERJAAN REAL SINKRON DARI LOCALSTORAGE
     const savedJawabanStr = localStorage.getItem('jawabanLocal');
     const questionsArr = JSON.parse(localStorage.getItem('activeExamQuestions') || localStorage.getItem('dcc_bank_soal') || '[]');
 
@@ -152,7 +147,6 @@ export default function DashboardPanitia() {
     alert(`Nilai Praktik (${skorPraktikTotal}) Berhasil Disimpan!`);
   };
 
-  // FILTERING PESERTA REALTIME
   const filteredPeserta = peserta.filter(p => {
     if (filterPeserta === 'berjalan') return p.status === 'berjalan';
     if (filterPeserta === 'siap_koreksi') return p.status === 'selesai' && (!p.status_koreksi || p.status_koreksi !== 'dikoreksi');
@@ -160,7 +154,6 @@ export default function DashboardPanitia() {
     return true;
   });
 
-  // FILTERING LEMBAR JAWABAN
   const filteredJawabanList = soalPraktikList.filter(j => {
     if (filterTipeJawaban === 'praktik') return j.tipe === 'praktik' || typeof j.jawaban === 'object';
     if (filterTipeJawaban === 'pg') return j.tipe === 'pg' && typeof j.jawaban !== 'object';
@@ -178,7 +171,7 @@ export default function DashboardPanitia() {
               <ClipboardList className="text-cyan-400 w-6 h-6" />
               <div>
                 <h1 className="text-base font-display font-bold text-white tracking-wide">PANEL KOREKSI UJIAN & PRAKTIK</h1>
-                <p className="text-[11px] text-slate-400">Pemeriksaan Realtime Hasil Pengerjaan Siswa</p>
+                <p className="text-xs text-slate-400">Pemeriksaan Realtime Hasil Pengerjaan Siswa</p>
               </div>
             </div>
             <Button size="sm" onClick={loadPeserta} className="bg-slate-800 hover:bg-slate-700 text-xs border-0 text-slate-300">
@@ -190,19 +183,18 @@ export default function DashboardPanitia() {
         <main className="p-8 flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* BILAH KIRI: ANTREAN PESERTA DENGAN TAB FILTER STATUS */}
+            {/* BILAH KIRI: ANTREAN PESERTA DENGAN TAB FILTER */}
             <div className="space-y-4">
               <div className="flex flex-col gap-2 px-1">
-                <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                  <span>Daftar Peserta ({filteredPeserta.length})</span>
-                  <Filter className="w-3.5 h-3.5 text-cyan-400" />
+                <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
+                  Daftar Peserta ({filteredPeserta.length})
                 </h2>
 
-                {/* TAB FILTER STATUS UJIAN */}
-                <div className="grid grid-cols-2 gap-1 bg-[#0d1527] p-1.5 rounded-xl border border-slate-800 text-[10px]">
+                {/* TAB FILTER STATUS UJIAN (UKURAN LEBIH BESAR, TANPA IKON) */}
+                <div className="grid grid-cols-2 gap-1.5 bg-[#0d1527] p-2 rounded-xl border border-slate-800 text-xs font-display font-bold">
                   <button
                     onClick={() => setFilterPeserta('semua')}
-                    className={`py-1.5 px-2 rounded-lg font-display font-bold transition-all ${
+                    className={`py-2 px-3 rounded-lg transition-all ${
                       filterPeserta === 'semua' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
@@ -210,27 +202,27 @@ export default function DashboardPanitia() {
                   </button>
                   <button
                     onClick={() => setFilterPeserta('siap_koreksi')}
-                    className={`py-1.5 px-2 rounded-lg font-display font-bold transition-all ${
+                    className={`py-2 px-3 rounded-lg transition-all ${
                       filterPeserta === 'siap_koreksi' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    ⚡ Perlu Dikoreksi
+                    Perlu Dikoreksi
                   </button>
                   <button
                     onClick={() => setFilterPeserta('berjalan')}
-                    className={`py-1.5 px-2 rounded-lg font-display font-bold transition-all ${
+                    className={`py-2 px-3 rounded-lg transition-all ${
                       filterPeserta === 'berjalan' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    ⏳ Sedang Ujian
+                    Sedang Ujian
                   </button>
                   <button
                     onClick={() => setFilterPeserta('selesai')}
-                    className={`py-1.5 px-2 rounded-lg font-display font-bold transition-all ${
+                    className={`py-2 px-3 rounded-lg transition-all ${
                       filterPeserta === 'selesai' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    ✓ Selesai Nilai
+                    Selesai Nilai
                   </button>
                 </div>
               </div>
@@ -265,7 +257,7 @@ export default function DashboardPanitia() {
                               <h4 className="font-display font-bold text-sm text-white">
                                 {p.nama || p.nama_lengkap || `Peserta #${p.user_id}`}
                               </h4>
-                              <p className="text-[11px] text-slate-400 mt-0.5">
+                              <p className="text-xs text-slate-400 mt-0.5">
                                 TechID: <span className="text-slate-200 font-mono">{p.tech_id || `DCC25-000${p.user_id}`}</span>
                               </p>
                               
@@ -291,30 +283,30 @@ export default function DashboardPanitia() {
               )}
             </div>
 
-            {/* BILAH KANAN: LEMBAR KOREKSI JAWABAN REAL PESERTA (DENGAN QUICK TAB FILTER) */}
+            {/* BILAH KANAN: LEMBAR KOREKSI JAWABAN REAL PESERTA */}
             <div className="lg:col-span-2 space-y-6">
               {selectedSiswa ? (
                 <div className="space-y-6">
                   
-                  {/* HEADER LEMBAR KOREKSI + QUICK FILTER SOAL */}
+                  {/* HEADER LEMBAR KOREKSI + QUICK FILTER JAWABAN (UKURAN LEBIH LEGA) */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1 border-b border-slate-800/60 pb-3">
                     <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                       <FileCode className="text-cyan-400 w-4 h-4" /> LEMBAR JAWABAN PESERTA #{selectedSiswa}
                     </h2>
 
-                    {/* FILTER TIPE JAWABAN (PRAKTIK DULIAN SUPAYA PANITIA GA CABEK SCROLL) */}
-                    <div className="flex gap-1 bg-[#0d1527] p-1 rounded-xl border border-slate-800 text-[10px]">
+                    {/* FILTER TIPE JAWABAN (TANPA IKON, TEKS LEBIH BESAR) */}
+                    <div className="flex gap-1.5 bg-[#0d1527] p-1.5 rounded-xl border border-slate-800 text-xs font-display font-bold">
                       <button
                         onClick={() => setFilterTipeJawaban('praktik')}
-                        className={`px-3 py-1 rounded-lg font-display font-bold transition-all flex items-center gap-1 ${
+                        className={`px-3.5 py-1.5 rounded-lg transition-all ${
                           filterTipeJawaban === 'praktik' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                         }`}
                       >
-                        <Sparkles className="w-3 h-3" /> Hanya Praktik
+                        Hanya Praktik
                       </button>
                       <button
                         onClick={() => setFilterTipeJawaban('semua')}
-                        className={`px-3 py-1 rounded-lg font-display font-bold transition-all ${
+                        className={`px-3.5 py-1.5 rounded-lg transition-all ${
                           filterTipeJawaban === 'semua' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                         }`}
                       >
@@ -322,7 +314,7 @@ export default function DashboardPanitia() {
                       </button>
                       <button
                         onClick={() => setFilterTipeJawaban('pg')}
-                        className={`px-3 py-1 rounded-lg font-display font-bold transition-all ${
+                        className={`px-3.5 py-1.5 rounded-lg transition-all ${
                           filterTipeJawaban === 'pg' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                         }`}
                       >
@@ -364,7 +356,7 @@ export default function DashboardPanitia() {
                           
                           {/* JAWABAN PESERTA */}
                           <div className="p-4 bg-[#030712]/80 border border-slate-800 rounded-xl text-sm space-y-2">
-                            <p className="text-[11px] text-slate-400 font-display font-bold uppercase tracking-wider">Hasil Jawaban Peserta:</p>
+                            <p className="text-xs text-slate-400 font-display font-bold uppercase tracking-wider">Hasil Jawaban Peserta:</p>
                             
                             <div className="text-emerald-400 font-mono text-xs break-words bg-black/40 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">
                               {teksJawaban || (isPGString ? `Opsi Terpilih: ${j.jawaban}` : 'Peserta tidak mengisikan teks.')}
@@ -382,7 +374,7 @@ export default function DashboardPanitia() {
                           {/* CHECKLIST RUBRIK JIKA ADA */}
                           {j.checklist && (
                             <div className="p-4 bg-[#030712]/40 border border-slate-800 rounded-xl space-y-3">
-                              <p className="text-[11px] font-display font-bold text-cyan-400 uppercase tracking-wider">Checklist Rubrik Penilaian:</p>
+                              <p className="text-xs font-display font-bold text-cyan-400 uppercase tracking-wider">Checklist Rubrik Penilaian:</p>
                               <div className="space-y-2">
                                 {(typeof j.checklist === 'string' ? JSON.parse(j.checklist) : j.checklist).map((kriteria, kIdx) => {
                                   const key = `${j.soal_id}-${kIdx}`;
