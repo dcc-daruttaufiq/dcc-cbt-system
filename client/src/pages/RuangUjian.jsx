@@ -6,18 +6,7 @@ import API from '../utils/api';
 import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import { 
-  Clock, 
-  Flag, 
-  ChevronLeft, 
-  ChevronRight, 
-  Save, 
-  Upload, 
-  FileText, 
-  Send, 
-  AlertTriangle, 
-  X
-} from 'lucide-react';
+import { Clock, Flag, ChevronLeft, ChevronRight, Save, Upload, FileText, Send, AlertTriangle, X } from 'lucide-react';
 
 export default function RuangUjian() {
   useDocumentTitle('Ruang Ujian Berjalan - DCC CBT');
@@ -36,74 +25,47 @@ export default function RuangUjian() {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const timerRef = useRef(null);
 
-  // Read Current Active User
   const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
   const userId = currentUser.user_id || Date.now();
 
   useEffect(() => {
-    // READ USER DATA REALTIME
     const realName = currentUser.nama || currentUser.nama_lengkap || localStorage.getItem('userName') || 'Peserta Ujian';
     const realTechId = currentUser.tech_id || localStorage.getItem('userTechId') || 'DCC25-000';
-    const storedExamName = sessionStorage.getItem('selectedExamName') || 'Microsoft Word';
-    const storedExamId = (localStorage.getItem('selectedExamCategory') || sessionStorage.getItem('selectedExamId') || currentUser.kategori || 'word').toLowerCase();
+    
+    // BACA ID KATEGORI TERPILIH SANGAT PRESISI
+    const storedExamId = (localStorage.getItem('selectedExamCategory') || sessionStorage.getItem('selectedExamCategory') || currentUser.kategori || 'word').toLowerCase().trim();
 
     setUserName(realName);
     setTechId(realTechId);
-    setExamName(storedExamName);
 
-    const startExam = async () => {
-      let loadedSoal = [];
+    // Ambil Bank Soal dari Storage
+    let allBank = JSON.parse(localStorage.getItem('dcc_bank_soal') || '[]');
 
-      // 1. Coba Ambil dari API Backend
-      try {
-        const res = await API.get(`/ujian/mulai?userId=${userId}&kategori=${storedExamId}`);
-        if (res.data && Array.isArray(res.data.soal) && res.data.soal.length > 0) {
-          loadedSoal = res.data.soal;
-          setTimeLeft(res.data.sisaDetik || 5400);
-        }
-      } catch (err) {
-        console.warn("API Server unreachable, membaca Bank Soal lokal...");
-      }
+    // SMART CATEGORY FILTER (MENCANGKUP VARIASI PENGETIKAN EXCEL/CSV)
+    let filteredSoal = allBank.filter(s => {
+      const kat = (s.kategori || '').toLowerCase().trim();
 
-      // 2. Jika API Kosong, Ambil Bank Soal dari LocalStorage
-      let allBank = [];
-      const savedBank = localStorage.getItem('dcc_bank_soal') || sessionStorage.getItem('dcc_bank_soal');
-      if (savedBank) {
-        try { allBank = JSON.parse(savedBank); } catch (e) {}
-      }
+      if (storedExamId.includes('word')) return kat.includes('word') || kat.includes('doc');
+      if (storedExamId.includes('excel')) return kat.includes('excel') || kat.includes('sheet');
+      if (storedExamId.includes('power') || storedExamId.includes('ppt')) return kat.includes('power') || kat.includes('ppt');
+      if (storedExamId.includes('desain')) return kat.includes('desain') || kat.includes('canva') || kat.includes('design');
+      if (storedExamId.includes('pemrograman') || storedExamId.includes('coding')) return kat.includes('pemrograman') || kat.includes('coding') || kat.includes('web');
 
-      if (loadedSoal.length === 0 && allBank.length > 0) {
-        // SMART FILTERING (MENCANGKUP 5 KATEGORI MURNI PER SEMESTER)
-        loadedSoal = allBank.filter(s => {
-          const kat = (s.kategori || '').toLowerCase().trim();
-          const target = storedExamId.toLowerCase().trim();
+      return kat === storedExamId;
+    });
 
-          if (target === 'word') return kat.includes('word') || kat.includes('doc');
-          if (target === 'excel') return kat.includes('excel') || kat.includes('spreadsheet');
-          if (target === 'powerpoint') return kat.includes('power') || kat.includes('ppt') || kat.includes('point');
-          if (target === 'desain') return kat.includes('desain') || kat.includes('design') || kat.includes('canva') || kat.includes('grafis');
-          if (target === 'pemrograman') return kat.includes('pemrograman') || kat.includes('coding') || kat.includes('web') || kat.includes('html') || kat.includes('js');
+    // FALLBACK SAFETY AUTO-RESCUE: Jika hasil filter 0, ambil semua bank soal agar peserta TIDAK KANAM / BLANK
+    if (filteredSoal.length === 0 && allBank.length > 0) {
+      filteredSoal = allBank;
+    }
 
-          return kat === target;
-        });
+    setListSoal(filteredSoal);
 
-        // SAFETY FALLBACK: Jika filter tidak ada yang cocok, tampilkan seluruh bank soal
-        if (loadedSoal.length === 0) {
-          loadedSoal = allBank;
-        }
-      }
-
-      setListSoal(loadedSoal);
-      localStorage.setItem('activeExamQuestions', JSON.stringify(loadedSoal));
-
-      // Restore jawaban jika siswa sempat keluar
-      const savedJwbStr = localStorage.getItem(`jawabanLocal_${userId}`) || localStorage.getItem('jawabanLocal');
-      if (savedJwbStr) {
-        try { setJawaban(JSON.parse(savedJwbStr)); } catch (e) {}
-      }
-    };
-
-    startExam();
+    // Restore Jawaban Lama
+    const savedJwbStr = localStorage.getItem(`jawabanLocal_${userId}`) || localStorage.getItem('jawabanLocal');
+    if (savedJwbStr) {
+      try { setJawaban(JSON.parse(savedJwbStr)); } catch (e) {}
+    }
   }, []);
 
   useEffect(() => {
@@ -128,22 +90,15 @@ export default function RuangUjian() {
     return `${h}:${m}:${s}`;
   };
 
-  const executeAutosave = async (soalId, dataJawaban) => {
+  const executeAutosave = (soalId, dataJawaban) => {
     setIsSaving(true);
     try {
       const savedLocal = JSON.parse(localStorage.getItem(`jawabanLocal_${userId}`) || '{}');
       savedLocal[soalId] = dataJawaban;
       localStorage.setItem(`jawabanLocal_${userId}`, JSON.stringify(savedLocal));
-      localStorage.setItem(`jawabanLocal_${techId}`, JSON.stringify(savedLocal));
       localStorage.setItem('jawabanLocal', JSON.stringify(savedLocal));
     } catch (e) {}
-
-    try {
-      await API.post('/ujian/autosave', { soalId, jawaban: dataJawaban, userId });
-    } catch (err) {
-    } finally {
-      setTimeout(() => setIsSaving(false), 300);
-    }
+    setTimeout(() => setIsSaving(false), 300);
   };
 
   const handleSelectPG = (opsiTeks, labelHuruf) => {
@@ -161,59 +116,26 @@ export default function RuangUjian() {
     executeAutosave(soalAktif.id, dataBaru);
   };
 
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const dataLama = jawaban[soalAktif.id] || { teks: '', fileName: '' };
-    const dataBaru = { ...dataLama, fileName: file.name };
-    setJawaban({ ...jawaban, [soalAktif.id]: dataBaru });
-
-    const formData = new FormData();
-    formData.append('file_praktik', file);
-
-    setIsSaving(true);
-    try {
-      const uploadRes = await API.post('/upload-praktik', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      if (uploadRes.data && uploadRes.data.filename) {
-        dataBaru.fileName = uploadRes.data.filename;
-        setJawaban({ ...jawaban, [soalAktif.id]: dataBaru });
-      }
-    } catch (err) {
-    } finally {
-      executeAutosave(soalAktif.id, dataBaru);
-    }
-  };
-
-  const toggleFlag = () => {
-    setFlags({ ...flags, [soalAktif.id]: !flags[soalAktif.id] });
-  };
-
-  const handleAutoSubmit = async () => {
+  const handleAutoSubmit = () => {
     clearInterval(timerRef.current);
-    sessionStorage.setItem('examSubmitted', 'true');
     localStorage.setItem('isExamFinished', 'true');
 
-    // 1. Hitung Nilai PG Asli
+    // Hitung Nilai PG
     let soalPG = listSoal.filter(s => s.tipe === 'pg');
     let benarCount = 0;
 
     soalPG.forEach(s => {
       const jwbSiswa = (jawaban[s.id] || '').toString().toUpperCase().trim();
       const kunci = (s.jawaban_benar || s.jawabanBenar || 'A').toString().toUpperCase().trim();
-      if (jwbSiswa === kunci) {
-        benarCount++;
-      }
+      if (jwbSiswa === kunci) benarCount++;
     });
 
     const calculatedSkorPG = soalPG.length > 0 ? Math.round((benarCount / soalPG.length) * 100) : 0;
 
-    // 2. Update Status Sesi Peserta
+    // Update Status Sesi Peserta
     let listSesiLokal = JSON.parse(localStorage.getItem('dcc_sesi_peserta') || '[]');
     listSesiLokal = listSesiLokal.map(p => {
-      if ((techId && p.tech_id === techId) || (userId && String(p.user_id) === String(userId))) {
+      if (p.tech_id?.toLowerCase().trim() === techId.toLowerCase().trim()) {
         return {
           ...p,
           status: 'selesai',
@@ -227,19 +149,14 @@ export default function RuangUjian() {
     });
 
     localStorage.setItem('dcc_sesi_peserta', JSON.stringify(listSesiLokal));
-
-    try {
-      await API.post('/ujian/submit', { userId, jawaban, nilaiPG: calculatedSkorPG });
-    } catch (err) {}
-
     navigate('/dashboard-peserta');
   };
 
   if (listSoal.length === 0) {
     return (
-      <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center font-display gap-3 p-4 text-center">
+      <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center gap-3 p-4 text-center">
         <p className="text-sm font-bold text-cyan-400">Belum ada soal untuk mata ujian ini di Bank Soal.</p>
-        <p className="text-xs text-slate-400 font-sans">Silakan tambah atau impor soal terlebih dahulu lewat Panel Panitia (Bank Soal).</p>
+        <p className="text-xs text-slate-400">Silakan impor soal terlebih dahulu melalui Panel Panitia (Bank Soal).</p>
         <Button onClick={() => navigate('/dashboard-peserta')} className="mt-2 bg-slate-800 text-xs text-slate-300">
           ← Kembali ke Dashboard
         </Button>
@@ -248,150 +165,80 @@ export default function RuangUjian() {
   }
 
   const soalAktif = listSoal[currentIdx] || listSoal[0];
-  const totalSoalTerjawab = Object.keys(jawaban).length;
 
   return (
     <div className="min-h-screen bg-[#030712] text-slate-100 font-sans flex flex-col select-none">
       <Navbar>
         <div className="flex justify-between items-center w-full max-w-6xl mx-auto px-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-cyan-400 flex items-center justify-center text-slate-950 font-display font-bold shadow-lg shadow-cyan-400/20">
-              D
-            </div>
+            <div className="w-8 h-8 rounded-xl bg-cyan-400 flex items-center justify-center text-slate-950 font-bold">D</div>
             <div>
-              <h1 className="text-xs font-display font-bold text-cyan-400 uppercase tracking-widest">{examName}</h1>
-              <p className="text-[11px] text-slate-300 font-sans">{userName} • TechID: {techId}</p>
+              <h1 className="text-xs font-bold text-cyan-400 uppercase tracking-widest">{soalAktif.kategori || 'UJIAN'}</h1>
+              <p className="text-[11px] text-slate-300">{userName} • TechID: {techId}</p>
             </div>
           </div>
 
           <div className="p-2 px-4 rounded-xl bg-[#0d1527] border border-slate-800 flex items-center gap-2">
             <Clock className="w-4 h-4 text-cyan-400 animate-pulse" />
-            <span className="font-display font-bold text-sm tracking-wider text-emerald-400">
-              {formatTime(timeLeft)}
-            </span>
+            <span className="font-bold text-sm tracking-wider text-emerald-400">{formatTime(timeLeft)}</span>
           </div>
         </div>
       </Navbar>
 
       <main className="flex-1 p-4 md:p-6 max-w-6xl w-full mx-auto grid grid-cols-1 lg:grid-cols-4 gap-6 overflow-y-auto">
         <div className="lg:col-span-3 space-y-5">
-          <div className="p-4 rounded-2xl bg-[#0d1527]/50 border border-slate-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Badge variant="primary" className="text-xs px-3 py-1 font-display font-bold">
-                SOAL NO. {currentIdx + 1}
-              </Badge>
-
-              <span className="text-[10px] font-display font-bold uppercase px-2.5 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800">
-                {soalAktif.tipe === 'pg' ? 'Pilihan Ganda' : 'Ujian Praktik'}
-              </span>
-            </div>
-
-            <AnimatePresence mode="wait">
-              {isSaving ? (
-                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-xs text-cyan-400 flex items-center gap-1.5 font-sans">
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" /> Menyimpan jawaban...
-                </motion.span>
-              ) : (
-                <span className="text-xs text-slate-400 flex items-center gap-1 font-sans">
-                  <Save className="w-3.5 h-3.5 text-cyan-400" /> Autosave Aktif
-                </span>
-              )}
-            </AnimatePresence>
+          <div className="p-4 rounded-2xl bg-[#0d1527]/50 border border-slate-800/50 flex items-center justify-between">
+            <Badge variant="primary" className="text-xs px-3 py-1 font-bold">SOAL NO. {currentIdx + 1}</Badge>
+            <span className="text-xs text-slate-400 flex items-center gap-1"><Save className="w-3.5 h-3.5 text-cyan-400" /> Autosave Aktif</span>
           </div>
 
           <div className="p-6 md:p-8 rounded-2xl bg-[#0d1527]/40 border border-slate-800/50 min-h-[340px] flex flex-col justify-between space-y-6">
             <div className="space-y-6">
-              <p className="text-base md:text-lg font-sans leading-relaxed text-slate-100 whitespace-pre-wrap">
-                {soalAktif.pertanyaan}
-              </p>
+              <p className="text-base md:text-lg leading-relaxed text-slate-100 whitespace-pre-wrap">{soalAktif.pertanyaan}</p>
 
               {soalAktif.tipe === 'pg' ? (
                 <div className="grid grid-cols-1 gap-3 pt-2">
                   {soalAktif.opsi && soalAktif.opsi.map((opsiTeks, idx) => {
-                    const teksPilihan = typeof opsiTeks === 'object' ? opsiTeks.teks : opsiTeks;
                     const labelHuruf = String.fromCharCode(65 + idx);
-                    const isSelected = jawaban[soalAktif.id] === labelHuruf || jawaban[soalAktif.id] === teksPilihan;
+                    const isSelected = jawaban[soalAktif.id] === labelHuruf;
 
                     return (
                       <div
                         key={idx}
-                        onClick={() => handleSelectPG(teksPilihan, labelHuruf)}
-                        className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer flex items-start gap-4 ${
-                          isSelected
-                            ? 'bg-[#0d1527] border-cyan-400 text-white shadow-md shadow-cyan-400/10'
-                            : 'bg-[#030712]/60 border-slate-800/80 text-slate-300 hover:bg-[#0d1527]/60 hover:border-slate-700'
+                        onClick={() => handleSelectPG(opsiTeks, labelHuruf)}
+                        className={`p-4 rounded-xl border cursor-pointer flex items-start gap-4 ${
+                          isSelected ? 'bg-[#0d1527] border-cyan-400 text-white shadow-md' : 'bg-[#030712]/60 border-slate-800 text-slate-300 hover:bg-[#0d1527]/60'
                         }`}
                       >
-                        <span className={`w-7 h-7 rounded-lg font-display font-bold text-xs flex items-center justify-center shrink-0 ${
-                          isSelected ? 'bg-cyan-400 text-slate-950' : 'bg-slate-800 text-slate-300'
-                        }`}>
+                        <span className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 ${isSelected ? 'bg-cyan-400 text-slate-950' : 'bg-slate-800 text-slate-300'}`}>
                           {labelHuruf}
                         </span>
-                        <span className="text-sm font-sans pt-0.5">{teksPilihan.replace(/^[A-D]\.\s*/, '')}</span>
+                        <span className="text-sm pt-0.5">{typeof opsiTeks === 'string' ? opsiTeks.replace(/^[A-D]\.\s*/, '') : opsiTeks}</span>
                       </div>
                     );
                   })}
                 </div>
               ) : (
-                <div className="space-y-4 pt-2">
-                  <textarea
-                    rows={5}
-                    placeholder={soalAktif.placeholder || "Tuliskan kode jawaban atau deskripsi pengerjaan Anda di sini..."}
-                    value={jawaban[soalAktif.id]?.teks || ''}
-                    onChange={(e) => handleTextareaPraktik(e.target.value)}
-                    className="w-full p-4 bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-xs text-white rounded-xl font-sans focus:outline-none"
-                  />
-
-                  <div className="p-4 bg-[#030712]/40 border border-slate-800/80 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <label className="relative flex items-center gap-2 bg-[#0d1527] hover:bg-slate-800 border border-slate-700 px-4 py-2.5 rounded-xl cursor-pointer transition text-xs font-display font-bold text-slate-200">
-                      <Upload className="w-4 h-4 text-cyan-400" />
-                      <span>Unggah Berkas Praktik</span>
-                      <input type="file" className="hidden" onChange={handleFileUpload} accept=".pdf,.zip,.png,.jpg,.jpeg,.xlsx,.docx,.pptx" />
-                    </label>
-
-                    {jawaban[soalAktif.id]?.fileName ? (
-                      <div className="flex items-center gap-2 text-xs text-cyan-400 bg-cyan-400/10 px-3 py-1.5 rounded-lg border border-cyan-400/20">
-                        <FileText className="w-4 h-4" />
-                        <span className="truncate max-w-[200px] font-mono">{jawaban[soalAktif.id].fileName}</span>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-slate-500 font-sans">Format: .pdf, .docx, .xlsx, .zip, .png (Max 10MB)</span>
-                    )}
-                  </div>
-                </div>
+                <textarea
+                  rows={5}
+                  placeholder="Tuliskan jawaban praktik Anda di sini..."
+                  value={jawaban[soalAktif.id]?.teks || ''}
+                  onChange={(e) => handleTextareaPraktik(e.target.value)}
+                  className="w-full p-4 bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-xs text-white rounded-xl focus:outline-none font-mono"
+                />
               )}
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-800/40 pt-5 mt-6 gap-2">
-              <Button
-                onClick={() => setCurrentIdx(Math.max(0, currentIdx - 1))}
-                disabled={currentIdx === 0}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border-0 disabled:opacity-30"
-              >
+            <div className="flex items-center justify-between border-t border-slate-800/40 pt-5 gap-2">
+              <Button onClick={() => setCurrentIdx(Math.max(0, currentIdx - 1))} disabled={currentIdx === 0} className="bg-slate-800 text-slate-300 text-xs border-0">
                 <ChevronLeft className="w-4 h-4 mr-1" /> Kembali
               </Button>
-
-              <button
-                onClick={toggleFlag}
-                className={`px-3 py-2 rounded-xl text-xs font-display font-bold border transition-all flex items-center gap-1.5 ${
-                  flags[soalAktif.id]
-                    ? 'bg-amber-500/20 border-amber-500/60 text-amber-400'
-                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Flag className="w-3.5 h-3.5" />
-                {flags[soalAktif.id] ? 'RAGU-RAGU AKTIF' : 'TANDAI RAGU-RAGU'}
-              </button>
-
               <Button
                 onClick={() => {
-                  if (currentIdx < listSoal.length - 1) {
-                    setCurrentIdx(currentIdx + 1);
-                  } else {
-                    setShowSubmitModal(true);
-                  }
+                  if (currentIdx < listSoal.length - 1) setCurrentIdx(currentIdx + 1);
+                  else setShowSubmitModal(true);
                 }}
-                className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0"
+                className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs border-0"
               >
                 {currentIdx === listSoal.length - 1 ? 'Selesai Ujian' : 'Berikutnya'} <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
@@ -399,112 +246,45 @@ export default function RuangUjian() {
           </div>
         </div>
 
-        <div className="space-y-5">
-          <div className="p-6 rounded-2xl bg-[#0d1527]/40 border border-slate-800/50 space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-800/40 pb-3">
-              <h3 className="text-xs font-display font-bold text-slate-300 uppercase tracking-widest">
-                NAVIGASI SOAL
-              </h3>
-              <span className="text-[10px] font-sans text-cyan-400">
-                {totalSoalTerjawab}/{listSoal.length} Terisi
-              </span>
-            </div>
+        {/* NAVIGASI NOMOR SOAL */}
+        <div className="p-6 rounded-2xl bg-[#0d1527]/40 border border-slate-800/50 space-y-4">
+          <h3 className="text-xs font-bold text-slate-300 uppercase tracking-widest border-b border-slate-800 pb-3">NAVIGASI SOAL</h3>
+          <div className="grid grid-cols-5 gap-2">
+            {listSoal.map((item, index) => {
+              const isCurrent = index === currentIdx;
+              const isAnswered = jawaban[item.id] !== undefined;
 
-            <div className="grid grid-cols-5 gap-2">
-              {listSoal.map((item, index) => {
-                const isCurrent = index === currentIdx;
-                const isFlagged = flags[item.id];
-                const isAnswered = jawaban[item.id] !== undefined && (
-                  typeof jawaban[item.id] === 'string' 
-                    ? jawaban[item.id] !== '' 
-                    : (jawaban[item.id]?.teks !== '' || jawaban[item.id]?.fileName !== '')
-                );
-
-                let nodeStyles = "bg-[#030712] text-slate-400 border-slate-800";
-                if (isFlagged) {
-                  nodeStyles = "bg-amber-500/20 text-amber-400 border-amber-500/50";
-                } else if (isAnswered) {
-                  nodeStyles = "bg-emerald-500/20 text-emerald-400 border-emerald-500/50";
-                }
-
-                if (isCurrent) {
-                  nodeStyles += " ring-2 ring-cyan-400";
-                }
-
-                return (
-                  <button
-                    key={item.id || index}
-                    onClick={() => setCurrentIdx(index)}
-                    className={`h-10 rounded-xl font-display font-bold text-xs border transition-all flex items-center justify-center ${nodeStyles}`}
-                  >
-                    {index + 1}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="pt-3 border-t border-slate-800/40 space-y-2 text-[10px] font-sans text-slate-400">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded bg-emerald-500/20 border border-emerald-500/50 inline-block"></span>
-                <span>Sudah Dijawab / Terisi</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded bg-amber-500/20 border border-amber-500/50 inline-block"></span>
-                <span>Ditandai Ragu-Ragu</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded bg-[#030712] border border-slate-800 inline-block"></span>
-                <span>Belum Dijawab</span>
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <Button
-                onClick={() => setShowSubmitModal(true)}
-                className="w-full py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0 rounded-xl shadow-lg shadow-cyan-400/20 flex items-center justify-center gap-2"
-              >
-                <Send className="w-3.5 h-3.5" /> SUBMIT SELESAI UJIAN
-              </Button>
-            </div>
+              return (
+                <button
+                  key={index}
+                  onClick={() => setCurrentIdx(index)}
+                  className={`h-10 rounded-xl font-bold text-xs border transition-all ${
+                    isCurrent ? 'ring-2 ring-cyan-400 bg-cyan-400 text-slate-950' : isAnswered ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-[#030712] text-slate-400 border-slate-800'
+                  }`}
+                >
+                  {index + 1}
+                </button>
+              );
+            })}
           </div>
+          <Button onClick={() => setShowSubmitModal(true)} className="w-full mt-4 py-3 bg-cyan-400 text-slate-950 font-bold text-xs border-0 rounded-xl flex items-center justify-center gap-2">
+            <Send className="w-3.5 h-3.5" /> SUBMIT SELESAI
+          </Button>
         </div>
-
       </main>
 
       {showSubmitModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#0d1527] border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-slate-800/60 pb-3">
-              <h3 className="text-sm font-display font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-400" /> Konfirmasi Selesai Ujian
-              </h3>
-              <button onClick={() => setShowSubmitModal(false)} className="text-slate-400 hover:text-white">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-300 font-sans leading-relaxed">
-              Apakah Anda yakin ingin menyelesaikan sesi ujian ini? Jawaban Anda akan langsung dikirim ke Panel Panitia.
-            </p>
-
-            <div className="flex gap-3 pt-2">
-              <Button
-                onClick={() => setShowSubmitModal(false)}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border-0"
-              >
-                Batal
-              </Button>
-              <Button
-                onClick={handleAutoSubmit}
-                className="flex-1 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0 shadow-lg shadow-cyan-400/20"
-              >
-                Ya, Submit Sekarang
-              </Button>
+          <div className="bg-[#0d1527] border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-5">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-400" /> Konfirmasi Selesai Ujian</h3>
+            <p className="text-xs text-slate-300">Apakah Anda yakin ingin menyelesaikan ujian ini?</p>
+            <div className="flex gap-3">
+              <Button onClick={() => setShowSubmitModal(false)} className="flex-1 bg-slate-800 text-xs border-0">Batal</Button>
+              <Button onClick={handleAutoSubmit} className="flex-1 bg-cyan-400 text-slate-950 font-bold text-xs border-0">Ya, Submit</Button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
