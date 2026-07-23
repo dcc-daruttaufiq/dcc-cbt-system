@@ -26,7 +26,7 @@ export default function Login() {
     const inputUser = username.trim();
     const inputPass = password.trim();
 
-    // 1. LOGIN PANITIA / MASTER ADMIN
+    // 1. LOGIN SEBAGAI PANITIA / MASTER ADMIN
     if (selectedRole === 'master_admin') {
       if ((inputUser.toLowerCase() === 'admin' && (inputPass === 'admin123' || inputPass === '123')) || inputPass === 'admin123') {
         saveAndRedirect('master_admin', 'token-master-admin-real', 'Master Admin', 'ADMIN-001', 'all');
@@ -39,76 +39,87 @@ export default function Login() {
       }
     }
 
-    // 2. LOGIN PESERTA MURNI SUPABASE CLOUD (NO DUMMY & NO AUTO-CREATE)
+    // 2. LOGIN SEBAGAI PESERTA UJIAN (MURNI SUPABASE CLOUD)
     if (selectedRole === 'peserta') {
       try {
         const cleanInput = inputUser.toLowerCase().trim();
 
-        // Cari peserta di Supabase Cloud berdasarkan TechID atau Nama
+        // Query data peserta dari Supabase Cloud
         const { data: listPeserta, error } = await supabase
           .from('peserta')
           .select('*');
 
         if (error) throw error;
 
-        if (!listPeserta || listPeserta.length === 0) {
-          setErrorMsg('Belum ada data peserta yang diimpor Panitia di Supabase Cloud. Silakan hubungi Panitia!');
+        if (!Array.isArray(listPeserta) || listPeserta.length === 0) {
+          setErrorMsg('Data peserta belum diimpor oleh Panitia di Supabase Cloud. Silakan hubungi Panitia Ujian.');
           setIsLoading(false);
           return;
         }
 
+        // Cari peserta berdasarkan TechID, Nama, atau Nama Lengkap persis seperti kode asli kamu
         const matchedPeserta = listPeserta.find(
           p => (p.tech_id && p.tech_id.toLowerCase().trim() === cleanInput) ||
-               (p.nama && p.nama.toLowerCase().trim() === cleanInput)
+               (p.nama && p.nama.toLowerCase().trim() === cleanInput) ||
+               (p.nama_lengkap && p.nama_lengkap.toLowerCase().trim() === cleanInput)
         );
 
         if (!matchedPeserta) {
-          setErrorMsg(`TechID/Nama "${inputUser}" tidak terdaftar pada data Supabase Cloud. Hubungi Panitia!`);
+          setErrorMsg(`TechID/Nama "${inputUser}" tidak ditemukan pada data hasil impor Panitia di Supabase Cloud. Periksa kembali penulisan, atau hubungi Panitia jika Anda merasa sudah terdaftar.`);
           setIsLoading(false);
           return;
         }
 
+        // Kategori WAJIB salah satu dari 5 kategori resmi
         const kategoriValid = normalizeKategori(matchedPeserta.kategori);
         if (!kategoriValid) {
-          setErrorMsg(`Kategori ujian peserta ini tidak valid ("${matchedPeserta.kategori || '-'}"). Hubungi Panitia!`);
+          setErrorMsg(`Kategori ujian pada data peserta ini tidak valid ("${matchedPeserta.kategori || '-'}"). Hubungi Panitia untuk memperbaiki data impor TechID ${matchedPeserta.tech_id}.`);
           setIsLoading(false);
           return;
         }
 
-        // Update status pengerjaan jika belum mulai
+        const pesertaTerupdate = {
+          ...matchedPeserta,
+          kategori: kategoriValid,
+          status: matchedPeserta.status === 'selesai' ? 'selesai' : (matchedPeserta.status || 'berjalan'),
+        };
+
+        // Update status berjalan di Supabase Cloud jika belum mulai
         if (matchedPeserta.status === 'belum_mulai') {
           await supabase
             .from('peserta')
             .update({ status: 'berjalan' })
             .eq('tech_id', matchedPeserta.tech_id);
-          matchedPeserta.status = 'berjalan';
         }
 
-        // Simpan Sesi Aktif Peserta
-        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(matchedPeserta));
-        localStorage.setItem(STORAGE_KEYS.USER_NAME, matchedPeserta.nama);
-        localStorage.setItem(STORAGE_KEYS.USER_TECH_ID, matchedPeserta.tech_id);
-        localStorage.setItem(STORAGE_KEYS.USER_KATEGORI, kategoriValid);
-        localStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, kategoriValid);
+        const displayName = pesertaTerupdate.nama || pesertaTerupdate.nama_lengkap || 'Peserta Ujian';
 
-        if (matchedPeserta.status !== 'selesai') {
+        // SIMPAN SESI LOGIN SECARA AKURAT
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(pesertaTerupdate));
+        localStorage.setItem(STORAGE_KEYS.USER_NAME, displayName);
+        localStorage.setItem(STORAGE_KEYS.USER_TECH_ID, pesertaTerupdate.tech_id);
+        localStorage.setItem(STORAGE_KEYS.USER_KATEGORI, pesertaTerupdate.kategori);
+        localStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, pesertaTerupdate.kategori);
+
+        if (pesertaTerupdate.status !== 'selesai') {
           localStorage.removeItem(STORAGE_KEYS.IS_EXAM_FINISHED);
           sessionStorage.removeItem('examSubmitted');
         }
 
         saveAndRedirect(
           'peserta',
-          `token-peserta-${matchedPeserta.id || matchedPeserta.tech_id}`,
-          matchedPeserta.nama,
-          matchedPeserta.tech_id,
-          kategoriValid
+          `token-peserta-${pesertaTerupdate.id || pesertaTerupdate.tech_id}`,
+          displayName,
+          pesertaTerupdate.tech_id,
+          pesertaTerupdate.kategori
         );
+        return;
       } catch (err) {
         console.error("Login Supabase Error:", err);
         setErrorMsg('Gagal terhubung ke database Supabase Cloud. Periksa koneksi internet!');
         setIsLoading(false);
+        return;
       }
-      return;
     }
   };
 
@@ -141,9 +152,10 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-8 border-borderCustom bg-surface space-y-6">
+        
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-display font-bold text-primary tracking-wider">PORTAL DCC-CBT</h1>
-          <p className="text-xs text-slate-400 font-sans">Akses Ujian Online Terpusat (Supabase Live)</p>
+          <p className="text-xs text-slate-400 font-sans">Pilih peran Anda untuk masuk ke dalam sistem</p>
         </div>
 
         <div className="grid grid-cols-3 gap-1 bg-background p-1.5 rounded-xl border border-borderCustom/60">
@@ -151,7 +163,9 @@ export default function Login() {
             type="button"
             onClick={() => { setSelectedRole('peserta'); setErrorMsg(''); }}
             className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${
-              selectedRole === 'peserta' ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100' : 'text-slate-400 hover:text-white hover:bg-surface/50'
+              selectedRole === 'peserta'
+                ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100'
+                : 'text-slate-400 hover:text-white hover:bg-surface/50'
             }`}
           >
             <UserCheck className="w-4 h-4 mb-1" />
@@ -162,7 +176,9 @@ export default function Login() {
             type="button"
             onClick={() => { setSelectedRole('panitia'); setErrorMsg(''); }}
             className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${
-              selectedRole === 'panitia' ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100' : 'text-slate-400 hover:text-white hover:bg-surface/50'
+              selectedRole === 'panitia'
+                ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100'
+                : 'text-slate-400 hover:text-white hover:bg-surface/50'
             }`}
           >
             <ShieldCheck className="w-4 h-4 mb-1" />
@@ -173,7 +189,9 @@ export default function Login() {
             type="button"
             onClick={() => { setSelectedRole('master_admin'); setErrorMsg(''); }}
             className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${
-              selectedRole === 'master_admin' ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100' : 'text-slate-400 hover:text-white hover:bg-surface/50'
+              selectedRole === 'master_admin'
+                ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100'
+                : 'text-slate-400 hover:text-white hover:bg-surface/50'
             }`}
           >
             <Crown className="w-4 h-4 mb-1" />
@@ -234,7 +252,7 @@ export default function Login() {
         <div className="text-center border-t border-borderCustom/40 pt-4 space-y-1">
           {selectedRole === 'peserta' ? (
             <p className="text-[11px] text-slate-400">
-              Siswa menggunakan <strong className="text-primary">TechID / Nama</strong> terdaftar di Supabase Cloud.
+              Siswa menggunakan <strong className="text-primary">TechID / Nama</strong> hasil impor Panitia dari file Excel.
             </p>
           ) : (
             <p className="text-[10px] text-slate-500 font-mono">
@@ -242,6 +260,7 @@ export default function Login() {
             </p>
           )}
         </div>
+
       </Card>
     </div>
   );

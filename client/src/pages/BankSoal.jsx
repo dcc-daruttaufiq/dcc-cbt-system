@@ -33,9 +33,9 @@ export default function BankSoal() {
   const excelInputRef = useRef(null);
 
   const menuPanitia = [
-    { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📋' },
+    { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
     { label: 'Bank Soal', path: '/bank-soal', icon: '📚' },
-    { label: 'Laporan Nilai', path: '/laporan', icon: '📊' },
+    { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
   // FETCH SOAL DIRECT SUPABASE CLOUD
@@ -94,7 +94,7 @@ export default function BankSoal() {
         C: opsiArr[2]?.replace(/^C\.\s*/, '') || '',
         D: opsiArr[3]?.replace(/^D\.\s*/, '') || ''
       });
-      setJawabanBenar(soal.jawaban_benar || 'A');
+      setJawabanBenar(soal.jawaban_benar || soal.jawabanBenar || 'A');
     } else {
       const checkArr = typeof soal.checklist === 'string' ? JSON.parse(soal.checklist) : (soal.checklist || []);
       setChecklist(checkArr);
@@ -196,7 +196,7 @@ export default function BankSoal() {
       if (importedSoalArr.length > 0) {
         const { error } = await supabase.from('bank_soal').insert(importedSoalArr);
         if (!error) {
-          let msg = `Berhasil mengunggah ${importedSoalArr.length} soal ke Supabase Cloud!`;
+          let msg = `Berhasil mengimpor ${importedSoalArr.length} soal ke Supabase Cloud! Terpetakan ke 5 Kategori Ujian resmi.`;
           if (skippedKategoriTidakDikenal > 0) {
             msg += `\n\nPERINGATAN: ${skippedKategoriTidakDikenal} baris DILEWATI karena kolom Kategori tidak cocok dengan 5 kategori resmi.`;
           }
@@ -206,12 +206,58 @@ export default function BankSoal() {
           alert("Gagal mengunggah ke Supabase: " + error.message);
         }
       } else {
-        alert('File Excel/CSV tidak valid atau Kategori tidak sesuai!');
+        const pesanTambahan = skippedKategoriTidakDikenal > 0
+          ? ` ${skippedKategoriTidakDikenal} baris dilewati karena kolom Kategori tidak dikenali.`
+          : '';
+        alert(`Tidak ada soal valid yang berhasil diimpor!${pesanTambahan} Periksa format kolom (Kategori, Tipe, Pertanyaan, ...).`);
       }
     };
 
     reader.readAsText(file);
     e.target.value = '';
+  };
+
+  // EKSPOR BACKUP JSON (DARI KODE ASLI KAMU)
+  const handleExportBackup = () => {
+    if (listSoal.length === 0) return alert('Belum ada soal untuk diekspor!');
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(listSoal, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `Backup_BankSoal_DCC_${Date.now()}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  // IMPOR BACKUP JSON LANGSUNG KE SUPABASE CLOUD (DARI KODE ASLI KAMU)
+  const handleImportBackup = (e) => {
+    const fileReader = new FileReader();
+    if (e.target.files && e.target.files[0]) {
+      fileReader.readAsText(e.target.files[0], "UTF-8");
+      fileReader.onload = async (event) => {
+        try {
+          const parsed = JSON.parse(event.target.result);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const cleaned = parsed.map(s => ({
+              kategori: normalizeKategori(s.kategori) || 'word',
+              tipe: s.tipe || 'pg',
+              pertanyaan: s.pertanyaan,
+              opsi: s.opsi || null,
+              jawaban_benar: s.jawaban_benar || s.jawabanBenar || null,
+              checklist: s.checklist || null
+            }));
+
+            const { error } = await supabase.from('bank_soal').insert(cleaned);
+            if (!error) {
+              alert(`Berhasil mengimpor ${parsed.length} soal dari file JSON ke Supabase Cloud!`);
+              fetchSoal();
+            } else {
+              alert("Gagal menyimpan JSON ke Supabase: " + error.message);
+            }
+          }
+        } catch (err) { alert('Gagal membaca file JSON!'); }
+      };
+    }
   };
 
   const filteredSoalList = filterKategori === 'semua'
@@ -229,15 +275,24 @@ export default function BankSoal() {
               <Database className="text-cyan-400 w-5 h-5" />
               <div>
                 <h1 className="text-sm font-display font-bold text-white tracking-wide">BANK SOAL (SUPABASE LIVE)</h1>
-                <p className="text-[11px] text-slate-400">Data otomatis terhubung langsung ke semua peserta online</p>
+                <p className="text-[11px] text-slate-400">Kelola & Import Bank Soal Spesialisasi</p>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
+              <input type="file" ref={fileInputRef} onChange={handleImportBackup} accept=".json" className="hidden" />
               <input type="file" ref={excelInputRef} onChange={handleImportExcelCSV} accept=".csv,.xlsx" className="hidden" />
 
               <Button onClick={() => excelInputRef.current.click()} className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-display font-bold border-0 shadow-lg shadow-emerald-500/20">
                 <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Import Excel / CSV
+              </Button>
+
+              <Button onClick={() => fileInputRef.current.click()} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 font-sans border-0">
+                <Upload className="w-3.5 h-3.5 mr-1.5" /> Import JSON
+              </Button>
+
+              <Button onClick={handleExportBackup} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 font-sans border-0">
+                <Download className="w-3.5 h-3.5 mr-1.5" /> Backup JSON
               </Button>
 
               <Button onClick={openCreateModal} className="text-xs bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold border-0 shadow-lg shadow-cyan-400/20">
@@ -251,7 +306,7 @@ export default function BankSoal() {
           <div className="max-w-5xl mx-auto space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
               <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
-                Daftar Soal Cloud ({filteredSoalList.length})
+                Daftar Soal Tersedia ({filteredSoalList.length})
               </h2>
 
               <div className="flex gap-1 bg-[#0d1527] p-1 rounded-xl border border-slate-800/80 text-[11px] overflow-x-auto">
@@ -272,7 +327,7 @@ export default function BankSoal() {
             <div className="space-y-3">
               {filteredSoalList.length === 0 ? (
                 <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
-                  Belum ada soal di Supabase Cloud. Klik <strong>"Import Excel / CSV"</strong> di atas.
+                  Belum ada soal untuk kategori ini. Klik <strong>"Import Excel / CSV"</strong> atau <strong>"Tambah Manual"</strong> di atas.
                 </div>
               ) : (
                 filteredSoalList.map((row, index) => (
@@ -295,9 +350,13 @@ export default function BankSoal() {
                             {row.tipe === 'pg' ? 'Pilihan Ganda' : 'Praktik'}
                           </Badge>
 
-                          {row.tipe === 'pg' && (
+                          {row.tipe === 'pg' ? (
                             <span className="text-xs text-slate-400">
-                              Kunci: <strong className="text-cyan-400 font-mono">{row.jawaban_benar}</strong>
+                              Kunci: <strong className="text-cyan-400 font-mono">{row.jawaban_benar || row.jawabanBenar}</strong>
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400">
+                              {(typeof row.checklist === 'string' ? JSON.parse(row.checklist) : row.checklist)?.length || 0} Kriteria Rubrik
                             </span>
                           )}
                         </div>
@@ -331,7 +390,7 @@ export default function BankSoal() {
             
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-[#0d1527] border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 text-white">
               <div className="flex items-center justify-between pb-3 border-b border-slate-800/60">
-                <h3 className="font-display text-base font-bold text-cyan-400 uppercase tracking-wider">{editingId ? 'EDIT SOAL SUPABASE' : 'TAMBAH SOAL SUPABASE'}</h3>
+                <h3 className="font-display text-base font-bold text-cyan-400 uppercase tracking-wider">{editingId ? 'EDIT SOAL DATABASE' : 'TAMBAH SOAL DATABASE'}</h3>
                 <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
               </div>
 
