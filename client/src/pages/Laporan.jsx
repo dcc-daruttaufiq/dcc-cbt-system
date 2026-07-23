@@ -116,6 +116,7 @@ export default function Laporan() {
       <Sidebar links={menuPanitia} userRole="Panitia" />
 
       <div className="flex-1 flex flex-col min-w-0">
+        {/* CLEAN NAVBAR TANPA GLOWING SHADOW */}
         <Navbar>
           <div className="flex justify-between items-center w-full">
             <div className="flex items-center gap-3">
@@ -126,11 +127,12 @@ export default function Laporan() {
               </div>
             </div>
 
+            {/* ACTION BUTTONS (FLAT CLEAN) */}
             <div className="flex items-center gap-2">
               <Button onClick={handleExportExcel} className="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border-0">
                 <Download className="w-3.5 h-3.5 mr-1.5" /> Export Excel
               </Button>
-              <Button onClick={handleExportPDF} className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0 shadow-lg shadow-cyan-400/20">
+              <Button onClick={handleExportPDF} className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0">
                 <FileText className="w-3.5 h-3.5 mr-1.5" /> Export PDF
               </Button>
             </div>

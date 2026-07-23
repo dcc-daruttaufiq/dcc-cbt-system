@@ -279,7 +279,7 @@ export default function DashboardPanitia() {
     let detailJawaban = [];
 
     try {
-      // Fetch data spesifik milik peserta berdasarkan tech_id (menggunakan ilike untuk toleransi kapitalisasi)
+      // Fetch data spesifik milik peserta berdasarkan tech_id
       const { data: jawabanRows, error } = await supabase
         .from(TABLES.JAWABAN_PESERTA)
         .select('*')
@@ -350,7 +350,6 @@ export default function DashboardPanitia() {
       }
     }
 
-    // Set filter default ke "semua" agar data jawaban langsung terlihat tanpa tersembunyi
     setFilterTipeJawaban('semua');
     setSoalPraktikList(detailJawaban);
     initChecklistData(detailJawaban);
@@ -475,6 +474,7 @@ export default function DashboardPanitia() {
       <Sidebar links={menuPanitia} userRole="Panitia" />
 
       <div className="flex-1 flex flex-col min-w-0">
+        {/* CLEAN NAVBAR (FLAT TANPA SHADOW) */}
         <Navbar>
           <div className="flex justify-between items-center w-full">
             <div className="flex items-center gap-3">
@@ -627,7 +627,7 @@ export default function DashboardPanitia() {
                 </div>
               </div>
 
-              {/* DAFTAR CARD PESERTA */}
+              {/* DAFTAR CARD PESERTA (FLAT CLEAN TANPA SHADOW) */}
               {filteredPeserta.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
                   Tidak ada peserta pada status ini.
@@ -645,7 +645,7 @@ export default function DashboardPanitia() {
                         key={p.id || idx}
                         className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col gap-3 ${
                           isSelected
-                            ? 'bg-cyan-950/30 border-cyan-400 shadow-md'
+                            ? 'bg-cyan-950/30 border-cyan-400'
                             : 'bg-[#0d1527]/70 border-slate-800/80 hover:border-slate-700'
                         }`}
                       >
@@ -815,7 +815,7 @@ export default function DashboardPanitia() {
 
                           <p className="text-sm text-slate-200 font-medium leading-relaxed">{j.pertanyaan}</p>
 
-                          {/* PENAMPIL REALTIME JAWABAN & LAMPIRAN */}
+                          {/* CONTAINER UTAMA PENAMPIL TEKS & LINK LAMPIRAN */}
                           <div className="p-4 bg-[#030712]/80 border border-slate-800 rounded-xl text-sm space-y-3">
                             <p className="text-xs text-slate-400 font-display font-bold uppercase tracking-wider">Jawaban Peserta:</p>
 
