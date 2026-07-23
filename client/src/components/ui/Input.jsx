@@ -7,13 +7,13 @@ export default function Input({ className, label, error, ...props }) {
       {label && <label className="text-sm font-sans font-medium text-slate-300">{label}</label>}
       <input
         className={cn(
-          "w-full px-3 py-2 bg-surface border border-customBorder rounded-lg text-white font-sans placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all text-sm",
-          error && "border-red-500 focus:ring-red-500/50 focus:border-red-500",
+          "w-full px-3 py-2 bg-[#030712] border border-slate-800 rounded-lg text-white font-sans placeholder:text-slate-500 focus:outline-none focus:border-cyan-400 transition-all text-sm",
+          error && "border-rose-500 focus:border-rose-500",
           className
         )}
         {...props}
       />
-      {error && <span className="text-xs text-red-400 font-sans">{error}</span>}
+      {error && <span className="text-xs text-rose-400 font-sans">{error}</span>}
     </div>
   );
 }
