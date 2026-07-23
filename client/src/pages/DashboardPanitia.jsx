@@ -38,12 +38,12 @@ export default function DashboardPanitia() {
   const [isLoadingPeriksa, setIsLoadingPeriksa] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // State Pilihan Checkbox untuk Bulk Delete
+  // State Checkbox Bulk Delete
   const [selectedIds, setSelectedIds] = useState([]);
 
   // Filter Status (6 Tab Utama)
   const [filterPeserta, setFilterPeserta] = useState('semua');
-  const [filterTipeJawaban, setFilterTipeJawaban] = useState('praktik');
+  const [filterTipeJawaban, setFilterTipeJawaban] = useState('semua');
 
   // Search & Pagination
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,15 +72,11 @@ export default function DashboardPanitia() {
       setIsOffline(false);
       localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(rows));
     } catch (err) {
-      console.warn('Gagal terhubung ke Supabase Cloud (peserta), menampilkan cache lokal terakhir.', err);
+      console.warn('Gagal terhubung ke Supabase Cloud (peserta), menggunakan cache lokal.', err);
       setIsOffline(true);
       const localSesi = localStorage.getItem(STORAGE_KEYS.PESERTA);
       if (localSesi) {
-        try {
-          setPeserta(JSON.parse(localSesi));
-        } catch (e) {
-          setPeserta([]);
-        }
+        try { setPeserta(JSON.parse(localSesi)); } catch (e) { setPeserta([]); }
       }
     }
   };
@@ -93,7 +89,7 @@ export default function DashboardPanitia() {
       setBankSoalAll(rows);
       localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(rows));
     } catch (err) {
-      console.warn('Gagal memuat Bank Soal dari Supabase Cloud, menampilkan cache lokal terakhir.', err);
+      console.warn('Gagal memuat Bank Soal dari Supabase Cloud, menggunakan cache lokal.', err);
       const cached = localStorage.getItem(STORAGE_KEYS.BANK_SOAL);
       if (cached) {
         try { setBankSoalAll(JSON.parse(cached)); } catch (e) { setBankSoalAll([]); }
@@ -176,13 +172,9 @@ export default function DashboardPanitia() {
       });
 
       if (importedPesertaArr.length === 0) {
-        if (duplicateCount > 0) {
-          alert(`Semua data (${duplicateCount}) dalam file ini sudah terdaftar sebelumnya!`);
-        } else if (invalidKategoriCount > 0) {
-          alert(`Tidak ada peserta yang berhasil diimpor. ${invalidKategoriCount} baris dilewati karena kolom Mata Ujian tidak dikenali.`);
-        } else {
-          alert('File tidak sesuai format! Pastikan kolom minimal: Nama, TechID, Mata Ujian.');
-        }
+        if (duplicateCount > 0) alert(`Semua data (${duplicateCount}) sudah terdaftar!`);
+        else if (invalidKategoriCount > 0) alert(`Gagal impor. Kategori mata ujian tidak valid.`);
+        else alert('Format file tidak sesuai!');
         e.target.value = '';
         return;
       }
@@ -190,16 +182,11 @@ export default function DashboardPanitia() {
       try {
         const { error } = await supabase.from(TABLES.PESERTA).insert(importedPesertaArr);
         if (error) throw error;
-
         await loadPeserta();
-
-        let msg = `Berhasil menambahkan ${importedPesertaArr.length} peserta baru ke Supabase Cloud!`;
-        if (duplicateCount > 0) msg += ` (${duplicateCount} data duplikat dilewati).`;
-        if (invalidKategoriCount > 0) msg += ` (${invalidKategoriCount} baris dilewati karena kategori tidak valid).`;
-        alert(msg);
+        alert(`Berhasil menambahkan ${importedPesertaArr.length} peserta baru!`);
       } catch (err) {
-        console.error('Gagal mengimpor peserta ke Supabase Cloud:', err);
-        alert('Gagal mengimpor peserta ke Supabase Cloud.');
+        console.error('Gagal impor peserta:', err);
+        alert('Gagal mengimpor peserta.');
       } finally {
         e.target.value = '';
       }
@@ -209,7 +196,7 @@ export default function DashboardPanitia() {
   };
 
   const handleDeleteSingle = async (pesertaId, nama) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus data peserta "${nama}"?`)) return;
+    if (!confirm(`Hapus data peserta "${nama}"?`)) return;
 
     try {
       const { error } = await supabase.from(TABLES.PESERTA).delete().eq('id', pesertaId);
@@ -220,15 +207,13 @@ export default function DashboardPanitia() {
       localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updated));
       if (selectedSiswa === pesertaId) setSelectedSiswa(null);
     } catch (err) {
-      console.error('Gagal menghapus peserta:', err);
       alert('Gagal menghapus peserta.');
     }
   };
 
   const handleDeleteSelected = async () => {
-    if (selectedIds.length === 0) return alert("Pilih minimal satu peserta yang ingin dihapus!");
-
-    if (!confirm(`Apakah Anda yakin ingin menghapus ${selectedIds.length} peserta terpilih?`)) return;
+    if (selectedIds.length === 0) return alert("Pilih minimal satu peserta!");
+    if (!confirm(`Hapus ${selectedIds.length} peserta terpilih?`)) return;
 
     try {
       const { error } = await supabase.from(TABLES.PESERTA).delete().in('id', selectedIds);
@@ -240,29 +225,25 @@ export default function DashboardPanitia() {
       setSelectedIds([]);
       if (selectedIds.includes(selectedSiswa)) setSelectedSiswa(null);
     } catch (err) {
-      console.error('Gagal menghapus peserta terpilih:', err);
       alert('Gagal menghapus peserta terpilih.');
     }
   };
 
   const handleDeleteAll = async () => {
-    if (!confirm("PERINGATAN: Anda akan MENGHAPUS SEMUA PESERTA.")) return;
-    if (!confirm(`Konfirmasi terakhir: ${peserta.length} data peserta akan dihapus PERMANEN. Yakin lanjut?`)) return;
+    if (!confirm("HAPUS SEMUA PESERTA?")) return;
+    if (!confirm(`Konfirmasi terakhir: ${peserta.length} data peserta akan dihapus PERMANEN.`)) return;
 
     try {
       const idsToDelete = peserta.map(p => p.id).filter(Boolean);
       if (idsToDelete.length > 0) {
-        const { error } = await supabase.from(TABLES.PESERTA).delete().in('id', idsToDelete);
-        if (error) throw error;
+        await supabase.from(TABLES.PESERTA).delete().in('id', idsToDelete);
       }
-
       setPeserta([]);
       localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify([]));
       setSelectedSiswa(null);
       setSelectedIds([]);
     } catch (err) {
-      console.error('Gagal mereset data peserta:', err);
-      alert('Gagal mereset seluruh data peserta.');
+      alert('Gagal mereset data peserta.');
     }
   };
 
@@ -280,7 +261,7 @@ export default function DashboardPanitia() {
     }
   };
 
-  // FETCH JAWABAN REALTIME DARI SUPABASE CLOUD (JAWABAN_PESERTA)
+  // FIX UTAMA PERIKSA JAWABAN (PARSING UNIVERSAL REALTIME)
   const handlePeriksa = async (pesertaId) => {
     setSelectedSiswa(pesertaId);
     setIsSaved(false);
@@ -303,28 +284,24 @@ export default function DashboardPanitia() {
         const matchedSoal = bankSoalAll.find(s => String(s.id) === String(row.soal_id)) || {};
         
         let parsedJwb = row.jawaban;
-        if (typeof row.jawaban === 'string' && (row.jawaban.startsWith('{') || row.jawaban.startsWith('['))) {
-          try {
-            parsedJwb = JSON.parse(row.jawaban);
-          } catch (e) {
-            parsedJwb = row.jawaban;
+        if (typeof row.jawaban === 'string') {
+          if (row.jawaban.trim().startsWith('{') || row.jawaban.trim().startsWith('[')) {
+            try { parsedJwb = JSON.parse(row.jawaban); } catch (e) {}
           }
         }
 
         return {
           soal_id: row.soal_id,
           tipe: matchedSoal.tipe || (typeof parsedJwb === 'object' ? 'praktik' : 'pg'),
-          pertanyaan: matchedSoal.pertanyaan || `Butir Soal #${row.soal_id}`,
+          pertanyaan: matchedSoal.pertanyaan || `Soal #${row.soal_id}`,
           jawaban: parsedJwb,
           ragu_ragu: !!row.ragu_ragu,
           checklist: matchedSoal.checklist || null,
         };
       });
     } catch (err) {
-      console.warn('Gagal memuat jawaban dari Supabase Cloud, mencoba cache lokal...', err);
-
+      console.warn('Fallback ke cache lokal...', err);
       const savedJawabanStr = localStorage.getItem(jawabanLocalKey(userTechId)) ||
-                              localStorage.getItem(jawabanLocalKey(pesertaId)) ||
                               localStorage.getItem(STORAGE_KEYS.JAWABAN_LOCAL_LEGACY);
 
       if (savedJawabanStr) {
@@ -337,15 +314,13 @@ export default function DashboardPanitia() {
             return {
               soal_id: soalId,
               tipe: matchedSoal.tipe || (typeof (isWrapped ? entry.jawaban : entry) === 'object' ? 'praktik' : 'pg'),
-              pertanyaan: matchedSoal.pertanyaan || `Butir Soal #${soalId}`,
+              pertanyaan: matchedSoal.pertanyaan || `Soal #${soalId}`,
               jawaban: isWrapped ? entry.jawaban : entry,
               ragu_ragu: isWrapped ? !!entry.ragu_ragu : false,
-              checklist: matchedSoal.checklist || ['Hasil pengerjaan sesuai instruksi', 'Kerapihan & struktur berkas valid']
+              checklist: matchedSoal.checklist || ['Format & Kerapihan Sesuai']
             };
           });
-        } catch (e) {
-          detailJawaban = [];
-        }
+        } catch (e) { detailJawaban = []; }
       }
     }
 
@@ -409,14 +384,13 @@ export default function DashboardPanitia() {
       setPeserta(updatedPeserta);
       localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updatedPeserta));
       setIsSaved(true);
-      alert(`Nilai Praktik (${skorPraktikTotal}) Berhasil Disimpan ke Supabase Cloud!`);
+      alert(`Nilai Praktik (${skorPraktikTotal}) Berhasil Disimpan!`);
     } catch (err) {
-      console.error('Gagal menyimpan nilai praktik:', err);
-      alert('Gagal menyimpan nilai praktik ke Supabase Cloud.');
+      alert('Gagal menyimpan nilai praktik.');
     }
   };
 
-  // FILTERING PESERTA
+  // FILTER PESERTA
   const filteredPeserta = peserta.filter(p => {
     const statusP = p.status || 'belum_mulai';
     const isDikoreksi = p.status_koreksi === 'dikoreksi' || p.status_koreksi === 'SELESAI';
@@ -473,7 +447,6 @@ export default function DashboardPanitia() {
       <Sidebar links={menuPanitia} userRole="Panitia" />
 
       <div className="flex-1 flex flex-col min-w-0">
-        {/* CLEAN NAVBAR */}
         <Navbar>
           <div className="flex justify-between items-center w-full">
             <div className="flex items-center gap-3">
@@ -526,11 +499,11 @@ export default function DashboardPanitia() {
           </div>
         </Navbar>
 
-        <main className="p-8 flex-1 overflow-y-auto">
-          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <main className="p-6 md:p-8 flex-1 overflow-y-auto">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-            {/* BILAH KIRI: DAFTAR PESERTA & REVISI CARD PESERTA 2-KOLOM */}
-            <div className="space-y-4">
+            {/* BILAH KIRI: ANTREAN PESERTA (4 KOLOM GRID) */}
+            <div className="lg:col-span-5 xl:col-span-4 space-y-4">
               <div className="flex flex-col gap-2 px-1">
                 <div className="flex justify-between items-center">
                   <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
@@ -558,7 +531,6 @@ export default function DashboardPanitia() {
                   )}
                 </div>
 
-                {/* SEARCH BAR */}
                 <div className="relative">
                   <input
                     type="text"
@@ -570,11 +542,10 @@ export default function DashboardPanitia() {
                   <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 </div>
 
-                {/* COUNTER & TABS STATUS */}
                 <div className="grid grid-cols-2 gap-1.5 bg-[#0d1527] p-2 rounded-xl border border-slate-800 text-xs font-display font-bold">
                   <button
                     onClick={() => setFilterPeserta('semua')}
-                    className={`py-2 px-2.5 rounded-lg transition-all ${
+                    className={`py-1.5 px-2 rounded-lg text-left transition-all ${
                       filterPeserta === 'semua' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
@@ -583,55 +554,55 @@ export default function DashboardPanitia() {
 
                   <button
                     onClick={() => setFilterPeserta('belum_mulai')}
-                    className={`py-2 px-2.5 rounded-lg transition-all ${
+                    className={`py-1.5 px-2 rounded-lg text-left transition-all ${
                       filterPeserta === 'belum_mulai' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    Belum Ujian ({countBelumUjian})
+                    Belum ({countBelumUjian})
                   </button>
 
                   <button
                     onClick={() => setFilterPeserta('berjalan')}
-                    className={`py-2 px-2.5 rounded-lg transition-all ${
+                    className={`py-1.5 px-2 rounded-lg text-left transition-all ${
                       filterPeserta === 'berjalan' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    Sedang Ujian ({countSedangUjian})
+                    Sedang ({countSedangUjian})
                   </button>
 
                   <button
                     onClick={() => setFilterPeserta('perlu_dikoreksi')}
-                    className={`py-2 px-2.5 rounded-lg transition-all ${
+                    className={`py-1.5 px-2 rounded-lg text-left transition-all ${
                       filterPeserta === 'perlu_dikoreksi' ? 'bg-amber-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    Perlu Dikoreksi ({countPerluDikoreksi})
+                    Perlu Koreksi ({countPerluDikoreksi})
                   </button>
 
                   <button
                     onClick={() => setFilterPeserta('selesai_dikoreksi')}
-                    className={`py-2 px-2.5 rounded-lg transition-all ${
+                    className={`py-1.5 px-2 rounded-lg text-left transition-all ${
                       filterPeserta === 'selesai_dikoreksi' ? 'bg-emerald-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    Selesai Dikoreksi ({countSelesaiDikoreksi})
+                    Terkoreksi ({countSelesaiDikoreksi})
                   </button>
 
                   <button
                     onClick={() => setFilterPeserta('selesai_ujian')}
-                    className={`py-2 px-2.5 rounded-lg transition-all ${
+                    className={`py-1.5 px-2 rounded-lg text-left transition-all ${
                       filterPeserta === 'selesai_ujian' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    Selesai Ujian ({countSelesaiUjian})
+                    Selesai ({countSelesaiUjian})
                   </button>
                 </div>
               </div>
 
-              {/* CARD PESERTA (LONGGAR & RAPI 2 KOLOM) */}
+              {/* TAMPILAN CARD PESERTA - REVISI TOTAL LAYOUT CLEAN & PERSEGI */}
               {filteredPeserta.length === 0 ? (
-                <div className="p-8 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs space-y-1">
-                  <p className="font-semibold text-slate-400">Tidak ada peserta pada status ini.</p>
+                <div className="p-8 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
+                  Tidak ada peserta pada status ini.
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -644,67 +615,68 @@ export default function DashboardPanitia() {
                     return (
                       <div
                         key={p.id || idx}
-                        className={`p-4 rounded-2xl border transition-all duration-200 flex items-center justify-between gap-4 ${
+                        className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col gap-3 ${
                           isSelected
-                            ? 'bg-cyan-500/10 border-cyan-400'
-                            : 'bg-[#0d1527]/60 border-slate-800/60 hover:bg-[#0d1527]'
+                            ? 'bg-cyan-950/30 border-cyan-400 shadow-md'
+                            : 'bg-[#0d1527]/70 border-slate-800/80 hover:border-slate-700'
                         }`}
                       >
-                        {/* KOLOM KIRI: Custom Checkbox + Avatar + Nama + TechID + Badge Status */}
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <button
-                            type="button"
-                            onClick={() => toggleSelectPeserta(p.id)}
-                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                              isChecked ? 'bg-cyan-400 border-cyan-400' : 'bg-transparent border-slate-700 hover:border-cyan-400/60'
-                            }`}
-                          >
-                            {isChecked && <CheckCircle2 className="w-3.5 h-3.5 text-slate-950" strokeWidth={3} />}
-                          </button>
+                        {/* BARIS ATAS: CHECKBOX + AVATAR + NAMA + TECHID */}
+                        <div className="flex items-center justify-between gap-2 border-b border-slate-800/50 pb-2.5">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <button
+                              type="button"
+                              onClick={() => toggleSelectPeserta(p.id)}
+                              className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-all ${
+                                isChecked ? 'bg-cyan-400 border-cyan-400' : 'bg-transparent border-slate-700'
+                              }`}
+                            >
+                              {isChecked && <CheckCircle2 className="w-3 h-3 text-slate-950" strokeWidth={3} />}
+                            </button>
 
-                          <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-cyan-400 font-bold shrink-0">
-                            {(p.nama || p.nama_lengkap || 'P').charAt(0).toUpperCase()}
-                          </div>
+                            <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-cyan-400 font-bold text-xs shrink-0">
+                              {(p.nama || p.nama_lengkap || 'P').charAt(0).toUpperCase()}
+                            </div>
 
-                          <div className="min-w-0 space-y-0.5">
-                            <h4 className="font-display font-bold text-sm text-white truncate" title={p.nama || p.nama_lengkap}>
-                              {p.nama || p.nama_lengkap || `Peserta #${p.id}`}
-                            </h4>
-                            <p className="text-xs font-mono text-cyan-400 truncate">
-                              {p.tech_id || `DCC25-000${p.id}`}
-                            </p>
-                            <div className="pt-0.5">
-                              <Badge variant={statusInfo.variant} className="text-[9px] px-2 py-0.5 rounded-md">
-                                {statusInfo.text}
-                              </Badge>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-display font-bold text-xs text-white truncate" title={p.nama || p.nama_lengkap}>
+                                {p.nama || p.nama_lengkap || `Peserta #${p.id}`}
+                              </h4>
+                              <p className="text-[10px] font-mono text-slate-400 truncate">
+                                {p.tech_id || `DCC25-000${p.id}`}
+                              </p>
                             </div>
                           </div>
-                        </div>
-
-                        {/* KOLOM KANAN: Nilai Akhir + Tombol "Periksa" + Single Delete */}
-                        <div className="flex items-center gap-3 shrink-0">
-                          <div className="text-right">
-                            <span className="text-[9px] block text-slate-500 uppercase font-bold">SKOR</span>
-                            <span className="text-sm font-bold font-mono text-cyan-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-                              {nilaiDisplay}
-                            </span>
-                          </div>
-
-                          <Button
-                            size="sm"
-                            onClick={() => handlePeriksa(p.id)}
-                            className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs shadow-sm"
-                          >
-                            Periksa
-                          </Button>
 
                           <button
                             onClick={() => handleDeleteSingle(p.id, p.nama || p.nama_lengkap)}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                            className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition"
                             title="Hapus Peserta"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
+                        </div>
+
+                        {/* BARIS BAWAH: BADGE STATUS + SKOR BADGE + TOMBOL PERIKSA */}
+                        <div className="flex items-center justify-between gap-2 pt-0.5">
+                          <Badge variant={statusInfo.variant} className="text-[9px] px-2 py-0.5 rounded-md font-sans">
+                            {statusInfo.text}
+                          </Badge>
+
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1 bg-[#030712] px-2 py-0.5 rounded border border-slate-800">
+                              <span className="text-[9px] text-slate-500 font-bold">SKOR:</span>
+                              <span className="text-xs font-bold font-mono text-cyan-400">{nilaiDisplay}</span>
+                            </div>
+
+                            <Button
+                              size="sm"
+                              onClick={() => handlePeriksa(p.id)}
+                              className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold px-3 py-1 rounded-lg text-[11px] border-0"
+                            >
+                              Periksa
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -716,7 +688,7 @@ export default function DashboardPanitia() {
                       <button
                         onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                         disabled={currentPage === 1}
-                        className="p-2 rounded-lg bg-[#0d1527] border border-slate-800 text-xs text-slate-300 disabled:opacity-40"
+                        className="p-1.5 rounded-lg bg-[#0d1527] border border-slate-800 text-xs text-slate-300 disabled:opacity-40"
                       >
                         <ChevronLeft className="w-4 h-4" />
                       </button>
@@ -724,7 +696,7 @@ export default function DashboardPanitia() {
                       <button
                         onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                         disabled={currentPage === totalPages}
-                        className="p-2 rounded-lg bg-[#0d1527] border border-slate-800 text-xs text-slate-300 disabled:opacity-40"
+                        className="p-1.5 rounded-lg bg-[#0d1527] border border-slate-800 text-xs text-slate-300 disabled:opacity-40"
                       >
                         <ChevronRight className="w-4 h-4" />
                       </button>
@@ -734,8 +706,8 @@ export default function DashboardPanitia() {
               )}
             </div>
 
-            {/* BILAH KANAN: LEMBAR KOREKSI JAWABAN REALTIME PESERTA */}
-            <div className="lg:col-span-2 space-y-6">
+            {/* BILAH KANAN: LEMBAR KOREKSI JAWABAN REALTIME (8 KOLOM GRID) */}
+            <div className="lg:col-span-7 xl:col-span-8 space-y-6">
               {selectedSiswa ? (
                 <div className="space-y-6">
 
@@ -746,28 +718,28 @@ export default function DashboardPanitia() {
 
                     <div className="flex gap-1.5 bg-[#0d1527] p-1.5 rounded-xl border border-slate-800 text-xs font-display font-bold">
                       <button
-                        onClick={() => setFilterTipeJawaban('praktik')}
-                        className={`px-3.5 py-1.5 rounded-lg transition-all ${
-                          filterTipeJawaban === 'praktik' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        Hanya Praktik
-                      </button>
-                      <button
                         onClick={() => setFilterTipeJawaban('semua')}
-                        className={`px-3.5 py-1.5 rounded-lg transition-all ${
+                        className={`px-3 py-1 rounded-lg transition-all ${
                           filterTipeJawaban === 'semua' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                         }`}
                       >
-                        Semua Soal
+                        Semua
+                      </button>
+                      <button
+                        onClick={() => setFilterTipeJawaban('praktik')}
+                        className={`px-3 py-1 rounded-lg transition-all ${
+                          filterTipeJawaban === 'praktik' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Praktik
                       </button>
                       <button
                         onClick={() => setFilterTipeJawaban('pg')}
-                        className={`px-3.5 py-1.5 rounded-lg transition-all ${
+                        className={`px-3 py-1 rounded-lg transition-all ${
                           filterTipeJawaban === 'pg' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                         }`}
                       >
-                        Hanya PG
+                        PG
                       </button>
                     </div>
                   </div>
@@ -778,7 +750,7 @@ export default function DashboardPanitia() {
                     </div>
                   ) : filteredJawabanList.length === 0 ? (
                     <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
-                      Peserta belum mengirimkan jawaban untuk kategori ini.
+                      Peserta belum mengisikan jawaban untuk kategori ini.
                     </div>
                   ) : (
                     filteredJawabanList.map((j, idx) => {
@@ -811,19 +783,19 @@ export default function DashboardPanitia() {
                             </Badge>
                             {j.ragu_ragu && (
                               <Badge className="bg-amber-400/10 text-amber-400 border-amber-400/30 text-[10px] uppercase font-bold flex items-center gap-1">
-                                <AlertCircle className="w-3 h-3" /> Ditandai Ragu-ragu
+                                <AlertCircle className="w-3 h-3" /> Ragu-ragu
                               </Badge>
                             )}
                           </div>
 
                           <p className="text-sm text-slate-200 font-medium leading-relaxed">{j.pertanyaan}</p>
 
-                          {/* PENAMPIL JAWABAN & LINK SUPABASE STORAGE REALTIME */}
+                          {/* REALTIME JAWABAN CONTAINER */}
                           <div className="p-4 bg-[#030712]/80 border border-slate-800 rounded-xl text-sm space-y-3">
-                            <p className="text-xs text-slate-400 font-display font-bold uppercase tracking-wider">Hasil Jawaban Peserta:</p>
+                            <p className="text-xs text-slate-400 font-display font-bold uppercase tracking-wider">Jawaban Peserta:</p>
 
                             <div className="text-emerald-400 font-mono text-xs break-words bg-black/40 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">
-                              {teksJawaban || (isPGString ? `Opsi Terpilih: ${j.jawaban}` : 'Peserta tidak mengisikan teks.')}
+                              {teksJawaban || (isPGString ? `Opsi Terpilih: ${j.jawaban}` : 'Belum ada teks dimasukkan.')}
                             </div>
 
                             {fileAttachmentName && (
@@ -842,7 +814,7 @@ export default function DashboardPanitia() {
                                     <ExternalLink className="w-3.5 h-3.5" /> Buka / Unduh Berkas
                                   </a>
                                 ) : (
-                                  <span className="text-xs text-slate-500 italic">URL tidak tersedia</span>
+                                  <span className="text-xs text-slate-500 italic">Berkas terlampir</span>
                                 )}
                               </div>
                             )}
@@ -850,7 +822,7 @@ export default function DashboardPanitia() {
 
                           {j.checklist && (
                             <div className="p-4 bg-[#030712]/40 border border-slate-800 rounded-xl space-y-3">
-                              <p className="text-xs font-display font-bold text-cyan-400 uppercase tracking-wider">Checklist Rubrik Penilaian:</p>
+                              <p className="text-xs font-display font-bold text-cyan-400 uppercase tracking-wider">Checklist Penilaian:</p>
                               <div className="space-y-2">
                                 {(typeof j.checklist === 'string' ? JSON.parse(j.checklist) : j.checklist).map((kriteria, kIdx) => {
                                   const key = `${j.soal_id}-${kIdx}`;
@@ -880,7 +852,6 @@ export default function DashboardPanitia() {
                         <Award className="text-cyan-400 w-5 h-5" /> Estimasi Skor Praktik:
                         <span className="text-emerald-400 font-mono text-xl">{hitungSkorPraktikLokal()} / 100</span>
                       </h3>
-                      <p className="text-xs text-slate-400 mt-1">Skor akan otomatis tersimpan dan merekap nilai akhir siswa.</p>
                     </div>
 
                     <Button variant="primary" size="md" onClick={submitSimpanNilaiPraktik} className="w-full sm:w-auto bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold border-0">
