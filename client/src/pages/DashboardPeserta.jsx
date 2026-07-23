@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { normalizeKategori, getLabelKategori } from '../utils/examCategories';
+import { STORAGE_KEYS } from '../utils/storageKeys';
 import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -10,6 +12,9 @@ import {
   AlertCircle, Sparkles, Award 
 } from 'lucide-react';
 
+// CATATAN: Ini BUKAN data dummy peserta/soal. Ini katalog metadata UI untuk
+// 5 kategori ujian RESMI (nama, durasi, token) — datanya tetap sama untuk semua
+// instalasi, sedangkan peserta & bank soal tetap 100% murni dari impor Panitia.
 const DAFTAR_UJIAN = [
   { id: 'word', nama: 'Microsoft Word', subNama: 'Pengolahan Dokumen & Surat', kategori: 'Perkantoran', durasi: '90 Menit', detailSoal: 'Soal PG + Praktik Word', tokenDefault: 'WORD2026' },
   { id: 'excel', nama: 'Microsoft Excel', subNama: 'Pengolahan Data & Formula', kategori: 'Perkantoran', durasi: '90 Menit', detailSoal: 'Soal PG + Praktik Excel', tokenDefault: 'EXCEL2026' },
@@ -32,42 +37,51 @@ export default function DashboardPeserta() {
   const [isExamCompleted, setIsExamCompleted] = useState(false);
   const [completedExamInfo, setCompletedExamInfo] = useState(null);
 
+  const [dataError, setDataError] = useState('');
+
   useEffect(() => {
-    // 1. AMBIL PROFIL SISWA AKTIF
-    const savedUserStr = localStorage.getItem('currentUser');
+    // 1. AMBIL PROFIL SISWA AKTIF (harus sudah tervalidasi murni saat Login)
+    const savedUserStr = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
     let activeUser = savedUserStr ? JSON.parse(savedUserStr) : null;
-    
-    const localSesi = JSON.parse(localStorage.getItem('dcc_sesi_peserta') || '[]');
-    if (activeUser && activeUser.tech_id) {
+
+    if (!activeUser) {
+      // Tidak ada sesi login sama sekali -> jangan tampilkan dashboard palsu
+      navigate('/login');
+      return;
+    }
+
+    const localSesi = JSON.parse(localStorage.getItem(STORAGE_KEYS.PESERTA) || '[]');
+    if (activeUser.tech_id) {
       const matchedFromImport = localSesi.find(p => p.tech_id?.toLowerCase().trim() === activeUser.tech_id?.toLowerCase().trim());
       if (matchedFromImport) {
         activeUser = { ...activeUser, ...matchedFromImport };
       }
     }
 
-    const nameToDisplay = activeUser?.nama || activeUser?.nama_lengkap || localStorage.getItem('userName') || 'Peserta Ujian';
-    const techIdToDisplay = activeUser?.tech_id || localStorage.getItem('userTechId') || 'DCC25-000';
+    const nameToDisplay = activeUser?.nama || activeUser?.nama_lengkap || localStorage.getItem(STORAGE_KEYS.USER_NAME) || 'Peserta Ujian';
+    const techIdToDisplay = activeUser?.tech_id || localStorage.getItem(STORAGE_KEYS.USER_TECH_ID) || '';
 
     setUserName(nameToDisplay);
     setTechId(techIdToDisplay);
 
-    // 2. DETEKSI KATEGORI MATA UJIAN AWAL SISWA
-    const rawKat = (activeUser?.kategori || localStorage.getItem('userKategori') || '').toLowerCase().trim();
-    let initialKat = 'word';
+    // 2. DETEKSI KATEGORI MATA UJIAN SISWA (WAJIB dari data peserta hasil impor,
+    //    TIDAK pernah default diam-diam)
+    const rawKat = activeUser?.kategori || localStorage.getItem(STORAGE_KEYS.USER_KATEGORI) || '';
+    const initialKat = normalizeKategori(rawKat);
 
-    if (rawKat.includes('excel')) initialKat = 'excel';
-    else if (rawKat.includes('power') || rawKat.includes('ppt')) initialKat = 'powerpoint';
-    else if (rawKat.includes('desain') || rawKat.includes('canva') || rawKat.includes('design')) initialKat = 'desain';
-    else if (rawKat.includes('pemrograman') || rawKat.includes('coding') || rawKat.includes('web')) initialKat = 'pemrograman';
+    if (!initialKat) {
+      setDataError(`Kategori ujian untuk akun ini tidak valid ("${rawKat || '-'}"). Silakan hubungi Panitia untuk memperbaiki data.`);
+      return;
+    }
 
     setSelectedUjian(initialKat);
 
     // 3. CEK STATUS SELESAI
-    if (activeUser?.status === 'selesai' || localStorage.getItem('isExamFinished') === 'true') {
+    if (activeUser?.status === 'selesai' || localStorage.getItem(STORAGE_KEYS.IS_EXAM_FINISHED) === 'true') {
       setIsExamCompleted(true);
-      const activeExam = DAFTAR_UJIAN.find(u => u.id === initialKat) || DAFTAR_UJIAN[0];
+      const activeExam = DAFTAR_UJIAN.find(u => u.id === initialKat);
       setCompletedExamInfo({
-        namaUjian: activeExam.nama,
+        namaUjian: activeExam ? activeExam.nama : getLabelKategori(initialKat),
         skorPG: activeUser?.nilai_pg !== undefined ? activeUser.nilai_pg : 0,
         statusPraktik: activeUser?.status_koreksi === 'dikoreksi' ? 'Selesai Dikoreksi Panitia' : 'Berkas Diterima & Dalam Koreksi Panitia'
       });
@@ -78,11 +92,11 @@ export default function DashboardPeserta() {
 
   // LOGOUT HANYA HAPUS SESI AKUN, BUKAN BANK SOAL ATAU PESERTA LAIN!
   const handleLogout = () => {
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('userTechId');
-    localStorage.removeItem('userKategori');
-    localStorage.removeItem('selectedExamCategory');
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+    localStorage.removeItem(STORAGE_KEYS.USER_NAME);
+    localStorage.removeItem(STORAGE_KEYS.USER_TECH_ID);
+    localStorage.removeItem(STORAGE_KEYS.USER_KATEGORI);
+    localStorage.removeItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY);
     sessionStorage.clear();
     navigate('/login');
   };
@@ -105,20 +119,21 @@ export default function DashboardPeserta() {
         inputUpper === '12345' || 
         inputUpper === '1234'
       ) {
-        // SIMPAN KATEGORI DENGAN KUNCI YANG KONSISTEN
+        // activeExamDetail.id di sini SELALU sama dengan kategori hasil impor
+        // Panitia (lihat penguncian kartu di atas), jadi ini bukan overwrite bebas.
         sessionStorage.setItem('examStarted', 'true');
-        sessionStorage.setItem('selectedExamCategory', activeExamDetail.id);
-        localStorage.setItem('selectedExamCategory', activeExamDetail.id);
-        localStorage.setItem('userKategori', activeExamDetail.id);
+        sessionStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, activeExamDetail.id);
+        localStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, activeExamDetail.id);
+        localStorage.setItem(STORAGE_KEYS.USER_KATEGORI, activeExamDetail.id);
 
-        const localSesi = JSON.parse(localStorage.getItem('dcc_sesi_peserta') || '[]');
+        const localSesi = JSON.parse(localStorage.getItem(STORAGE_KEYS.PESERTA) || '[]');
         const updatedSesi = localSesi.map(p => {
           if (p.tech_id?.toLowerCase().trim() === techId.toLowerCase().trim()) {
             return { ...p, status: 'berjalan', kategori: activeExamDetail.id };
           }
           return p;
         });
-        localStorage.setItem('dcc_sesi_peserta', JSON.stringify(updatedSesi));
+        localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updatedSesi));
 
         navigate('/ruang-ujian');
       } else {
@@ -127,6 +142,19 @@ export default function DashboardPeserta() {
       }
     }, 300);
   };
+
+  if (dataError) {
+    return (
+      <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center gap-3 p-4 text-center">
+        <AlertCircle className="w-8 h-8 text-rose-400" />
+        <p className="text-sm font-bold text-rose-400">Data Peserta Bermasalah</p>
+        <p className="text-xs text-slate-400 max-w-md">{dataError}</p>
+        <Button onClick={handleLogout} className="mt-2 bg-slate-800 text-xs text-slate-300">
+          ← Kembali ke Login
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#030712] text-slate-100 font-sans flex flex-col">
@@ -203,37 +231,30 @@ export default function DashboardPeserta() {
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-cyan-400 px-1">
                   <Sparkles className="w-4 h-4" />
-                  <h3 className="text-xs font-display font-bold uppercase tracking-widest">PILIH MATA UJIAN SPESIALISASI</h3>
+                  <h3 className="text-xs font-display font-bold uppercase tracking-widest">MATA UJIAN ANDA (SESUAI DATA PANITIA)</h3>
                 </div>
 
+                {/*
+                  PENTING: Mata ujian TIDAK BOLEH dipilih bebas oleh peserta.
+                  Kartu ini terkunci ke kategori hasil impor Excel Panitia untuk
+                  TechID peserta yang login. Sebelumnya di sini ada grid 5 kartu
+                  yang bisa diklik bebas — itu penyebab peserta bisa "pindah"
+                  kategori sendiri sehingga soal di Ruang Ujian jadi tidak sesuai
+                  dengan data yang didaftarkan Panitia.
+                */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {DAFTAR_UJIAN.map((item) => {
-                    const isSelected = selectedUjian === item.id;
-                    return (
-                      <div
-                        key={item.id}
-                        onClick={() => { setSelectedUjian(item.id); setTokenError(''); }}
-                        className={`p-5 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between gap-4 ${
-                          isSelected 
-                            ? 'bg-[#0d1527] border-cyan-400 shadow-lg shadow-cyan-400/10' 
-                            : 'bg-[#0d1527]/40 border-slate-800/60 hover:bg-[#0d1527]/80'
-                        }`}
-                      >
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className={`text-[10px] font-display font-bold uppercase px-2.5 py-0.5 rounded-md ${
-                              isSelected ? 'bg-cyan-400 text-slate-950' : 'bg-slate-900 text-slate-400'
-                            }`}>
-                              {item.kategori}
-                            </span>
-                            {isSelected && <span className="text-xs font-display font-bold text-cyan-400">✓ Terpilih</span>}
-                          </div>
-                          <h4 className="text-base font-display font-bold text-white tracking-wide">{item.nama}</h4>
-                          <p className="text-xs text-slate-400 font-sans">{item.subNama}</p>
-                        </div>
+                  <div className="p-5 rounded-2xl border bg-[#0d1527] border-cyan-400 shadow-lg shadow-cyan-400/10 flex flex-col justify-between gap-4 md:col-span-2">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-display font-bold uppercase px-2.5 py-0.5 rounded-md bg-cyan-400 text-slate-950">
+                          {activeExamDetail.kategori}
+                        </span>
+                        <span className="text-xs font-display font-bold text-cyan-400">Ditetapkan Panitia</span>
                       </div>
-                    );
-                  })}
+                      <h4 className="text-base font-display font-bold text-white tracking-wide">{activeExamDetail.nama}</h4>
+                      <p className="text-xs text-slate-400 font-sans">{activeExamDetail.subNama}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 

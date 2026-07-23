@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import API from '../utils/api';
+import { KATEGORI_RESMI, getLabelKategori, normalizeKategori } from '../utils/examCategories';
+import { STORAGE_KEYS } from '../utils/storageKeys';
 import Sidebar from '../components/ui/Sidebar';
 import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
@@ -11,12 +13,11 @@ import Select from '../components/ui/Select';
 import Badge from '../components/ui/Badge';
 import { Plus, Trash2, Edit3, Save, X, Database, Layers, Download, Upload, FileSpreadsheet } from 'lucide-react';
 
-const initialDummySoal = [
-  { id: 101, kategori: 'word', tipe: 'pg', pertanyaan: 'Shortcut keyboard untuk menyimpan dokumen pada Microsoft Word adalah...', opsi: ['A. Ctrl + S', 'B. Ctrl + P', 'C. Ctrl + C', 'D. Ctrl + V'], jawaban_benar: 'A' },
-  { id: 102, kategori: 'excel', tipe: 'pg', pertanyaan: 'Fungsi Excel yang digunakan untuk menjumlahkan sekumpulan data numerik adalah...', opsi: ['A. AVERAGE', 'B. SUM', 'C. COUNT', 'D. MAX'], jawaban_benar: 'B' },
-  { id: 103, kategori: 'desain', tipe: 'pg', pertanyaan: 'Format berkas gambar yang mendukung latar belakang transparan adalah...', opsi: ['A. JPG', 'B. PNG', 'C. PDF', 'D. BMP'], jawaban_benar: 'B' },
-  { id: 104, kategori: 'pemrograman', tipe: 'praktik', pertanyaan: 'TUGAS PRAKTIK: Buatlah fungsi JavaScript untuk memfilter elemen array secara dinamis.', checklist: ['Fungsi valid', 'No syntax error'] }
-];
+// TIDAK ADA DATA DUMMY DI SINI. Bank soal 100% murni berasal dari:
+// 1) Import Excel/CSV oleh Panitia, atau
+// 2) Input manual oleh Panitia lewat form di halaman ini, atau
+// 3) API backend (jika tersedia).
+// Jika ketiganya kosong, tampilan HARUS menunjukkan state kosong yang jelas.
 
 export default function BankSoal() {
   useDocumentTitle('Manajemen Bank Soal - DCC CBT');
@@ -44,34 +45,35 @@ export default function BankSoal() {
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
-  // LOGIKA FETCH SOAL PERMANEN (UTAMAKAN LOCALSTORAGE BIAR TIDAK HILANG SAAT REFRESH)
+  // LOGIKA FETCH SOAL: UTAMAKAN LOCALSTORAGE (HASIL IMPOR PANITIA), FALLBACK KE API.
+  // JIKA KEDUANYA KOSONG -> TETAP KOSONG (TIDAK ADA DUMMY). Panitia akan melihat
+  // state "Belum ada soal" dan diarahkan untuk Import Excel/CSV atau Tambah Manual.
   const fetchSoal = async () => {
-    const savedLocal = localStorage.getItem('dcc_bank_soal');
+    const savedLocal = localStorage.getItem(STORAGE_KEYS.BANK_SOAL);
     if (savedLocal) {
       try {
         const parsed = JSON.parse(savedLocal);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           setDataSoal(parsed);
           return;
         }
       } catch (e) {
-        console.warn("Gagal membaca localStorage...");
+        console.warn("Gagal membaca localStorage bank soal, menganggap kosong.");
       }
     }
 
     try {
       let res = await API.get('/soal').catch(() => API.get('/ujian/soal'));
-      if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
+      if (res && res.data && Array.isArray(res.data)) {
         setDataSoal(res.data);
-        localStorage.setItem('dcc_bank_soal', JSON.stringify(res.data));
+        localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(res.data));
         return;
       }
     } catch (err) {
-      console.warn('API server offline, menggunakan penyimpanan lokal.');
+      console.warn('API server offline dan belum ada data lokal. Bank soal kosong.');
     }
 
-    setDataSoal(initialDummySoal);
-    localStorage.setItem('dcc_bank_soal', JSON.stringify(initialDummySoal));
+    setDataSoal([]);
   };
 
   useEffect(() => {
@@ -128,7 +130,7 @@ export default function BankSoal() {
 
       const updated = listSoal.filter((item) => item.id !== id);
       setDataSoal(updated);
-      localStorage.setItem('dcc_bank_soal', JSON.stringify(updated));
+      localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(updated));
     }
   };
 
@@ -157,7 +159,7 @@ export default function BankSoal() {
     }
 
     setDataSoal(updatedList);
-    localStorage.setItem('dcc_bank_soal', JSON.stringify(updatedList));
+    localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(updatedList));
     setIsModalOpen(false);
 
     try {
@@ -179,6 +181,7 @@ export default function BankSoal() {
       const text = evt.target.result;
       const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
       const importedSoalArr = [];
+      let skippedKategoriTidakDikenal = 0;
 
       lines.forEach((line, index) => {
         // Skip header
@@ -195,22 +198,13 @@ export default function BankSoal() {
         const cols = line.split(regex).map(c => c.replace(/^"|"$/g, '').trim());
         
         if (cols.length >= 3) {
-          const rawKategori = (cols[0] || '').toLowerCase();
-          let finalKategori = 'word';
-
-          // MAPPER 5 KATEGORI RESMI
-          if (rawKategori.includes('excel')) {
-            finalKategori = 'excel';
-          } else if (rawKategori.includes('power') || rawKategori.includes('ppt') || rawKategori.includes('point')) {
-            finalKategori = 'powerpoint';
-          } else if (rawKategori.includes('word') || rawKategori.includes('doc')) {
-            finalKategori = 'word';
-          } else if (rawKategori.includes('desain') || rawKategori.includes('design') || rawKategori.includes('canva') || rawKategori.includes('grafis')) {
-            finalKategori = 'desain';
-          } else if (rawKategori.includes('pemrograman') || rawKategori.includes('coding') || rawKategori.includes('web') || rawKategori.includes('html') || rawKategori.includes('js')) {
-            finalKategori = 'pemrograman';
-          } else {
-            finalKategori = rawKategori || 'word';
+          // MAPPER 5 KATEGORI RESMI (TERPUSAT). Jika kategori pada file Excel tidak
+          // bisa dipetakan ke salah satu dari 5 kategori resmi, baris ini DILEWATI
+          // (bukan dipaksa jadi 'word') agar Panitia sadar ada data yang perlu diperbaiki.
+          const finalKategori = normalizeKategori(cols[0]);
+          if (!finalKategori) {
+            skippedKategoriTidakDikenal++;
+            return;
           }
 
           const tpe = (cols[1] || 'pg').toLowerCase();
@@ -252,10 +246,17 @@ export default function BankSoal() {
       if (importedSoalArr.length > 0) {
         const combined = [...importedSoalArr, ...listSoal];
         setDataSoal(combined);
-        localStorage.setItem('dcc_bank_soal', JSON.stringify(combined));
-        alert(`Berhasil mengimpor ${importedSoalArr.length} soal! Terpetakan ke 5 Kategori Ujian.`);
+        localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(combined));
+        let msg = `Berhasil mengimpor ${importedSoalArr.length} soal! Terpetakan ke 5 Kategori Ujian resmi.`;
+        if (skippedKategoriTidakDikenal > 0) {
+          msg += `\n\nPERINGATAN: ${skippedKategoriTidakDikenal} baris DILEWATI karena kolom Kategori tidak cocok dengan 5 kategori resmi (word/excel/powerpoint/desain/pemrograman). Periksa kembali file Excel Anda.`;
+        }
+        alert(msg);
       } else {
-        alert('File tidak sesuai format kolom!');
+        const pesanTambahan = skippedKategoriTidakDikenal > 0
+          ? ` ${skippedKategoriTidakDikenal} baris dilewati karena kolom Kategori tidak dikenali.`
+          : '';
+        alert(`Tidak ada soal valid yang berhasil diimpor!${pesanTambahan} Periksa format kolom (Kategori, Tipe, Pertanyaan, ...).`);
       }
     };
 
@@ -282,7 +283,7 @@ export default function BankSoal() {
           const parsed = JSON.parse(event.target.result);
           if (Array.isArray(parsed)) {
             setDataSoal(parsed);
-            localStorage.setItem('dcc_bank_soal', JSON.stringify(parsed));
+            localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(parsed));
             alert(`Berhasil mengimpor ${parsed.length} soal ke Bank Soal!`);
           }
         } catch (err) { alert('Gagal membaca file JSON!'); }
@@ -343,7 +344,7 @@ export default function BankSoal() {
 
               {/* 5 FILTER KATEGORI MURNI PER SEMESTER */}
               <div className="flex gap-1 bg-[#0d1527] p-1 rounded-xl border border-slate-800/80 text-[11px] overflow-x-auto">
-                {['semua', 'word', 'excel', 'powerpoint', 'desain', 'pemrograman'].map((kat) => (
+                {['semua', ...KATEGORI_RESMI].map((kat) => (
                   <button
                     key={kat}
                     onClick={() => setFilterKategori(kat)}
@@ -376,7 +377,7 @@ export default function BankSoal() {
                       <div className="space-y-2 flex-1">
                         <div className="flex items-center gap-2">
                           <Badge className="bg-cyan-400/10 text-cyan-400 border-cyan-400/20 text-[10px] uppercase font-display font-bold px-2 py-0.5">
-                            {row.kategori || 'WORD'}
+                            {row.kategori || 'KATEGORI TIDAK DIKENALI'}
                           </Badge>
 
                           <Badge variant={row.tipe === 'pg' ? 'primary' : 'secondary'} className="text-[10px] px-2 py-0.5 rounded-md">
@@ -440,11 +441,9 @@ export default function BankSoal() {
                     <Layers className="w-3.5 h-3.5 text-cyan-400" /> Mata Ujian Spesialisasi
                   </label>
                   <Select value={kategori} onChange={(e) => setKategori(e.target.value)} className="bg-[#030712]/60 border border-slate-800 text-sm rounded-xl">
-                    <option value="word">Microsoft Word</option>
-                    <option value="excel">Microsoft Excel</option>
-                    <option value="powerpoint">Microsoft PowerPoint</option>
-                    <option value="desain">Desain Grafis (Canva / Visual)</option>
-                    <option value="pemrograman">Pemrograman Web (Coding / Web Dev)</option>
+                    {KATEGORI_RESMI.map((kat) => (
+                      <option key={kat} value={kat}>{getLabelKategori(kat)}</option>
+                    ))}
                   </Select>
                 </div>
 

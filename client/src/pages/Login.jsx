@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../utils/api';
+import { normalizeKategori } from '../utils/examCategories';
+import { STORAGE_KEYS } from '../utils/storageKeys';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
@@ -37,72 +39,77 @@ export default function Login() {
       }
     }
 
-    // 2. LOGIN SEBAGAI PESERTA UJIAN (PRESISI MATCH DENGAN HASIL IMPOR EXCEL)
+    // 2. LOGIN SEBAGAI PESERTA UJIAN (100% MURNI DARI HASIL IMPOR EXCEL PANITIA)
+    //    TIDAK ADA AUTO-CREATE PROFIL / TECHID ACAK DI SINI. Jika data tidak
+    //    ditemukan, peserta WAJIB diarahkan menghubungi Panitia — bukan dibuatkan
+    //    identitas karangan.
     if (selectedRole === 'peserta') {
-      const savedPesertaStr = localStorage.getItem('dcc_sesi_peserta');
-      let listPeserta = savedPesertaStr ? JSON.parse(savedPesertaStr) : [];
+      const savedPesertaStr = localStorage.getItem(STORAGE_KEYS.PESERTA);
+      const listPeserta = savedPesertaStr ? JSON.parse(savedPesertaStr) : [];
+
+      if (!Array.isArray(listPeserta) || listPeserta.length === 0) {
+        setErrorMsg('Data peserta belum diimpor oleh Panitia di perangkat/browser ini. Silakan hubungi Panitia Ujian.');
+        setIsLoading(false);
+        return;
+      }
 
       const cleanInput = inputUser.toLowerCase().trim();
 
-      // Cari peserta berdasarkan TechID atau Nama yang diimpor
-      let matchedPeserta = listPeserta.find(
+      // Cari peserta berdasarkan TechID atau Nama persis dari hasil impor
+      const matchedPeserta = listPeserta.find(
         p => (p.tech_id && p.tech_id.toLowerCase().trim() === cleanInput) ||
              (p.nama && p.nama.toLowerCase().trim() === cleanInput) ||
              (p.nama_lengkap && p.nama_lengkap.toLowerCase().trim() === cleanInput)
       );
 
-      // Jika tidak ada di file impor, buatkan profil peserta otomatis
       if (!matchedPeserta) {
-        const autoTechId = inputUser.toUpperCase().startsWith('DCC') 
-          ? inputUser.toUpperCase() 
-          : `DCC25-${String(Math.floor(Math.random() * 800) + 100)}`;
-
-        matchedPeserta = {
-          user_id: Date.now(),
-          nama: inputUser,
-          nama_lengkap: inputUser,
-          tech_id: autoTechId,
-          kategori: 'word',
-          status: 'berjalan',
-          status_koreksi: 'belum_dikoreksi',
-          nilai_pg: 0,
-          nilai_praktik: 0,
-          nilai_akhir: 0
-        };
-        listPeserta.push(matchedPeserta);
-      } else {
-        matchedPeserta = {
-          ...matchedPeserta,
-          status: matchedPeserta.status === 'selesai' ? 'selesai' : 'berjalan'
-        };
-
-        listPeserta = listPeserta.map(p => {
-          if (p.tech_id === matchedPeserta.tech_id || String(p.user_id) === String(matchedPeserta.user_id)) {
-            return matchedPeserta;
-          }
-          return p;
-        });
+        setErrorMsg(`TechID/Nama "${inputUser}" tidak ditemukan pada data hasil impor Panitia. Periksa kembali penulisan, atau hubungi Panitia jika Anda merasa sudah terdaftar.`);
+        setIsLoading(false);
+        return;
       }
 
-      // SIMPAN PROFILE LOGIN DENGAN SANGAT AKURAT KE BROWSER
-      localStorage.setItem('dcc_sesi_peserta', JSON.stringify(listPeserta));
-      localStorage.setItem('currentUser', JSON.stringify(matchedPeserta));
-      localStorage.setItem('userName', matchedPeserta.nama || matchedPeserta.nama_lengkap);
-      localStorage.setItem('userTechId', matchedPeserta.tech_id);
-      localStorage.setItem('userKategori', matchedPeserta.kategori || 'word');
-      localStorage.setItem('selectedExamCategory', matchedPeserta.kategori || 'word');
+      // Kategori WAJIB salah satu dari 5 kategori resmi. Jika data Excel Panitia
+      // keliru/kosong, JANGAN diam-diam dianggap 'word' — tampilkan error jelas.
+      const kategoriValid = normalizeKategori(matchedPeserta.kategori);
+      if (!kategoriValid) {
+        setErrorMsg(`Kategori ujian pada data peserta ini tidak valid ("${matchedPeserta.kategori || '-'}"). Hubungi Panitia untuk memperbaiki data impor TechID ${matchedPeserta.tech_id}.`);
+        setIsLoading(false);
+        return;
+      }
 
-      if (matchedPeserta.status !== 'selesai') {
-        localStorage.removeItem('isExamFinished');
+      const pesertaTerupdate = {
+        ...matchedPeserta,
+        kategori: kategoriValid,
+        status: matchedPeserta.status === 'selesai' ? 'selesai' : (matchedPeserta.status || 'berjalan'),
+      };
+
+      const listPesertaTerupdate = listPeserta.map(p => {
+        const techIdSama = p.tech_id && pesertaTerupdate.tech_id &&
+          p.tech_id.toLowerCase().trim() === pesertaTerupdate.tech_id.toLowerCase().trim();
+        const userIdSama = p.user_id !== undefined && pesertaTerupdate.user_id !== undefined &&
+          String(p.user_id) === String(pesertaTerupdate.user_id);
+        return (techIdSama || userIdSama) ? pesertaTerupdate : p;
+      });
+
+      // SIMPAN SESI LOGIN SECARA AKURAT (KUNCI TERPUSAT, TIDAK ADA TYPO)
+      localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(listPesertaTerupdate));
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(pesertaTerupdate));
+      localStorage.setItem(STORAGE_KEYS.USER_NAME, pesertaTerupdate.nama || pesertaTerupdate.nama_lengkap);
+      localStorage.setItem(STORAGE_KEYS.USER_TECH_ID, pesertaTerupdate.tech_id);
+      localStorage.setItem(STORAGE_KEYS.USER_KATEGORI, pesertaTerupdate.kategori);
+      localStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, pesertaTerupdate.kategori);
+
+      if (pesertaTerupdate.status !== 'selesai') {
+        localStorage.removeItem(STORAGE_KEYS.IS_EXAM_FINISHED);
         sessionStorage.removeItem('examSubmitted');
       }
 
       saveAndRedirect(
-        'peserta', 
-        `token-peserta-${matchedPeserta.user_id}`, 
-        matchedPeserta.nama || matchedPeserta.nama_lengkap, 
-        matchedPeserta.tech_id, 
-        matchedPeserta.kategori || 'word'
+        'peserta',
+        `token-peserta-${pesertaTerupdate.user_id}`,
+        pesertaTerupdate.nama || pesertaTerupdate.nama_lengkap,
+        pesertaTerupdate.tech_id,
+        pesertaTerupdate.kategori
       );
       return;
     }
@@ -124,19 +131,19 @@ export default function Login() {
   };
 
   const saveAndRedirect = (role, token, nama = '', techId = '', kategori = 'word') => {
-    localStorage.setItem('token', token);
-    localStorage.setItem('userRole', role);
-    if (nama) localStorage.setItem('userName', nama);
-    if (techId) localStorage.setItem('userTechId', techId);
+    localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+    localStorage.setItem(STORAGE_KEYS.USER_ROLE, role);
+    if (nama) localStorage.setItem(STORAGE_KEYS.USER_NAME, nama);
+    if (techId) localStorage.setItem(STORAGE_KEYS.USER_TECH_ID, techId);
     if (kategori) {
-      localStorage.setItem('userKategori', kategori);
-      localStorage.setItem('selectedExamCategory', kategori);
+      localStorage.setItem(STORAGE_KEYS.USER_KATEGORI, kategori);
+      localStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, kategori);
     }
 
     if (rememberMe) {
-      sessionStorage.setItem('token', token);
-      sessionStorage.setItem('userRole', role);
-      if (nama) sessionStorage.setItem('userName', nama);
+      sessionStorage.setItem(STORAGE_KEYS.TOKEN, token);
+      sessionStorage.setItem(STORAGE_KEYS.USER_ROLE, role);
+      if (nama) sessionStorage.setItem(STORAGE_KEYS.USER_NAME, nama);
     }
 
     const formattedRole = role.toLowerCase();

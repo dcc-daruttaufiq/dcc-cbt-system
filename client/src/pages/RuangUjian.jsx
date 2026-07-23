@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { normalizeKategori, getLabelKategori } from '../utils/examCategories';
+import { STORAGE_KEYS, jawabanLocalKey } from '../utils/storageKeys';
 import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -18,55 +20,65 @@ export default function RuangUjian() {
   const [isSaving, setIsSaving] = useState(false);
   const [timeLeft, setTimeLeft] = useState(5400); 
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [errorState, setErrorState] = useState(''); // pesan error presisi (bukan fallback diam-diam)
+  const [examKategori, setExamKategori] = useState('');
   const timerRef = useRef(null);
 
-  const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+  const currentUser = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || '{}');
   const userId = currentUser.user_id || currentUser.tech_id || 'guest';
 
   useEffect(() => {
-    const realName = currentUser.nama || currentUser.nama_lengkap || localStorage.getItem('userName') || 'Peserta Ujian';
-    const realTechId = currentUser.tech_id || localStorage.getItem('userTechId') || 'DCC25-000';
-    
-    // BACA ID KATEGORI YANG DIPILIH SISWA DI DASHBOARD
-    const storedExamId = (
-      localStorage.getItem('selectedExamCategory') || 
-      sessionStorage.getItem('selectedExamCategory') || 
-      currentUser.kategori || 
-      'word'
-    ).toLowerCase().trim();
+    const realName = currentUser.nama || currentUser.nama_lengkap || localStorage.getItem(STORAGE_KEYS.USER_NAME) || 'Peserta Ujian';
+    const realTechId = currentUser.tech_id || localStorage.getItem(STORAGE_KEYS.USER_TECH_ID) || '';
 
     setUserName(realName);
     setTechId(realTechId);
 
-    // 1. AMBIL BANK SOAL MURNI HASIL IMPOR PANITIA DARI LOCALSTORAGE
-    let bankSoalImpor = JSON.parse(localStorage.getItem('dcc_bank_soal') || '[]');
+    if (!realTechId) {
+      setErrorState('Sesi login tidak valid (TechID tidak ditemukan). Silakan login ulang.');
+      return;
+    }
 
-    // 2. LOGIKA FILTER SOAL SERBA BISA (LENTUR / SMART MATCHING)
-    let filteredSoal = [];
-    
-    if (Array.isArray(bankSoalImpor) && bankSoalImpor.length > 0) {
-      filteredSoal = bankSoalImpor.filter(s => {
-        const kat = (s.kategori || '').toLowerCase().trim();
+    // BACA KATEGORI UJIAN PESERTA. TIDAK ADA DEFAULT 'word' DIAM-DIAM DI SINI —
+    // jika kategori tidak valid, peserta harus diarahkan ke Panitia, BUKAN
+    // dilempar ke soal kategori lain.
+    const rawExamId =
+      localStorage.getItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY) ||
+      sessionStorage.getItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY) ||
+      currentUser.kategori ||
+      '';
 
-        if (storedExamId.includes('word')) return kat.includes('word') || kat.includes('doc');
-        if (storedExamId.includes('excel')) return kat.includes('excel') || kat.includes('sheet') || kat.includes('data');
-        if (storedExamId.includes('power') || storedExamId.includes('ppt')) return kat.includes('power') || kat.includes('ppt') || kat.includes('slide');
-        if (storedExamId.includes('desain')) return kat.includes('desain') || kat.includes('canva') || kat.includes('design') || kat.includes('grafis');
-        if (storedExamId.includes('pemrograman') || storedExamId.includes('coding')) return kat.includes('pemrograman') || kat.includes('coding') || kat.includes('web') || kat.includes('html');
+    const storedExamId = normalizeKategori(rawExamId);
 
-        return kat === storedExamId;
-      });
+    if (!storedExamId) {
+      setErrorState(`Kategori ujian Anda tidak valid/tidak dikenali ("${rawExamId || '-'}"). Silakan hubungi Panitia.`);
+      return;
+    }
 
-      // BILA FILTER SPESIFIK TIDAK MENEMUKAN HASIL, TAMPILKAN SELURUH BANK SOAL HASIL IMPOR
-      if (filteredSoal.length === 0) {
-        filteredSoal = bankSoalImpor;
-      }
+    setExamKategori(storedExamId);
+
+    // 1. AMBIL BANK SOAL MURNI HASIL IMPOR PANITIA DARI LOCALSTORAGE (TANPA DUMMY)
+    const bankSoalImpor = JSON.parse(localStorage.getItem(STORAGE_KEYS.BANK_SOAL) || '[]');
+
+    if (!Array.isArray(bankSoalImpor) || bankSoalImpor.length === 0) {
+      setErrorState('EMPTY_BANK_SOAL');
+      return;
+    }
+
+    // 2. FILTER SOAL SECARA PRESISI: HANYA soal dengan kategori (setelah dinormalisasi)
+    //    SAMA PERSIS dengan kategori ujian peserta. TIDAK ADA fallback "tampilkan
+    //    semua soal" — itu penyebab peserta bisa melihat soal mata ujian lain.
+    const filteredSoal = bankSoalImpor.filter(s => normalizeKategori(s.kategori) === storedExamId);
+
+    if (filteredSoal.length === 0) {
+      setErrorState('EMPTY_KATEGORI');
+      return;
     }
 
     setListSoal(filteredSoal);
 
     // Restore Jawaban Lama
-    const savedJwbStr = localStorage.getItem(`jawabanLocal_${userId}`) || localStorage.getItem('jawabanLocal');
+    const savedJwbStr = localStorage.getItem(jawabanLocalKey(userId)) || localStorage.getItem(STORAGE_KEYS.JAWABAN_LOCAL_LEGACY);
     if (savedJwbStr) {
       try { setJawaban(JSON.parse(savedJwbStr)); } catch (e) {}
     }
@@ -97,10 +109,10 @@ export default function RuangUjian() {
   const executeAutosave = (soalId, dataJawaban) => {
     setIsSaving(true);
     try {
-      const savedLocal = JSON.parse(localStorage.getItem(`jawabanLocal_${userId}`) || '{}');
+      const savedLocal = JSON.parse(localStorage.getItem(jawabanLocalKey(userId)) || '{}');
       savedLocal[soalId] = dataJawaban;
-      localStorage.setItem(`jawabanLocal_${userId}`, JSON.stringify(savedLocal));
-      localStorage.setItem('jawabanLocal', JSON.stringify(savedLocal));
+      localStorage.setItem(jawabanLocalKey(userId), JSON.stringify(savedLocal));
+      localStorage.setItem(STORAGE_KEYS.JAWABAN_LOCAL_LEGACY, JSON.stringify(savedLocal));
     } catch (e) {}
     setTimeout(() => setIsSaving(false), 300);
   };
@@ -122,7 +134,7 @@ export default function RuangUjian() {
 
   const handleAutoSubmit = () => {
     clearInterval(timerRef.current);
-    localStorage.setItem('isExamFinished', 'true');
+    localStorage.setItem(STORAGE_KEYS.IS_EXAM_FINISHED, 'true');
 
     let soalPG = listSoal.filter(s => s.tipe === 'pg');
     let benarCount = 0;
@@ -135,7 +147,7 @@ export default function RuangUjian() {
 
     const calculatedSkorPG = soalPG.length > 0 ? Math.round((benarCount / soalPG.length) * 100) : 0;
 
-    let listSesiLokal = JSON.parse(localStorage.getItem('dcc_sesi_peserta') || '[]');
+    let listSesiLokal = JSON.parse(localStorage.getItem(STORAGE_KEYS.PESERTA) || '[]');
     listSesiLokal = listSesiLokal.map(p => {
       if (p.tech_id?.toLowerCase().trim() === techId.toLowerCase().trim()) {
         return {
@@ -150,18 +162,40 @@ export default function RuangUjian() {
       return p;
     });
 
-    localStorage.setItem('dcc_sesi_peserta', JSON.stringify(listSesiLokal));
+    localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(listSesiLokal));
     navigate('/dashboard-peserta');
   };
 
-  if (listSoal.length === 0) {
+  // STATE ERROR PRESISI: setiap kondisi gagal punya pesan yang jelas dan berbeda,
+  // TIDAK ADA fallback diam-diam ke data/kategori lain.
+  if (errorState) {
+    let judul = 'Ruang Ujian Tidak Dapat Dibuka';
+    let pesan = errorState;
+
+    if (errorState === 'EMPTY_BANK_SOAL') {
+      judul = 'Bank Soal Masih Kosong';
+      pesan = 'Panitia belum mengimpor Bank Soal sama sekali di browser ini. Silakan login sebagai Panitia lalu impor file Excel/CSV Bank Soal terlebih dahulu.';
+    } else if (errorState === 'EMPTY_KATEGORI') {
+      judul = 'Soal Untuk Kategori Anda Belum Tersedia';
+      pesan = `Belum ada soal untuk kategori "${getLabelKategori(examKategori)}" di Bank Soal. Silakan hubungi Panitia untuk mengimpor soal kategori ini — sistem tidak akan menampilkan soal dari kategori lain.`;
+    }
+
     return (
       <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center gap-3 p-4 text-center">
-        <p className="text-sm font-bold text-cyan-400">Belum ada soal impor di Bank Soal.</p>
-        <p className="text-xs text-slate-400">Silakan login sebagai Panitia lalu impor file Excel Bank Soal terlebih dahulu pada browser ini.</p>
+        <p className="text-sm font-bold text-cyan-400">{judul}</p>
+        <p className="text-xs text-slate-400 max-w-md">{pesan}</p>
         <Button onClick={() => navigate('/dashboard-peserta')} className="mt-2 bg-slate-800 text-xs text-slate-300">
           ← Kembali ke Dashboard
         </Button>
+      </div>
+    );
+  }
+
+  if (listSoal.length === 0) {
+    // Fallback pengaman render (seharusnya sudah tertangkap oleh errorState di atas)
+    return (
+      <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center gap-3 p-4 text-center">
+        <p className="text-sm font-bold text-cyan-400">Memuat soal ujian...</p>
       </div>
     );
   }
@@ -175,7 +209,7 @@ export default function RuangUjian() {
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-cyan-400 flex items-center justify-center text-slate-950 font-bold">D</div>
             <div>
-              <h1 className="text-xs font-bold text-cyan-400 uppercase tracking-widest">{soalAktif?.kategori || 'MATA UJIAN'}</h1>
+              <h1 className="text-xs font-bold text-cyan-400 uppercase tracking-widest">{getLabelKategori(examKategori)}</h1>
               <p className="text-[11px] text-slate-300">{userName} • TechID: {techId}</p>
             </div>
           </div>

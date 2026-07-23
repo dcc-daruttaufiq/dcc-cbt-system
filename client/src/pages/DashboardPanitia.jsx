@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import API from '../utils/api';
+import { normalizeKategori } from '../utils/examCategories';
+import { STORAGE_KEYS, jawabanLocalKey } from '../utils/storageKeys';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Sidebar from '../components/ui/Sidebar';
@@ -53,7 +55,7 @@ export default function DashboardPanitia() {
     }
 
     if (listReal.length === 0) {
-      const localSesi = localStorage.getItem('dcc_sesi_peserta');
+      const localSesi = localStorage.getItem(STORAGE_KEYS.PESERTA);
       if (localSesi) {
         try {
           listReal = JSON.parse(localSesi);
@@ -63,8 +65,8 @@ export default function DashboardPanitia() {
       }
     }
 
-    const currentActiveUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-    const isExamFinished = localStorage.getItem('isExamFinished') === 'true';
+    const currentActiveUser = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || '{}');
+    const isExamFinished = localStorage.getItem(STORAGE_KEYS.IS_EXAM_FINISHED) === 'true';
 
     const updatedWithRealStatus = listReal.map(p => {
       if (currentActiveUser && (p.tech_id === currentActiveUser.tech_id || String(p.user_id) === String(currentActiveUser.user_id))) {
@@ -100,10 +102,11 @@ export default function DashboardPanitia() {
       const importedPesertaArr = [];
 
       // Ambil data peserta lama di LocalStorage
-      const existingPeserta = JSON.parse(localStorage.getItem('dcc_sesi_peserta') || '[]');
+      const existingPeserta = JSON.parse(localStorage.getItem(STORAGE_KEYS.PESERTA) || '[]');
       const existingTechIds = new Set(existingPeserta.map(p => (p.tech_id || '').toLowerCase().trim()));
 
       let duplicateCount = 0;
+      let invalidKategoriCount = 0;
 
       lines.forEach((line, index) => {
         if (index === 0 && (line.toLowerCase().includes('nama') || line.toLowerCase().includes('techid'))) {
@@ -129,14 +132,14 @@ export default function DashboardPanitia() {
             return;
           }
 
-          const rawMataUjian = (cols[2] || '').toLowerCase();
-          let finalKat = 'word';
-
-          if (rawMataUjian.includes('excel')) finalKat = 'excel';
-          else if (rawMataUjian.includes('power') || rawMataUjian.includes('ppt')) finalKat = 'powerpoint';
-          else if (rawMataUjian.includes('word') || rawMataUjian.includes('doc')) finalKat = 'word';
-          else if (rawMataUjian.includes('desain') || rawMataUjian.includes('canva')) finalKat = 'desain';
-          else if (rawMataUjian.includes('pemrograman') || rawMataUjian.includes('coding') || rawMataUjian.includes('web')) finalKat = 'pemrograman';
+          // MAPPER 5 KATEGORI RESMI (TERPUSAT). Jika kolom Mata Ujian pada Excel
+          // tidak cocok dengan salah satu dari 5 kategori resmi, baris ini DILEWATI
+          // (bukan dipaksa jadi 'word') supaya Panitia sadar ada data yang keliru.
+          const finalKat = normalizeKategori(cols[2]);
+          if (!finalKat) {
+            invalidKategoriCount++;
+            return;
+          }
 
           if (nama && !nama.toLowerCase().includes('nama lengkap')) {
             existingTechIds.add(cleanTechId); // Tandai TechID ini sudah masuk
@@ -160,13 +163,18 @@ export default function DashboardPanitia() {
         // GABUNGKAN DATA BARU DENGAN DATA LAMA (ANTI TERTIMPA)
         const combined = [...importedPesertaArr, ...existingPeserta];
         setPeserta(combined);
-        localStorage.setItem('dcc_sesi_peserta', JSON.stringify(combined));
+        localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(combined));
         
         let msg = `Berhasil menambahkan ${importedPesertaArr.length} peserta baru! Total peserta: ${combined.length}`;
         if (duplicateCount > 0) msg += ` (${duplicateCount} data duplikat dilewati).`;
+        if (invalidKategoriCount > 0) msg += ` (${invalidKategoriCount} baris dilewati karena kolom Mata Ujian tidak dikenali — harus salah satu dari word/excel/powerpoint/desain/pemrograman).`;
         alert(msg);
+      } else if (duplicateCount > 0) {
+        alert(`Semua data (${duplicateCount}) dalam file ini sudah terdaftar sebelumnya!`);
+      } else if (invalidKategoriCount > 0) {
+        alert(`Tidak ada peserta yang berhasil diimpor. ${invalidKategoriCount} baris dilewati karena kolom Mata Ujian tidak dikenali (harus salah satu dari: word, excel, powerpoint, desain, pemrograman).`);
       } else {
-        alert(duplicateCount > 0 ? `Semua data (${duplicateCount}) dalam file ini sudah terdaftar sebelumnya!` : 'File tidak sesuai format!');
+        alert('File tidak sesuai format! Pastikan kolom minimal: Nama, TechID, Mata Ujian.');
       }
     };
 
@@ -179,7 +187,7 @@ export default function DashboardPanitia() {
     if (confirm(`Apakah Anda yakin ingin menghapus data peserta "${nama}"?`)) {
       const updated = peserta.filter(p => p.user_id !== userId);
       setPeserta(updated);
-      localStorage.setItem('dcc_sesi_peserta', JSON.stringify(updated));
+      localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updated));
       if (selectedSiswa === userId) setSelectedSiswa(null);
     }
   };
@@ -191,7 +199,7 @@ export default function DashboardPanitia() {
     if (confirm(`Apakah Anda yakin ingin menghapus ${selectedIds.length} peserta terpilih?`)) {
       const updated = peserta.filter(p => !selectedIds.includes(p.user_id));
       setPeserta(updated);
-      localStorage.setItem('dcc_sesi_peserta', JSON.stringify(updated));
+      localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updated));
       setSelectedIds([]);
       if (selectedIds.includes(selectedSiswa)) setSelectedSiswa(null);
     }
@@ -201,7 +209,7 @@ export default function DashboardPanitia() {
   const handleDeleteAll = () => {
     if (confirm("PERINGATAN: Apakah Anda yakin ingin MENGHAPUS SEMUA PESERTA? Lakukan ini jika ingin mengganti data ke angkatan/tahun ajaran baru.")) {
       setPeserta([]);
-      localStorage.setItem('dcc_sesi_peserta', JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify([]));
       setSelectedSiswa(null);
       setSelectedIds([]);
     }
@@ -238,11 +246,11 @@ export default function DashboardPanitia() {
     const targetUser = peserta.find(p => p.user_id === userId);
     const userTechId = targetUser?.tech_id;
 
-    const savedJawabanStr = localStorage.getItem(`jawabanLocal_${userId}`) || 
-                            localStorage.getItem(`jawabanLocal_${userTechId}`) || 
-                            localStorage.getItem('jawabanLocal');
-                            
-    const questionsArr = JSON.parse(localStorage.getItem('activeExamQuestions') || localStorage.getItem('dcc_bank_soal') || '[]');
+    const savedJawabanStr = localStorage.getItem(jawabanLocalKey(userId)) ||
+                            localStorage.getItem(jawabanLocalKey(userTechId)) ||
+                            localStorage.getItem(STORAGE_KEYS.JAWABAN_LOCAL_LEGACY);
+
+    const questionsArr = JSON.parse(localStorage.getItem(STORAGE_KEYS.BANK_SOAL) || '[]');
 
     if (savedJawabanStr) {
       try {
@@ -309,7 +317,7 @@ export default function DashboardPanitia() {
     });
     
     setPeserta(updatedPeserta);
-    localStorage.setItem('dcc_sesi_peserta', JSON.stringify(updatedPeserta));
+    localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updatedPeserta));
 
     try {
       await API.post('/ujian/simpan-praktik', {
