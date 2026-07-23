@@ -7,20 +7,14 @@ import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Badge from '../components/ui/Badge';
-import { 
-  CreditCard, Key, Play, LogOut, User, 
-  AlertCircle, Sparkles, Award 
-} from 'lucide-react';
+import { CreditCard, Key, Play, LogOut, User, AlertCircle, Sparkles, Award } from 'lucide-react';
 
-// CATATAN: Ini BUKAN data dummy peserta/soal. Ini katalog metadata UI untuk
-// 5 kategori ujian RESMI (nama, durasi, token) — datanya tetap sama untuk semua
-// instalasi, sedangkan peserta & bank soal tetap 100% murni dari impor Panitia.
 const DAFTAR_UJIAN = [
-  { id: 'word', nama: 'Microsoft Word', subNama: 'Pengolahan Dokumen & Surat', kategori: 'Perkantoran', durasi: '90 Menit', detailSoal: 'Soal PG + Praktik Word', tokenDefault: 'WORD2026' },
-  { id: 'excel', nama: 'Microsoft Excel', subNama: 'Pengolahan Data & Formula', kategori: 'Perkantoran', durasi: '90 Menit', detailSoal: 'Soal PG + Praktik Excel', tokenDefault: 'EXCEL2026' },
-  { id: 'powerpoint', nama: 'Microsoft PowerPoint', subNama: 'Desain Presentasi Interaktif', kategori: 'Perkantoran', durasi: '90 Menit', detailSoal: 'Soal PG + Praktik Slide', tokenDefault: 'PPT2026' },
-  { id: 'desain', nama: 'Desain Grafis', subNama: 'Canva & Visual Typography', kategori: 'Kreatif & Desain', durasi: '90 Menit', detailSoal: 'Soal PG + Praktik Layout', tokenDefault: 'DESAIN2026' },
-  { id: 'pemrograman', nama: 'Pemrograman Web', subNama: 'HTML, CSS, & Logic JavaScript', kategori: 'Teknologi', durasi: '120 Menit', detailSoal: 'Soal PG + Praktik Web', tokenDefault: 'CODING2026' }
+  { id: 'word', nama: 'Microsoft Word', subNama: 'Pengolahan Dokumen & Surat', kategori: 'Perkantoran', durasi: '90 Menit', tokenDefault: 'WORD2026' },
+  { id: 'excel', nama: 'Microsoft Excel', subNama: 'Pengolahan Data & Formula', kategori: 'Perkantoran', durasi: '90 Menit', tokenDefault: 'EXCEL2026' },
+  { id: 'powerpoint', nama: 'Microsoft PowerPoint', subNama: 'Desain Presentasi Interaktif', kategori: 'Perkantoran', durasi: '90 Menit', tokenDefault: 'PPT2026' },
+  { id: 'desain', nama: 'Desain Grafis', subNama: 'Canva & Visual Typography', kategori: 'Kreatif & Desain', durasi: '90 Menit', tokenDefault: 'DESAIN2026' },
+  { id: 'pemrograman', nama: 'Pemrograman Web', subNama: 'HTML, CSS, & Logic JavaScript', kategori: 'Teknologi', durasi: '120 Menit', tokenDefault: 'CODING2026' }
 ];
 
 export default function DashboardPeserta() {
@@ -37,66 +31,38 @@ export default function DashboardPeserta() {
   const [isExamCompleted, setIsExamCompleted] = useState(false);
   const [completedExamInfo, setCompletedExamInfo] = useState(null);
 
-  const [dataError, setDataError] = useState('');
-
   useEffect(() => {
-    // 1. AMBIL PROFIL SISWA AKTIF (harus sudah tervalidasi murni saat Login)
     const savedUserStr = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-    let activeUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+    const activeUser = savedUserStr ? JSON.parse(savedUserStr) : null;
 
     if (!activeUser) {
-      // Tidak ada sesi login sama sekali -> jangan tampilkan dashboard palsu
       navigate('/login');
       return;
     }
 
-    const localSesi = JSON.parse(localStorage.getItem(STORAGE_KEYS.PESERTA) || '[]');
-    if (activeUser.tech_id) {
-      const matchedFromImport = localSesi.find(p => p.tech_id?.toLowerCase().trim() === activeUser.tech_id?.toLowerCase().trim());
-      if (matchedFromImport) {
-        activeUser = { ...activeUser, ...matchedFromImport };
-      }
+    setUserName(activeUser.nama || 'Peserta Ujian');
+    setTechId(activeUser.tech_id || '');
+
+    const initialKat = normalizeKategori(activeUser.kategori);
+    if (initialKat) {
+      setSelectedUjian(initialKat);
     }
 
-    const nameToDisplay = activeUser?.nama || activeUser?.nama_lengkap || localStorage.getItem(STORAGE_KEYS.USER_NAME) || 'Peserta Ujian';
-    const techIdToDisplay = activeUser?.tech_id || localStorage.getItem(STORAGE_KEYS.USER_TECH_ID) || '';
-
-    setUserName(nameToDisplay);
-    setTechId(techIdToDisplay);
-
-    // 2. DETEKSI KATEGORI MATA UJIAN SISWA (WAJIB dari data peserta hasil impor,
-    //    TIDAK pernah default diam-diam)
-    const rawKat = activeUser?.kategori || localStorage.getItem(STORAGE_KEYS.USER_KATEGORI) || '';
-    const initialKat = normalizeKategori(rawKat);
-
-    if (!initialKat) {
-      setDataError(`Kategori ujian untuk akun ini tidak valid ("${rawKat || '-'}"). Silakan hubungi Panitia untuk memperbaiki data.`);
-      return;
-    }
-
-    setSelectedUjian(initialKat);
-
-    // 3. CEK STATUS SELESAI
-    if (activeUser?.status === 'selesai' || localStorage.getItem(STORAGE_KEYS.IS_EXAM_FINISHED) === 'true') {
+    if (activeUser.status === 'selesai' || localStorage.getItem(STORAGE_KEYS.IS_EXAM_FINISHED) === 'true') {
       setIsExamCompleted(true);
       const activeExam = DAFTAR_UJIAN.find(u => u.id === initialKat);
       setCompletedExamInfo({
         namaUjian: activeExam ? activeExam.nama : getLabelKategori(initialKat),
-        skorPG: activeUser?.nilai_pg !== undefined ? activeUser.nilai_pg : 0,
-        statusPraktik: activeUser?.status_koreksi === 'dikoreksi' ? 'Selesai Dikoreksi Panitia' : 'Berkas Diterima & Dalam Koreksi Panitia'
+        skorPG: activeUser.nilai_pg !== undefined ? activeUser.nilai_pg : 0,
+        statusPraktik: activeUser.status_koreksi === 'dikoreksi' ? 'Selesai Dikoreksi Panitia' : 'Berkas Diterima & Dalam Koreksi Panitia'
       });
     }
   }, []);
 
   const activeExamDetail = DAFTAR_UJIAN.find((u) => u.id === selectedUjian) || DAFTAR_UJIAN[0];
 
-  // LOGOUT HANYA HAPUS SESI AKUN, BUKAN BANK SOAL ATAU PESERTA LAIN!
   const handleLogout = () => {
-    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
-    localStorage.removeItem(STORAGE_KEYS.USER_NAME);
-    localStorage.removeItem(STORAGE_KEYS.USER_TECH_ID);
-    localStorage.removeItem(STORAGE_KEYS.USER_KATEGORI);
-    localStorage.removeItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY);
+    localStorage.clear();
     sessionStorage.clear();
     navigate('/login');
   };
@@ -113,28 +79,10 @@ export default function DashboardPeserta() {
     setTimeout(() => {
       const inputUpper = tokenInput.trim().toUpperCase();
       
-      if (
-        inputUpper === activeExamDetail.tokenDefault || 
-        inputUpper === 'DCC2026' || 
-        inputUpper === '12345' || 
-        inputUpper === '1234'
-      ) {
-        // activeExamDetail.id di sini SELALU sama dengan kategori hasil impor
-        // Panitia (lihat penguncian kartu di atas), jadi ini bukan overwrite bebas.
+      if (inputUpper === activeExamDetail.tokenDefault || inputUpper === 'DCC2026' || inputUpper === '12345') {
         sessionStorage.setItem('examStarted', 'true');
         sessionStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, activeExamDetail.id);
         localStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, activeExamDetail.id);
-        localStorage.setItem(STORAGE_KEYS.USER_KATEGORI, activeExamDetail.id);
-
-        const localSesi = JSON.parse(localStorage.getItem(STORAGE_KEYS.PESERTA) || '[]');
-        const updatedSesi = localSesi.map(p => {
-          if (p.tech_id?.toLowerCase().trim() === techId.toLowerCase().trim()) {
-            return { ...p, status: 'berjalan', kategori: activeExamDetail.id };
-          }
-          return p;
-        });
-        localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updatedSesi));
-
         navigate('/ruang-ujian');
       } else {
         setTokenError(`Token untuk ujian ${activeExamDetail.nama} tidak valid! Gunakan token: ${activeExamDetail.tokenDefault}`);
@@ -142,19 +90,6 @@ export default function DashboardPeserta() {
       }
     }, 300);
   };
-
-  if (dataError) {
-    return (
-      <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center gap-3 p-4 text-center">
-        <AlertCircle className="w-8 h-8 text-rose-400" />
-        <p className="text-sm font-bold text-rose-400">Data Peserta Bermasalah</p>
-        <p className="text-xs text-slate-400 max-w-md">{dataError}</p>
-        <Button onClick={handleLogout} className="mt-2 bg-slate-800 text-xs text-slate-300">
-          ← Kembali ke Login
-        </Button>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#030712] text-slate-100 font-sans flex flex-col">
@@ -167,7 +102,7 @@ export default function DashboardPeserta() {
               <p className="text-[10px] text-slate-400 font-sans">Panel Ruang Ujian Peserta</p>
             </div>
           </div>
-          <button onClick={handleLogout} className="text-xs text-rose-400/80 hover:text-rose-400 transition-all font-sans flex items-center gap-1.5 py-1.5 px-3.5 rounded-xl hover:bg-rose-500/10">
+          <button onClick={handleLogout} className="text-xs text-rose-400 hover:text-rose-300 py-1.5 px-3.5 rounded-xl hover:bg-rose-500/10 flex items-center gap-1.5">
             <LogOut className="w-3.5 h-3.5" /> Keluar
           </button>
         </div>
@@ -175,54 +110,48 @@ export default function DashboardPeserta() {
 
       <main className="flex-1 p-6 md:p-10 overflow-y-auto">
         <div className="max-w-4xl mx-auto space-y-6">
-          
           <div className="p-6 md:p-8 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-xl">
             <div className="flex items-center gap-5">
-              <div className="w-14 h-14 rounded-2xl bg-cyan-400/10 text-cyan-400 border border-cyan-400/20 flex items-center justify-center font-display font-bold shrink-0">
+              <div className="w-14 h-14 rounded-2xl bg-cyan-400/10 text-cyan-400 border border-cyan-400/20 flex items-center justify-center font-bold shrink-0">
                 <User className="w-7 h-7" />
               </div>
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-display font-bold text-white tracking-wide">{userName}</h2>
-                  <Badge variant="primary" className="text-[9px] font-display font-bold px-2 py-0.5 rounded-md uppercase">PESERTA</Badge>
+                  <h2 className="text-xl font-bold text-white tracking-wide">{userName}</h2>
+                  <Badge variant="primary" className="text-[9px] font-bold px-2 py-0.5 rounded-md uppercase">PESERTA</Badge>
                 </div>
-                <p className="text-xs text-slate-400 font-sans flex items-center gap-1.5">
-                  <CreditCard className="w-3.5 h-3.5 text-cyan-400" /> TechID: <span className="text-slate-200 font-display font-bold tracking-wider">{techId}</span>
+                <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                  <CreditCard className="w-3.5 h-3.5 text-cyan-400" /> TechID: <span className="text-slate-200 font-mono font-bold">{techId}</span>
                 </p>
               </div>
             </div>
             <div className="text-left sm:text-right border-t sm:border-t-0 border-slate-800/60 pt-4 sm:pt-0 w-full sm:w-auto">
-              <p className="text-[10px] text-slate-500 font-display font-bold uppercase tracking-widest mb-1">MATA UJIAN TERPILIH</p>
-              <span className="text-cyan-400 font-display font-bold text-sm uppercase">{activeExamDetail.nama}</span>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">MATA UJIAN TERPILIH</p>
+              <span className="text-cyan-400 font-bold text-sm uppercase">{activeExamDetail.nama}</span>
             </div>
           </div>
 
           {isExamCompleted ? (
             <div className="p-6 md:p-8 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl border border-emerald-500/40 space-y-6 shadow-2xl">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/60 pb-5">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-5">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                    <Award className="w-5 h-5" />
-                  </div>
+                  <Award className="w-6 h-6 text-emerald-400" />
                   <div>
-                    <span className="text-[10px] font-display font-bold text-emerald-400 uppercase tracking-widest block">LEMBAR HASIL UJIAN</span>
-                    <h3 className="text-lg font-display font-bold text-white">{completedExamInfo?.namaUjian}</h3>
+                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">LEMBAR HASIL UJIAN</span>
+                    <h3 className="text-lg font-bold text-white">{completedExamInfo?.namaUjian}</h3>
                   </div>
                 </div>
-                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-xs px-3 py-1 font-display font-bold">✓ UJIAN SELESAI</Badge>
+                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-xs px-3 py-1 font-bold">✓ UJIAN SELESAI</Badge>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-5 rounded-xl bg-[#030712]/80 border border-slate-800/80 space-y-2">
-                  <p className="text-[11px] font-display font-bold text-slate-400 uppercase tracking-wider">SKOR PILIHAN GANDA (PG)</p>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-display font-bold text-emerald-400">{completedExamInfo?.skorPG}</span>
-                    <span className="text-xs text-slate-400 font-sans">/ 100</span>
-                  </div>
+                <div className="p-5 rounded-xl bg-[#030712]/80 border border-slate-800 space-y-2">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase">SKOR PILIHAN GANDA (PG)</p>
+                  <span className="text-3xl font-bold text-emerald-400">{completedExamInfo?.skorPG} / 100</span>
                 </div>
-                <div className="p-5 rounded-xl bg-[#030712]/80 border border-slate-800/80 space-y-2">
-                  <p className="text-[11px] font-display font-bold text-slate-400 uppercase tracking-wider">STATUS PRAKTIK</p>
-                  <p className="text-sm font-display font-bold text-emerald-400 pt-1">{completedExamInfo?.statusPraktik}</p>
+                <div className="p-5 rounded-xl bg-[#030712]/80 border border-slate-800 space-y-2">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase">STATUS PRAKTIK</p>
+                  <p className="text-sm font-bold text-emerald-400 pt-1">{completedExamInfo?.statusPraktik}</p>
                 </div>
               </div>
             </div>
@@ -231,40 +160,32 @@ export default function DashboardPeserta() {
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-cyan-400 px-1">
                   <Sparkles className="w-4 h-4" />
-                  <h3 className="text-xs font-display font-bold uppercase tracking-widest">MATA UJIAN ANDA (SESUAI DATA PANITIA)</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-widest">MATA UJIAN ANDA (DATA PANITIA)</h3>
                 </div>
 
-                {/*
-                  PENTING: Mata ujian TIDAK BOLEH dipilih bebas oleh peserta.
-                  Kartu ini terkunci ke kategori hasil impor Excel Panitia untuk
-                  TechID peserta yang login. Sebelumnya di sini ada grid 5 kartu
-                  yang bisa diklik bebas — itu penyebab peserta bisa "pindah"
-                  kategori sendiri sehingga soal di Ruang Ujian jadi tidak sesuai
-                  dengan data yang didaftarkan Panitia.
-                */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="p-5 rounded-2xl border bg-[#0d1527] border-cyan-400 shadow-lg shadow-cyan-400/10 flex flex-col justify-between gap-4 md:col-span-2">
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-display font-bold uppercase px-2.5 py-0.5 rounded-md bg-cyan-400 text-slate-950">
+                        <span className="text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-md bg-cyan-400 text-slate-950">
                           {activeExamDetail.kategori}
                         </span>
-                        <span className="text-xs font-display font-bold text-cyan-400">Ditetapkan Panitia</span>
+                        <span className="text-xs font-bold text-cyan-400">Ditetapkan Panitia</span>
                       </div>
-                      <h4 className="text-base font-display font-bold text-white tracking-wide">{activeExamDetail.nama}</h4>
-                      <p className="text-xs text-slate-400 font-sans">{activeExamDetail.subNama}</p>
+                      <h4 className="text-base font-bold text-white tracking-wide">{activeExamDetail.nama}</h4>
+                      <p className="text-xs text-slate-400">{activeExamDetail.subNama}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="p-6 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 space-y-4">
+              <div className="p-6 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800 space-y-4">
                 <div className="border-b border-slate-800/50 pb-3 flex justify-between items-center">
                   <div>
-                    <h4 className="text-xs font-display font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
+                    <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
                       <Key className="w-4 h-4" /> VERIFIKASI TOKEN UJIAN
                     </h4>
-                    <p className="text-xs text-slate-300 font-sans mt-1">
+                    <p className="text-xs text-slate-300 mt-1">
                       Mata Ujian Terpilih: <strong className="text-white font-bold">{activeExamDetail.nama}</strong>
                     </p>
                   </div>
@@ -281,10 +202,10 @@ export default function DashboardPeserta() {
                         placeholder={`Masukkan Token Ujian ${activeExamDetail.nama}...`}
                         value={tokenInput}
                         onChange={(e) => setTokenInput(e.target.value.toUpperCase())}
-                        className="w-full px-4 py-3 uppercase font-display font-bold tracking-widest text-sm bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-white rounded-xl"
+                        className="w-full px-4 py-3 uppercase font-bold tracking-widest text-sm bg-[#030712]/80 border border-slate-800 text-white rounded-xl"
                       />
                     </div>
-                    <Button type="submit" disabled={isLoading} className="w-full py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0 rounded-xl shadow-lg shadow-cyan-400/20 flex items-center justify-center gap-2">
+                    <Button type="submit" disabled={isLoading} className="w-full py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs border-0 rounded-xl shadow-lg shadow-cyan-400/20 flex items-center justify-center gap-2">
                       <Play className="w-3.5 h-3.5 fill-slate-950" /> MULAI PENGERJAAN
                     </Button>
                   </div>
@@ -304,7 +225,6 @@ export default function DashboardPeserta() {
               </div>
             </>
           )}
-
         </div>
       </main>
     </div>

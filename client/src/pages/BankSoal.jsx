@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import API from '../utils/api';
+import { supabase } from '../utils/supabaseClient';
 import { KATEGORI_RESMI, getLabelKategori, normalizeKategori } from '../utils/examCategories';
-import { STORAGE_KEYS } from '../utils/storageKeys';
 import Sidebar from '../components/ui/Sidebar';
 import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
@@ -13,14 +12,8 @@ import Select from '../components/ui/Select';
 import Badge from '../components/ui/Badge';
 import { Plus, Trash2, Edit3, Save, X, Database, Layers, Download, Upload, FileSpreadsheet } from 'lucide-react';
 
-// TIDAK ADA DATA DUMMY DI SINI. Bank soal 100% murni berasal dari:
-// 1) Import Excel/CSV oleh Panitia, atau
-// 2) Input manual oleh Panitia lewat form di halaman ini, atau
-// 3) API backend (jika tersedia).
-// Jika ketiganya kosong, tampilan HARUS menunjukkan state kosong yang jelas.
-
 export default function BankSoal() {
-  useDocumentTitle('Manajemen Bank Soal - DCC CBT');
+  useDocumentTitle('Manajemen Bank Soal Cloud - DCC CBT');
 
   const [listSoal, setDataSoal] = useState([]);
   const [filterKategori, setFilterKategori] = useState('semua');
@@ -40,40 +33,25 @@ export default function BankSoal() {
   const excelInputRef = useRef(null);
 
   const menuPanitia = [
-    { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
+    { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📋' },
     { label: 'Bank Soal', path: '/bank-soal', icon: '📚' },
-    { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
+    { label: 'Laporan Nilai', path: '/laporan', icon: '📊' },
   ];
 
-  // LOGIKA FETCH SOAL: UTAMAKAN LOCALSTORAGE (HASIL IMPOR PANITIA), FALLBACK KE API.
-  // JIKA KEDUANYA KOSONG -> TETAP KOSONG (TIDAK ADA DUMMY). Panitia akan melihat
-  // state "Belum ada soal" dan diarahkan untuk Import Excel/CSV atau Tambah Manual.
+  // FETCH SOAL DIRECT SUPABASE CLOUD
   const fetchSoal = async () => {
-    const savedLocal = localStorage.getItem(STORAGE_KEYS.BANK_SOAL);
-    if (savedLocal) {
-      try {
-        const parsed = JSON.parse(savedLocal);
-        if (Array.isArray(parsed)) {
-          setDataSoal(parsed);
-          return;
-        }
-      } catch (e) {
-        console.warn("Gagal membaca localStorage bank soal, menganggap kosong.");
-      }
-    }
-
     try {
-      let res = await API.get('/soal').catch(() => API.get('/ujian/soal'));
-      if (res && res.data && Array.isArray(res.data)) {
-        setDataSoal(res.data);
-        localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(res.data));
-        return;
-      }
-    } catch (err) {
-      console.warn('API server offline dan belum ada data lokal. Bank soal kosong.');
-    }
+      const { data, error } = await supabase
+        .from('bank_soal')
+        .select('*')
+        .order('id', { ascending: false });
 
-    setDataSoal([]);
+      if (error) throw error;
+      setDataSoal(data || []);
+    } catch (err) {
+      console.error("Gagal mengambil soal dari Supabase:", err);
+      setDataSoal([]);
+    }
   };
 
   useEffect(() => {
@@ -109,28 +87,29 @@ export default function BankSoal() {
     setTipe(soal.tipe);
     setPertanyaan(soal.pertanyaan);
     if (soal.tipe === 'pg') {
+      const opsiArr = typeof soal.opsi === 'string' ? JSON.parse(soal.opsi) : (soal.opsi || []);
       setOpsi({
-        A: soal.opsi?.[0]?.replace(/^A\.\s*/, '') || '',
-        B: soal.opsi?.[1]?.replace(/^B\.\s*/, '') || '',
-        C: soal.opsi?.[2]?.replace(/^C\.\s*/, '') || '',
-        D: soal.opsi?.[3]?.replace(/^D\.\s*/, '') || ''
+        A: opsiArr[0]?.replace(/^A\.\s*/, '') || '',
+        B: opsiArr[1]?.replace(/^B\.\s*/, '') || '',
+        C: opsiArr[2]?.replace(/^C\.\s*/, '') || '',
+        D: opsiArr[3]?.replace(/^D\.\s*/, '') || ''
       });
-      setJawabanBenar(soal.jawaban_benar || soal.jawabanBenar || 'A');
+      setJawabanBenar(soal.jawaban_benar || 'A');
     } else {
-      setChecklist(soal.checklist || []);
+      const checkArr = typeof soal.checklist === 'string' ? JSON.parse(soal.checklist) : (soal.checklist || []);
+      setChecklist(checkArr);
     }
     setIsModalOpen(true);
   };
 
   const handleDelete = async (id) => {
-    if (confirm('Apakah Anda yakin ingin menghapus soal ini?')) {
-      try {
-        await API.delete(`/soal/${id}`).catch(() => API.delete(`/ujian/soal/${id}`));
-      } catch (err) {}
-
-      const updated = listSoal.filter((item) => item.id !== id);
-      setDataSoal(updated);
-      localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(updated));
+    if (confirm('Apakah Anda yakin ingin menghapus soal ini dari Supabase Cloud?')) {
+      const { error } = await supabase.from('bank_soal').delete().eq('id', id);
+      if (!error) {
+        fetchSoal();
+      } else {
+        alert("Gagal menghapus: " + error.message);
+      }
     }
   };
 
@@ -138,69 +117,49 @@ export default function BankSoal() {
     e.preventDefault();
     if (!pertanyaan.trim()) return alert('Teks pertanyaan wajib diisi!');
 
-    const formatOpsi = tipe === 'pg' ? [`A. ${opsi.A}`, `B. ${opsi.B}`, `C. ${opsi.C}`, `D. ${opsi.D}`] : [];
+    const formatOpsi = tipe === 'pg' ? [`A. ${opsi.A}`, `B. ${opsi.B}`, `C. ${opsi.C}`, `D. ${opsi.D}`] : null;
 
-    const newSoalItem = {
-      id: editingId || Date.now(),
+    const payload = {
       kategori,
       tipe,
       pertanyaan,
       opsi: formatOpsi,
-      jawaban_benar: tipe === 'pg' ? jawabanBenar : '',
-      jawabanBenar: tipe === 'pg' ? jawabanBenar : '',
-      checklist: tipe === 'praktik' ? checklist : []
+      jawaban_benar: tipe === 'pg' ? jawabanBenar : null,
+      checklist: tipe === 'praktik' ? checklist : null
     };
 
-    let updatedList = [];
     if (editingId) {
-      updatedList = listSoal.map((item) => (item.id === editingId ? newSoalItem : item));
+      const { error } = await supabase.from('bank_soal').update(payload).eq('id', editingId);
+      if (error) alert("Gagal update soal: " + error.message);
     } else {
-      updatedList = [newSoalItem, ...listSoal];
+      const { error } = await supabase.from('bank_soal').insert([payload]);
+      if (error) alert("Gagal tambah soal: " + error.message);
     }
 
-    setDataSoal(updatedList);
-    localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(updatedList));
     setIsModalOpen(false);
-
-    try {
-      if (editingId) {
-        await API.put(`/soal/${editingId}`, newSoalItem).catch(() => API.put(`/ujian/soal/${editingId}`, newSoalItem));
-      } else {
-        await API.post('/soal', newSoalItem).catch(() => API.post('/ujian/soal', newSoalItem));
-      }
-    } catch (err) {}
+    fetchSoal();
   };
 
-  // HANDLER IMPORT EXCEL / CSV CANGGIH (MULTIPLE DELIMITER DETECTOR: KOMA, TITIK KOMA, ATAU TAB)
+  // HANDLER IMPORT EXCEL/CSV MULTI-DELIMITER DIRECT SUPABASE CLOUD
   const handleImportExcelCSV = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       const text = evt.target.result;
       const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
       const importedSoalArr = [];
       let skippedKategoriTidakDikenal = 0;
 
       lines.forEach((line, index) => {
-        // Skip header
-        if (index === 0 && (line.toLowerCase().includes('kategori') || line.toLowerCase().includes('pertanyaan'))) {
-          return;
-        }
+        if (index === 0 && (line.toLowerCase().includes('kategori') || line.toLowerCase().includes('pertanyaan'))) return;
 
-        // DETEKSI OTOMATIS PEMISAH KOLOM (TITIK KOMA, KOMA, ATAU TAB)
-        let delimiter = ',';
-        if (line.includes(';')) delimiter = ';';
-        else if (line.includes('\t')) delimiter = '\t';
-
+        let delimiter = line.includes(';') ? ';' : line.includes('\t') ? '\t' : ',';
         const regex = new RegExp(`${delimiter}(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)`);
         const cols = line.split(regex).map(c => c.replace(/^"|"$/g, '').trim());
-        
+
         if (cols.length >= 3) {
-          // MAPPER 5 KATEGORI RESMI (TERPUSAT). Jika kategori pada file Excel tidak
-          // bisa dipetakan ke salah satu dari 5 kategori resmi, baris ini DILEWATI
-          // (bukan dipaksa jadi 'word') agar Panitia sadar ada data yang perlu diperbaiki.
           const finalKategori = normalizeKategori(cols[0]);
           if (!finalKategori) {
             skippedKategoriTidakDikenal++;
@@ -209,30 +168,21 @@ export default function BankSoal() {
 
           const tpe = (cols[1] || 'pg').toLowerCase();
           const tnya = cols[2];
-          
+
           if (tnya && !tnya.toLowerCase().includes('pertanyaan')) {
             if (tpe === 'pg') {
-              const opsA = cols[3] || '';
-              const opsB = cols[4] || '';
-              const opsC = cols[5] || '';
-              const opsD = cols[6] || '';
-              const knci = (cols[7] || 'A').toUpperCase();
-
               importedSoalArr.push({
-                id: Date.now() + index,
                 kategori: finalKategori,
                 tipe: 'pg',
                 pertanyaan: tnya,
-                opsi: [`A. ${opsA}`, `B. ${opsB}`, `C. ${opsC}`, `D. ${opsD}`],
-                jawaban_benar: knci,
-                jawabanBenar: knci
+                opsi: [`A. ${cols[3] || ''}`, `B. ${cols[4] || ''}`, `C. ${cols[5] || ''}`, `D. ${cols[6] || ''}`],
+                jawaban_benar: (cols[7] || 'A').toUpperCase()
               });
             } else {
               const rubrikRaw = cols[8] || cols[3] || 'Kesesuaian pengerjaan, Kerapihan berkas';
               const rubrikArr = rubrikRaw.split(/[|,]/).map(r => r.trim()).filter(Boolean);
 
               importedSoalArr.push({
-                id: Date.now() + index,
                 kategori: finalKategori,
                 tipe: 'praktik',
                 pertanyaan: tnya,
@@ -244,57 +194,29 @@ export default function BankSoal() {
       });
 
       if (importedSoalArr.length > 0) {
-        const combined = [...importedSoalArr, ...listSoal];
-        setDataSoal(combined);
-        localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(combined));
-        let msg = `Berhasil mengimpor ${importedSoalArr.length} soal! Terpetakan ke 5 Kategori Ujian resmi.`;
-        if (skippedKategoriTidakDikenal > 0) {
-          msg += `\n\nPERINGATAN: ${skippedKategoriTidakDikenal} baris DILEWATI karena kolom Kategori tidak cocok dengan 5 kategori resmi (word/excel/powerpoint/desain/pemrograman). Periksa kembali file Excel Anda.`;
+        const { error } = await supabase.from('bank_soal').insert(importedSoalArr);
+        if (!error) {
+          let msg = `Berhasil mengunggah ${importedSoalArr.length} soal ke Supabase Cloud!`;
+          if (skippedKategoriTidakDikenal > 0) {
+            msg += `\n\nPERINGATAN: ${skippedKategoriTidakDikenal} baris DILEWATI karena kolom Kategori tidak cocok dengan 5 kategori resmi.`;
+          }
+          alert(msg);
+          fetchSoal();
+        } else {
+          alert("Gagal mengunggah ke Supabase: " + error.message);
         }
-        alert(msg);
       } else {
-        const pesanTambahan = skippedKategoriTidakDikenal > 0
-          ? ` ${skippedKategoriTidakDikenal} baris dilewati karena kolom Kategori tidak dikenali.`
-          : '';
-        alert(`Tidak ada soal valid yang berhasil diimpor!${pesanTambahan} Periksa format kolom (Kategori, Tipe, Pertanyaan, ...).`);
+        alert('File Excel/CSV tidak valid atau Kategori tidak sesuai!');
       }
     };
 
     reader.readAsText(file);
+    e.target.value = '';
   };
 
-  const handleExportBackup = () => {
-    if (listSoal.length === 0) return alert('Belum ada soal untuk diekspor!');
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(listSoal, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `Backup_BankSoal_DCC_${Date.now()}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-  };
-
-  const handleImportBackup = (e) => {
-    const fileReader = new FileReader();
-    if (e.target.files && e.target.files[0]) {
-      fileReader.readAsText(e.target.files[0], "UTF-8");
-      fileReader.onload = (event) => {
-        try {
-          const parsed = JSON.parse(event.target.result);
-          if (Array.isArray(parsed)) {
-            setDataSoal(parsed);
-            localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(parsed));
-            alert(`Berhasil mengimpor ${parsed.length} soal ke Bank Soal!`);
-          }
-        } catch (err) { alert('Gagal membaca file JSON!'); }
-      };
-    }
-  };
-
-  const filteredSoalList =
-    filterKategori === 'semua'
-      ? listSoal
-      : listSoal.filter((item) => (item.kategori || 'word') === filterKategori);
+  const filteredSoalList = filterKategori === 'semua'
+    ? listSoal
+    : listSoal.filter((item) => (item.kategori || 'word') === filterKategori);
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
@@ -306,25 +228,16 @@ export default function BankSoal() {
             <div className="flex items-center gap-3">
               <Database className="text-cyan-400 w-5 h-5" />
               <div>
-                <h1 className="text-sm font-display font-bold text-white tracking-wide">BANK SOAL (LIVE DB)</h1>
-                <p className="text-[11px] text-slate-400">Kelola & Import Bank Soal Spesialisasi</p>
+                <h1 className="text-sm font-display font-bold text-white tracking-wide">BANK SOAL (SUPABASE LIVE)</h1>
+                <p className="text-[11px] text-slate-400">Data otomatis terhubung langsung ke semua peserta online</p>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <input type="file" ref={fileInputRef} onChange={handleImportBackup} accept=".json" className="hidden" />
               <input type="file" ref={excelInputRef} onChange={handleImportExcelCSV} accept=".csv,.xlsx" className="hidden" />
 
               <Button onClick={() => excelInputRef.current.click()} className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-display font-bold border-0 shadow-lg shadow-emerald-500/20">
                 <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Import Excel / CSV
-              </Button>
-
-              <Button onClick={() => fileInputRef.current.click()} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 font-sans border-0">
-                <Upload className="w-3.5 h-3.5 mr-1.5" /> Import JSON
-              </Button>
-
-              <Button onClick={handleExportBackup} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 font-sans border-0">
-                <Download className="w-3.5 h-3.5 mr-1.5" /> Backup JSON
               </Button>
 
               <Button onClick={openCreateModal} className="text-xs bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold border-0 shadow-lg shadow-cyan-400/20">
@@ -336,13 +249,11 @@ export default function BankSoal() {
 
         <main className="p-8 flex-1 overflow-y-auto">
           <div className="max-w-5xl mx-auto space-y-4">
-            
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
               <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
-                Daftar Soal Tersedia ({filteredSoalList.length})
+                Daftar Soal Cloud ({filteredSoalList.length})
               </h2>
 
-              {/* 5 FILTER KATEGORI MURNI PER SEMESTER */}
               <div className="flex gap-1 bg-[#0d1527] p-1 rounded-xl border border-slate-800/80 text-[11px] overflow-x-auto">
                 {['semua', ...KATEGORI_RESMI].map((kat) => (
                   <button
@@ -361,7 +272,7 @@ export default function BankSoal() {
             <div className="space-y-3">
               {filteredSoalList.length === 0 ? (
                 <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
-                  Belum ada soal untuk kategori ini. Klik <strong>"Import Excel / CSV"</strong> atau <strong>"Tambah Manual"</strong> di atas.
+                  Belum ada soal di Supabase Cloud. Klik <strong>"Import Excel / CSV"</strong> di atas.
                 </div>
               ) : (
                 filteredSoalList.map((row, index) => (
@@ -384,13 +295,9 @@ export default function BankSoal() {
                             {row.tipe === 'pg' ? 'Pilihan Ganda' : 'Praktik'}
                           </Badge>
 
-                          {row.tipe === 'pg' ? (
+                          {row.tipe === 'pg' && (
                             <span className="text-xs text-slate-400">
-                              Kunci: <strong className="text-cyan-400 font-mono">{row.jawaban_benar || row.jawabanBenar}</strong>
-                            </span>
-                          ) : (
-                            <span className="text-xs text-slate-400">
-                              {row.checklist?.length || 0} Kriteria Rubrik
+                              Kunci: <strong className="text-cyan-400 font-mono">{row.jawaban_benar}</strong>
                             </span>
                           )}
                         </div>
@@ -402,16 +309,10 @@ export default function BankSoal() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                      <button 
-                        onClick={() => openEditModal(row)} 
-                        className="p-2 rounded-xl bg-slate-800/60 text-slate-300 hover:text-cyan-400 hover:bg-slate-800 transition"
-                      >
+                      <button onClick={() => openEditModal(row)} className="p-2 rounded-xl bg-slate-800/60 text-slate-300 hover:text-cyan-400 hover:bg-slate-800 transition">
                         <Edit3 className="w-4 h-4" />
                       </button>
-                      <button 
-                        onClick={() => handleDelete(row.id)} 
-                        className="p-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition"
-                      >
+                      <button onClick={() => handleDelete(row.id)} className="p-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -419,7 +320,6 @@ export default function BankSoal() {
                 ))
               )}
             </div>
-
           </div>
         </main>
       </div>
@@ -431,7 +331,7 @@ export default function BankSoal() {
             
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-[#0d1527] border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 text-white">
               <div className="flex items-center justify-between pb-3 border-b border-slate-800/60">
-                <h3 className="font-display text-base font-bold text-cyan-400 uppercase tracking-wider">{editingId ? 'EDIT SOAL DATABASE' : 'TAMBAH SOAL DATABASE'}</h3>
+                <h3 className="font-display text-base font-bold text-cyan-400 uppercase tracking-wider">{editingId ? 'EDIT SOAL SUPABASE' : 'TAMBAH SOAL SUPABASE'}</h3>
                 <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
               </div>
 
