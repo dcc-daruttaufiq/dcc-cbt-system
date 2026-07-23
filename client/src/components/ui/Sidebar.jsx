@@ -23,23 +23,30 @@ export default function Sidebar({ userRole = 'Panitia' }) {
   return (
     <aside className="w-64 bg-[#080d1a]/80 backdrop-blur-md min-h-screen p-5 flex flex-col justify-between shrink-0 hidden md:flex border-0 text-slate-200">
       <div className="flex flex-col gap-6">
-        {/* Brand / Logo App tanpa background biru menyala & bebas batas kaku */}
-        <div className="flex items-center gap-3 px-3 py-2">
+        
+        {/* Brand Header: Logo Proporsional & Tipografi Dual-Tone */}
+        <div className="flex items-center gap-3.5 px-2 py-1">
           {!logoGagalDimuat ? (
             <img
               src={LOGO_URL}
               alt="Logo Lembaga"
               onError={() => setLogoGagalDimuat(true)}
-              className="h-9 w-auto object-contain drop-shadow-md shrink-0"
+              className="h-11 w-auto object-contain shrink-0 filter drop-shadow-[0_2px_8px_rgba(34,211,238,0.25)]"
             />
           ) : (
-            <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400">
+            <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400 shrink-0">
               D
             </div>
           )}
-          <div>
-            <h1 className="font-bold text-base tracking-wide text-white leading-none">DCC CBT</h1>
-            <span className="text-[10px] text-slate-400 tracking-wider uppercase">{userRole} PANEL</span>
+
+          <div className="flex flex-col justify-center">
+            <div className="flex items-center gap-1 leading-none">
+              <span className="font-extrabold text-base tracking-tight text-white">DCC</span>
+              <span className="font-extrabold text-base tracking-tight text-cyan-400">CBT</span>
+            </div>
+            <span className="text-[10px] font-semibold text-slate-400 tracking-[0.2em] uppercase mt-1">
+              {userRole} PANEL
+            </span>
           </div>
         </div>
 
