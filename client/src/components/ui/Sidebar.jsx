@@ -23,18 +23,17 @@ export default function Sidebar({ userRole = 'Panitia' }) {
   return (
     <aside className="w-64 bg-[#080d1a]/80 backdrop-blur-md min-h-screen p-5 flex flex-col justify-between shrink-0 hidden md:flex border-0 text-slate-200">
       <div className="flex flex-col gap-6">
-        {/* Brand / Logo App (otomatis dari src/assets/logo/logo.png via brand.js).
-            Jika file logo belum ada / gagal dimuat, fallback aman ke kotak inisial "D". */}
+        {/* Brand / Logo App tanpa background biru menyala & bebas batas kaku */}
         <div className="flex items-center gap-3 px-3 py-2">
           {!logoGagalDimuat ? (
             <img
               src={LOGO_URL}
               alt="Logo Lembaga"
               onError={() => setLogoGagalDimuat(true)}
-              className="w-9 h-9 rounded-xl object-cover bg-cyan-500 shadow-lg shadow-cyan-500/20"
+              className="h-9 w-auto object-contain drop-shadow-md shrink-0"
             />
           ) : (
-            <div className="w-9 h-9 rounded-xl bg-cyan-500 flex items-center justify-center font-bold text-slate-950 shadow-lg shadow-cyan-500/20">
+            <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400">
               D
             </div>
           )}
