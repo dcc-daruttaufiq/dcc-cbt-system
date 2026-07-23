@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { supabase } from '../utils/supabaseClient';
+import { supabase, TABLES } from '../utils/supabaseClient';
 import { normalizeKategori, getLabelKategori } from '../utils/examCategories';
 import { STORAGE_KEYS } from '../utils/storageKeys';
 import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Badge from '../components/ui/Badge';
-import { 
-  CreditCard, Key, Play, LogOut, User, 
-  AlertCircle, Sparkles, Award 
+import {
+  CreditCard, Key, Play, LogOut, User,
+  AlertCircle, Sparkles, Award
 } from 'lucide-react';
 
+// CATATAN: Ini BUKAN data dummy peserta/soal. Ini katalog metadata UI untuk
+// 5 kategori ujian RESMI (nama, durasi, token) — datanya tetap sama untuk semua
+// instalasi, sedangkan peserta & bank soal tetap 100% murni dari Supabase Cloud
+// hasil impor Panitia.
 const DAFTAR_UJIAN = [
   { id: 'word', nama: 'Microsoft Word', subNama: 'Pengolahan Dokumen & Surat', kategori: 'Perkantoran', durasi: '90 Menit', detailSoal: 'Soal PG + Praktik Word', tokenDefault: 'WORD2026' },
   { id: 'excel', nama: 'Microsoft Excel', subNama: 'Pengolahan Data & Formula', kategori: 'Perkantoran', durasi: '90 Menit', detailSoal: 'Soal PG + Praktik Excel', tokenDefault: 'EXCEL2026' },
@@ -38,27 +42,41 @@ export default function DashboardPeserta() {
   const [dataError, setDataError] = useState('');
 
   useEffect(() => {
-    const initPeserta = async () => {
-      // 1. AMBIL PROFIL SISWA AKTIF DARI LOCALSTORAGE
+    const initDashboard = async () => {
+      // 1. AMBIL PROFIL SISWA AKTIF (harus sudah tervalidasi murni saat Login)
       const savedUserStr = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
       let activeUser = savedUserStr ? JSON.parse(savedUserStr) : null;
 
       if (!activeUser) {
+        // Tidak ada sesi login sama sekali -> jangan tampilkan dashboard palsu
         navigate('/login');
         return;
       }
 
-      // Sync realtime dari Supabase jika tech_id tersedia
+      // 2. SINKRON ULANG KE SUPABASE CLOUD (SUMBER KEBENARAN) — memastikan kartu
+      // mata ujian selalu terkunci sesuai data TERBARU hasil impor Panitia,
+      // bukan hanya data lama yang tersimpan saat login. Jika Supabase gagal
+      // dihubungi, tetap pakai data sesi lokal terakhir sebagai pengaman.
       if (activeUser.tech_id) {
-        const { data: cloudData } = await supabase
-          .from('peserta')
-          .select('*')
-          .eq('tech_id', activeUser.tech_id)
-          .single();
+        try {
+          const { data: freshRow, error } = await supabase
+            .from(TABLES.PESERTA)
+            .select('*')
+            .eq('tech_id', activeUser.tech_id)
+            .maybeSingle();
 
-        if (cloudData) {
-          activeUser = { ...activeUser, ...cloudData };
-          localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(activeUser));
+          if (error) throw error;
+          if (freshRow) {
+            activeUser = { ...activeUser, ...freshRow };
+            localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(activeUser));
+          }
+        } catch (err) {
+          console.warn('Gagal menyinkronkan profil dari Supabase Cloud, menggunakan data sesi lokal terakhir.', err);
+          const localSesi = JSON.parse(localStorage.getItem(STORAGE_KEYS.PESERTA) || '[]');
+          const matchedFromCache = localSesi.find(p => p.tech_id?.toLowerCase().trim() === activeUser.tech_id?.toLowerCase().trim());
+          if (matchedFromCache) {
+            activeUser = { ...activeUser, ...matchedFromCache };
+          }
         }
       }
 
@@ -68,7 +86,8 @@ export default function DashboardPeserta() {
       setUserName(nameToDisplay);
       setTechId(techIdToDisplay);
 
-      // 2. DETEKSI KATEGORI MATA UJIAN SISWA
+      // 3. DETEKSI KATEGORI MATA UJIAN SISWA (WAJIB dari data peserta hasil impor,
+      //    TIDAK pernah default diam-diam)
       const rawKat = activeUser?.kategori || localStorage.getItem(STORAGE_KEYS.USER_KATEGORI) || '';
       const initialKat = normalizeKategori(rawKat);
 
@@ -79,7 +98,7 @@ export default function DashboardPeserta() {
 
       setSelectedUjian(initialKat);
 
-      // 3. CEK STATUS SELESAI
+      // 4. CEK STATUS SELESAI
       if (activeUser?.status === 'selesai' || localStorage.getItem(STORAGE_KEYS.IS_EXAM_FINISHED) === 'true') {
         setIsExamCompleted(true);
         const activeExam = DAFTAR_UJIAN.find(u => u.id === initialKat);
@@ -91,11 +110,12 @@ export default function DashboardPeserta() {
       }
     };
 
-    initPeserta();
+    initDashboard();
   }, []);
 
   const activeExamDetail = DAFTAR_UJIAN.find((u) => u.id === selectedUjian) || DAFTAR_UJIAN[0];
 
+  // LOGOUT HANYA HAPUS SESI AKUN, BUKAN BANK SOAL ATAU PESERTA LAIN!
   const handleLogout = () => {
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
     localStorage.removeItem(STORAGE_KEYS.USER_NAME);
@@ -106,7 +126,7 @@ export default function DashboardPeserta() {
     navigate('/login');
   };
 
-  const handleMulaiUjian = async (e) => {
+  const handleMulaiUjian = (e) => {
     e.preventDefault();
     setTokenError('');
 
@@ -116,27 +136,51 @@ export default function DashboardPeserta() {
     setIsLoading(true);
 
     const inputUpper = tokenInput.trim().toUpperCase();
-    
+
     if (
-      inputUpper === activeExamDetail.tokenDefault || 
-      inputUpper === 'DCC2026' || 
-      inputUpper === '12345' || 
+      inputUpper === activeExamDetail.tokenDefault ||
+      inputUpper === 'DCC2026' ||
+      inputUpper === '12345' ||
       inputUpper === '1234'
     ) {
-      sessionStorage.setItem('examStarted', 'true');
-      sessionStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, activeExamDetail.id);
-      localStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, activeExamDetail.id);
-      localStorage.setItem(STORAGE_KEYS.USER_KATEGORI, activeExamDetail.id);
+      (async () => {
+        // activeExamDetail.id di sini SELALU sama dengan kategori hasil impor
+        // Panitia (lihat penguncian kartu di atas), jadi ini bukan overwrite bebas.
+        sessionStorage.setItem('examStarted', 'true');
+        sessionStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, activeExamDetail.id);
+        localStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, activeExamDetail.id);
+        localStorage.setItem(STORAGE_KEYS.USER_KATEGORI, activeExamDetail.id);
 
-      // UPDATE STATUS BERJALAN DI SUPABASE CLOUD
-      if (techId) {
-        await supabase
-          .from('peserta')
-          .update({ status: 'berjalan', kategori: activeExamDetail.id })
-          .eq('tech_id', techId);
-      }
+        // UPDATE STATUS 'BERJALAN' KE SUPABASE CLOUD (agar Panitia realtime melihat
+        // status "Sedang Ujian"), + LocalStorage sebagai pengaman offline.
+        try {
+          await supabase
+            .from(TABLES.PESERTA)
+            .update({ status: 'berjalan', kategori: activeExamDetail.id })
+            .eq('tech_id', techId);
+        } catch (err) {
+          console.warn('Gagal memperbarui status ke Supabase Cloud, akan tetap tersimpan di LocalStorage.', err);
+        }
 
-      navigate('/ruang-ujian');
+        const localSesi = JSON.parse(localStorage.getItem(STORAGE_KEYS.PESERTA) || '[]');
+        const updatedSesi = localSesi.map(p => {
+          if (p.tech_id?.toLowerCase().trim() === techId.toLowerCase().trim()) {
+            return { ...p, status: 'berjalan', kategori: activeExamDetail.id };
+          }
+          return p;
+        });
+        localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updatedSesi));
+
+        const currentUserStr = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+        if (currentUserStr) {
+          try {
+            const cu = JSON.parse(currentUserStr);
+            localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify({ ...cu, status: 'berjalan', kategori: activeExamDetail.id }));
+          } catch (e) {}
+        }
+
+        navigate('/ruang-ujian');
+      })();
     } else {
       setTokenError(`Token untuk ujian ${activeExamDetail.nama} tidak valid! Gunakan token: ${activeExamDetail.tokenDefault}`);
       setIsLoading(false);
@@ -175,7 +219,7 @@ export default function DashboardPeserta() {
 
       <main className="flex-1 p-6 md:p-10 overflow-y-auto">
         <div className="max-w-4xl mx-auto space-y-6">
-          
+
           <div className="p-6 md:p-8 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-xl">
             <div className="flex items-center gap-5">
               <div className="w-14 h-14 rounded-2xl bg-cyan-400/10 text-cyan-400 border border-cyan-400/20 flex items-center justify-center font-display font-bold shrink-0">
@@ -234,6 +278,14 @@ export default function DashboardPeserta() {
                   <h3 className="text-xs font-display font-bold uppercase tracking-widest">MATA UJIAN ANDA (SESUAI DATA PANITIA)</h3>
                 </div>
 
+                {/*
+                  PENTING: Mata ujian TIDAK BOLEH dipilih bebas oleh peserta.
+                  Kartu ini terkunci ke kategori hasil impor Panitia (Supabase Cloud)
+                  untuk TechID peserta yang login. Sebelumnya di sini ada grid 5 kartu
+                  yang bisa diklik bebas — itu penyebab peserta bisa "pindah"
+                  kategori sendiri sehingga soal di Ruang Ujian jadi tidak sesuai
+                  dengan data yang didaftarkan Panitia.
+                */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="p-5 rounded-2xl border bg-[#0d1527] border-cyan-400 shadow-lg shadow-cyan-400/10 flex flex-col justify-between gap-4 md:col-span-2">
                     <div className="space-y-2">

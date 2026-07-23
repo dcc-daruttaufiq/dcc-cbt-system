@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../utils/supabaseClient';
+import { supabase, TABLES } from '../utils/supabaseClient';
 import { normalizeKategori } from '../utils/examCategories';
 import { STORAGE_KEYS } from '../utils/storageKeys';
 import Card from '../components/ui/Card';
@@ -10,8 +10,8 @@ import { UserCheck, ShieldCheck, Crown } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
-  
-  const [selectedRole, setSelectedRole] = useState('peserta'); 
+
+  const [selectedRole, setSelectedRole] = useState('peserta');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -46,7 +46,7 @@ export default function Login() {
 
         // Query data peserta dari Supabase Cloud
         const { data: listPeserta, error } = await supabase
-          .from('peserta')
+          .from(TABLES.PESERTA)
           .select('*');
 
         if (error) throw error;
@@ -87,14 +87,14 @@ export default function Login() {
         // Update status berjalan di Supabase Cloud jika belum mulai
         if (matchedPeserta.status === 'belum_mulai') {
           await supabase
-            .from('peserta')
+            .from(TABLES.PESERTA)
             .update({ status: 'berjalan' })
             .eq('tech_id', matchedPeserta.tech_id);
         }
 
         const displayName = pesertaTerupdate.nama || pesertaTerupdate.nama_lengkap || 'Peserta Ujian';
 
-        // SIMPAN SESI LOGIN SECARA AKURAT
+        // SIMPAN SESI LOGIN SECARA AKURAT (menyimpan seluruh row Supabase, termasuk `id`)
         localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(pesertaTerupdate));
         localStorage.setItem(STORAGE_KEYS.USER_NAME, displayName);
         localStorage.setItem(STORAGE_KEYS.USER_TECH_ID, pesertaTerupdate.tech_id);
@@ -152,7 +152,7 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-8 border-borderCustom bg-surface space-y-6">
-        
+
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-display font-bold text-primary tracking-wider">PORTAL DCC-CBT</h1>
           <p className="text-xs text-slate-400 font-sans">Pilih peran Anda untuk masuk ke dalam sistem</p>
@@ -234,10 +234,10 @@ export default function Login() {
 
           <div className="flex items-center justify-between text-xs font-sans text-slate-400">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input 
-                type="checkbox" 
-                checked={rememberMe} 
-                onChange={(e) => setRememberMe(e.target.checked)} 
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
                 className="accent-primary rounded"
               />
               <span>Ingat Akses Saya</span>

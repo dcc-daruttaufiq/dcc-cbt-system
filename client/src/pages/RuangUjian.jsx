@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { supabase } from '../utils/supabaseClient';
+import { supabase, TABLES, BUCKET_LAMPIRAN_PRAKTIK } from '../utils/supabaseClient';
 import { normalizeKategori, getLabelKategori } from '../utils/examCategories';
 import { STORAGE_KEYS, jawabanLocalKey } from '../utils/storageKeys';
 import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import { Clock, ChevronLeft, ChevronRight, Save, Send, AlertTriangle, X } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, Save, Send, AlertTriangle, X, HelpCircle, Paperclip, FileCheck } from 'lucide-react';
 
 export default function RuangUjian() {
   useDocumentTitle('Ruang Ujian Berjalan - DCC CBT');
@@ -17,19 +17,21 @@ export default function RuangUjian() {
   const [techId, setTechId] = useState('');
   const [listSoal, setListSoal] = useState([]);
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [jawaban, setJawaban] = useState({}); 
+  const [jawaban, setJawaban] = useState({});
+  const [raguRagu, setRaguRagu] = useState({});
   const [isSaving, setIsSaving] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(5400); 
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(5400);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
-  const [errorState, setErrorState] = useState(''); // Pesan error presisi dikembalikan 100%!
+  const [errorState, setErrorState] = useState(''); // pesan error presisi (bukan fallback diam-diam)
   const [examKategori, setExamKategori] = useState('');
   const timerRef = useRef(null);
+  const fileInputPraktikRef = useRef(null);
 
   const currentUser = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || '{}');
-  const userId = currentUser.user_id || currentUser.tech_id || 'guest';
 
   useEffect(() => {
-    const initData = async () => {
+    const initRuangUjian = async () => {
       const realName = currentUser.nama || currentUser.nama_lengkap || localStorage.getItem(STORAGE_KEYS.USER_NAME) || 'Peserta Ujian';
       const realTechId = currentUser.tech_id || localStorage.getItem(STORAGE_KEYS.USER_TECH_ID) || '';
 
@@ -41,7 +43,9 @@ export default function RuangUjian() {
         return;
       }
 
-      // BACA KATEGORI UJIAN PESERTA (STRICT MATCH)
+      // BACA KATEGORI UJIAN PESERTA. TIDAK ADA DEFAULT 'word' DIAM-DIAM DI SINI —
+      // jika kategori tidak valid, peserta harus diarahkan ke Panitia, BUKAN
+      // dilempar ke soal kategori lain.
       const rawExamId =
         localStorage.getItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY) ||
         sessionStorage.getItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY) ||
@@ -57,56 +61,89 @@ export default function RuangUjian() {
 
       setExamKategori(storedExamId);
 
-      // 1. AMBIL SOAL REALTIME DARI SUPABASE CLOUD
+      // 1. AMBIL BANK SOAL 100% DARI SUPABASE CLOUD (TANPA DUMMY). LocalStorage
+      //    hanya dipakai sebagai cadangan ketika koneksi ke Supabase gagal.
+      let bankSoalImpor = [];
       try {
-        const { data: bankSoalCloud, error } = await supabase
-          .from('bank_soal')
-          .select('*');
-
-        if (error || !Array.isArray(bankSoalCloud) || bankSoalCloud.length === 0) {
-          setErrorState('EMPTY_BANK_SOAL');
-          return;
-        }
-
-        // 2. FILTER SOAL PRESISI SESUAI KATEGORI RESMI
-        const filteredSoal = bankSoalCloud.filter(s => normalizeKategori(s.kategori) === storedExamId);
-
-        if (filteredSoal.length === 0) {
-          setErrorState('EMPTY_KATEGORI');
-          return;
-        }
-
-        setListSoal(filteredSoal);
+        const { data, error } = await supabase.from(TABLES.BANK_SOAL).select('*');
+        if (error) throw error;
+        bankSoalImpor = Array.isArray(data) ? data : [];
+        localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(bankSoalImpor));
       } catch (err) {
-        console.error("Gagal load Supabase:", err);
+        console.warn('Gagal memuat Bank Soal dari Supabase Cloud, menggunakan cache lokal terakhir.', err);
+        try {
+          bankSoalImpor = JSON.parse(localStorage.getItem(STORAGE_KEYS.BANK_SOAL) || '[]');
+        } catch (e) {
+          bankSoalImpor = [];
+        }
+      }
+
+      if (!Array.isArray(bankSoalImpor) || bankSoalImpor.length === 0) {
         setErrorState('EMPTY_BANK_SOAL');
         return;
       }
 
-      // Restore Jawaban Lama (Dua Lapis: LocalStorage + Supabase Cloud)
-      const savedJwbStr = localStorage.getItem(jawabanLocalKey(userId)) || localStorage.getItem(STORAGE_KEYS.JAWABAN_LOCAL_LEGACY);
-      if (savedJwbStr) {
-        try { setJawaban(JSON.parse(savedJwbStr)); } catch (e) {}
+      // 2. FILTER SOAL SECARA PRESISI: HANYA soal dengan kategori (setelah dinormalisasi)
+      //    SAMA PERSIS dengan kategori ujian peserta. TIDAK ADA fallback "tampilkan
+      //    semua soal" — itu penyebab peserta bisa melihat soal mata ujian lain.
+      const filteredSoal = bankSoalImpor.filter(s => normalizeKategori(s.kategori) === storedExamId);
+
+      if (filteredSoal.length === 0) {
+        setErrorState('EMPTY_KATEGORI');
+        return;
       }
 
-      // Ambil juga autosave jawaban dari Supabase jika ada
-      if (realTechId) {
-        const { data: cloudJawaban } = await supabase
-          .from('jawaban_peserta')
+      setListSoal(filteredSoal);
+
+      // 3. RESTORE JAWABAN + STATUS RAGU-RAGU: 100% SUPABASE CLOUD (sumber
+      //    kebenaran) dengan LocalStorage sebagai pengaman jika offline.
+      try {
+        const { data: jawabanRows, error: jawabanErr } = await supabase
+          .from(TABLES.JAWABAN_PESERTA)
           .select('*')
           .eq('tech_id', realTechId);
 
-        if (cloudJawaban && cloudJawaban.length > 0) {
-          const mapJwb = {};
-          cloudJawaban.forEach(j => {
-            mapJwb[j.soal_id] = j.jawaban;
-          });
-          setJawaban(prev => ({ ...prev, ...mapJwb }));
+        if (jawabanErr) throw jawabanErr;
+
+        const restoredJawaban = {};
+        const restoredRagu = {};
+        (jawabanRows || []).forEach((row) => {
+          restoredJawaban[row.soal_id] = row.jawaban;
+          restoredRagu[row.soal_id] = !!row.ragu_ragu;
+        });
+        setJawaban(restoredJawaban);
+        setRaguRagu(restoredRagu);
+
+        // Cadangkan juga ke LocalStorage supaya tetap aman jika koneksi putus di tengah ujian
+        const cachePayload = {};
+        (jawabanRows || []).forEach((row) => {
+          cachePayload[row.soal_id] = { jawaban: row.jawaban, ragu_ragu: !!row.ragu_ragu };
+        });
+        localStorage.setItem(jawabanLocalKey(realTechId), JSON.stringify(cachePayload));
+        localStorage.setItem(STORAGE_KEYS.JAWABAN_LOCAL_LEGACY, JSON.stringify(cachePayload));
+      } catch (err) {
+        console.warn('Gagal memuat jawaban dari Supabase Cloud, mencoba cache lokal...', err);
+        const savedJwbStr = localStorage.getItem(jawabanLocalKey(realTechId)) || localStorage.getItem(STORAGE_KEYS.JAWABAN_LOCAL_LEGACY);
+        if (savedJwbStr) {
+          try {
+            const parsed = JSON.parse(savedJwbStr);
+            const restoredJawaban = {};
+            const restoredRagu = {};
+            Object.keys(parsed).forEach((soalId) => {
+              const entry = parsed[soalId];
+              const isWrapped = entry && typeof entry === 'object' && 'jawaban' in entry;
+              restoredJawaban[soalId] = isWrapped ? entry.jawaban : entry;
+              restoredRagu[soalId] = isWrapped ? !!entry.ragu_ragu : false;
+            });
+            setJawaban(restoredJawaban);
+            setRaguRagu(restoredRagu);
+          } catch (e) {}
         }
       }
     };
 
-    initData();
+    initRuangUjian();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -122,6 +159,7 @@ export default function RuangUjian() {
       }, 1000);
     }
     return () => clearInterval(timerRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeLeft]);
 
   const formatTime = (seconds) => {
@@ -131,24 +169,32 @@ export default function RuangUjian() {
     return `${h}:${m}:${s}`;
   };
 
-  const executeAutosave = async (soalId, dataJawaban) => {
+  // AUTOSAVE JAWABAN + STATUS RAGU-RAGU: REALTIME KE SUPABASE CLOUD (upsert
+  // per soal), + LocalStorage sebagai pengaman jika koneksi gagal.
+  const persistJawaban = async (soalId, jawabanValue, raguValue) => {
     setIsSaving(true);
-    // 1. Autosave Lokal (Cepat)
+
     try {
-      const savedLocal = JSON.parse(localStorage.getItem(jawabanLocalKey(userId)) || '{}');
-      savedLocal[soalId] = dataJawaban;
-      localStorage.setItem(jawabanLocalKey(userId), JSON.stringify(savedLocal));
+      const savedLocal = JSON.parse(localStorage.getItem(jawabanLocalKey(techId)) || '{}');
+      savedLocal[soalId] = { jawaban: jawabanValue, ragu_ragu: raguValue };
+      localStorage.setItem(jawabanLocalKey(techId), JSON.stringify(savedLocal));
       localStorage.setItem(STORAGE_KEYS.JAWABAN_LOCAL_LEGACY, JSON.stringify(savedLocal));
     } catch (e) {}
 
-    // 2. Autosave Cloud Supabase (Terpusat)
-    if (techId) {
-      await supabase.from('jawaban_peserta').upsert({
-        tech_id: techId,
-        soal_id: soalId,
-        jawaban: dataJawaban,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'tech_id,soal_id' });
+    try {
+      const { error } = await supabase.from(TABLES.JAWABAN_PESERTA).upsert(
+        {
+          tech_id: techId,
+          soal_id: soalId,
+          jawaban: jawabanValue,
+          ragu_ragu: raguValue,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'tech_id,soal_id' }
+      );
+      if (error) throw error;
+    } catch (err) {
+      console.warn('Gagal autosave ke Supabase Cloud, jawaban tetap aman di LocalStorage sebagai pengaman.', err);
     }
 
     setTimeout(() => setIsSaving(false), 300);
@@ -158,15 +204,69 @@ export default function RuangUjian() {
     const nilaiSimpan = labelHuruf || opsiTeks;
     const updated = { ...jawaban, [soalAktif.id]: nilaiSimpan };
     setJawaban(updated);
-    executeAutosave(soalAktif.id, nilaiSimpan);
+    persistJawaban(soalAktif.id, nilaiSimpan, raguRagu[soalAktif.id] || false);
   };
 
   const handleTextareaPraktik = (val) => {
-    const dataLama = jawaban[soalAktif.id] || { teks: '', fileName: '' };
+    const dataLama = jawaban[soalAktif.id] || { teks: '', fileName: '', fileUrl: '' };
     const dataBaru = { ...dataLama, teks: val };
     const updated = { ...jawaban, [soalAktif.id]: dataBaru };
     setJawaban(updated);
-    executeAutosave(soalAktif.id, dataBaru);
+    persistJawaban(soalAktif.id, dataBaru, raguRagu[soalAktif.id] || false);
+  };
+
+  // TOMBOL RAGU-RAGU: menandai/batal menandai soal aktif sebagai ragu-ragu.
+  // Status ini tersimpan realtime ke Supabase Cloud + LocalStorage, dan
+  // tercermin di navigasi nomor soal (warna kuning) & tombol bawah.
+  const toggleRaguRagu = () => {
+    if (!soalAktif) return;
+    const soalId = soalAktif.id;
+    const newRaguValue = !raguRagu[soalId];
+    const updated = { ...raguRagu, [soalId]: newRaguValue };
+    setRaguRagu(updated);
+    persistJawaban(soalId, jawaban[soalId] !== undefined ? jawaban[soalId] : null, newRaguValue);
+  };
+
+  // UPLOAD LAMPIRAN PRAKTIK (.docx/.xlsx/.pdf) KE SUPABASE STORAGE (bucket
+  // "lampiran_praktik"), lalu simpan public URL-nya ke jawaban_peserta.
+  const handleFileLampiranChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const allowedExt = ['.docx', '.xlsx', '.pdf'];
+    const ext = '.' + (file.name.split('.').pop() || '').toLowerCase();
+    if (!allowedExt.includes(ext)) {
+      alert('Format file tidak didukung! Hanya menerima file .docx, .xlsx, atau .pdf');
+      e.target.value = '';
+      return;
+    }
+
+    setIsUploadingFile(true);
+    try {
+      const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `${techId}/${soalAktif.id}_${Date.now()}_${safeFileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(BUCKET_LAMPIRAN_PRAKTIK)
+        .upload(path, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from(BUCKET_LAMPIRAN_PRAKTIK).getPublicUrl(path);
+      const fileUrl = urlData?.publicUrl || '';
+
+      const dataLama = jawaban[soalAktif.id] || { teks: '', fileName: '', fileUrl: '' };
+      const dataBaru = { ...dataLama, fileName: file.name, fileUrl };
+      const updated = { ...jawaban, [soalAktif.id]: dataBaru };
+      setJawaban(updated);
+      await persistJawaban(soalAktif.id, dataBaru, raguRagu[soalAktif.id] || false);
+    } catch (err) {
+      console.error('Gagal mengunggah lampiran praktik ke Supabase Storage:', err);
+      alert('Gagal mengunggah lampiran praktik ke Supabase Cloud. Periksa koneksi internet Anda dan coba lagi. Jawaban teks Anda tetap aman tersimpan.');
+    } finally {
+      setIsUploadingFile(false);
+      e.target.value = '';
+    }
   };
 
   const handleAutoSubmit = async () => {
@@ -183,32 +283,70 @@ export default function RuangUjian() {
     });
 
     const calculatedSkorPG = soalPG.length > 0 ? Math.round((benarCount / soalPG.length) * 100) : 0;
+    const waktuSelesai = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
 
-    // UPDATE DATABASE SUPABASE CLOUD
-    if (techId) {
-      await supabase
-        .from('peserta')
+    // UPDATE STATUS SELESAI KE SUPABASE CLOUD (sumber kebenaran untuk Panitia)
+    try {
+      const { error } = await supabase
+        .from(TABLES.PESERTA)
         .update({
           status: 'selesai',
           status_koreksi: 'belum_dikoreksi',
           nilai_pg: calculatedSkorPG,
           nilai_akhir: calculatedSkorPG,
-          waktu_selesai: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB'
+          waktu_selesai: waktuSelesai,
         })
         .eq('tech_id', techId);
+
+      if (error) throw error;
+    } catch (err) {
+      console.warn('Gagal memperbarui status selesai ke Supabase Cloud, tetap tersimpan di LocalStorage sebagai pengaman.', err);
+    }
+
+    // LOCALSTORAGE SEBAGAI PENGAMAN
+    let listSesiLokal = JSON.parse(localStorage.getItem(STORAGE_KEYS.PESERTA) || '[]');
+    listSesiLokal = listSesiLokal.map(p => {
+      if (p.tech_id?.toLowerCase().trim() === techId.toLowerCase().trim()) {
+        return {
+          ...p,
+          status: 'selesai',
+          status_koreksi: 'belum_dikoreksi',
+          nilai_pg: calculatedSkorPG,
+          nilai_akhir: calculatedSkorPG,
+          waktu_selesai: waktuSelesai
+        };
+      }
+      return p;
+    });
+    localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(listSesiLokal));
+
+    const currentUserStr = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+    if (currentUserStr) {
+      try {
+        const cu = JSON.parse(currentUserStr);
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify({
+          ...cu,
+          status: 'selesai',
+          status_koreksi: 'belum_dikoreksi',
+          nilai_pg: calculatedSkorPG,
+          nilai_akhir: calculatedSkorPG,
+          waktu_selesai: waktuSelesai
+        }));
+      } catch (e) {}
     }
 
     navigate('/dashboard-peserta');
   };
 
-  // LAYAR ERROR PRESISI DIKEMBALIKAN UTUH 100%
+  // STATE ERROR PRESISI: setiap kondisi gagal punya pesan yang jelas dan berbeda,
+  // TIDAK ADA fallback diam-diam ke data/kategori lain.
   if (errorState) {
     let judul = 'Ruang Ujian Tidak Dapat Dibuka';
     let pesan = errorState;
 
     if (errorState === 'EMPTY_BANK_SOAL') {
       judul = 'Bank Soal Masih Kosong';
-      pesan = 'Panitia belum mengimpor Bank Soal sama sekali di database Cloud. Silakan login sebagai Panitia lalu impor file Excel/CSV Bank Soal terlebih dahulu.';
+      pesan = 'Panitia belum mengimpor Bank Soal sama sekali ke Supabase Cloud. Silakan login sebagai Panitia lalu impor file Excel/CSV Bank Soal terlebih dahulu.';
     } else if (errorState === 'EMPTY_KATEGORI') {
       judul = 'Soal Untuk Kategori Anda Belum Tersedia';
       pesan = `Belum ada soal untuk kategori "${getLabelKategori(examKategori)}" di Bank Soal. Silakan hubungi Panitia untuk mengimpor soal kategori ini — sistem tidak akan menampilkan soal dari kategori lain.`;
@@ -226,14 +364,17 @@ export default function RuangUjian() {
   }
 
   if (listSoal.length === 0) {
+    // Fallback pengaman render (juga berfungsi sebagai indikator loading saat
+    // soal & jawaban masih diambil dari Supabase Cloud)
     return (
       <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center gap-3 p-4 text-center">
-        <p className="text-sm font-bold text-cyan-400">Memuat soal ujian dari Supabase Cloud...</p>
+        <p className="text-sm font-bold text-cyan-400">Memuat soal ujian...</p>
       </div>
     );
   }
 
   const soalAktif = listSoal[currentIdx] || listSoal[0];
+  const isSoalAktifRagu = !!raguRagu[soalAktif?.id];
 
   return (
     <div className="min-h-screen bg-[#030712] text-slate-100 font-sans flex flex-col select-none">
@@ -256,11 +397,16 @@ export default function RuangUjian() {
 
       <main className="flex-1 p-4 md:p-6 max-w-6xl w-full mx-auto grid grid-cols-1 lg:grid-cols-4 gap-6 overflow-y-auto">
         <div className="lg:col-span-3 space-y-5">
-          <div className="p-4 rounded-2xl bg-[#0d1527]/50 border border-slate-800/50 flex items-center justify-between">
-            <Badge variant="primary" className="text-xs px-3 py-1 font-bold">SOAL NO. {currentIdx + 1}</Badge>
-            <span className="text-xs text-slate-400 flex items-center gap-1">
-              <Save className="w-3.5 h-3.5 text-cyan-400" /> {isSaving ? 'Menyimpan...' : 'Autosave Cloud Aktif'}
-            </span>
+          <div className="p-4 rounded-2xl bg-[#0d1527]/50 border border-slate-800/50 flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="primary" className="text-xs px-3 py-1 font-bold">SOAL NO. {currentIdx + 1}</Badge>
+              {isSoalAktifRagu && (
+                <Badge className="bg-amber-400/20 text-amber-400 border-amber-400/50 text-xs px-3 py-1 font-bold flex items-center gap-1.5">
+                  <HelpCircle className="w-3.5 h-3.5" /> RAGU-RAGU
+                </Badge>
+              )}
+            </div>
+            <span className="text-xs text-slate-400 flex items-center gap-1"><Save className="w-3.5 h-3.5 text-cyan-400" /> {isSaving ? 'Menyimpan...' : 'Autosave Aktif'}</span>
           </div>
 
           <div className="p-6 md:p-8 rounded-2xl bg-[#0d1527]/40 border border-slate-800/50 min-h-[340px] flex flex-col justify-between space-y-6">
@@ -269,9 +415,9 @@ export default function RuangUjian() {
 
               {soalAktif?.tipe === 'pg' ? (
                 <div className="grid grid-cols-1 gap-3 pt-2">
-                  {soalAktif?.opsi && (typeof soalAktif.opsi === 'string' ? JSON.parse(soalAktif.opsi) : soalAktif.opsi).map((opsiTeks, idx) => {
+                  {soalAktif?.opsi && soalAktif.opsi.map((opsiTeks, idx) => {
                     const labelHuruf = String.fromCharCode(65 + idx);
-                    const isSelected = jawaban[soalAktif.id] === labelHuruf || jawaban[soalAktif.id] === opsiTeks;
+                    const isSelected = jawaban[soalAktif.id] === labelHuruf;
 
                     return (
                       <div
@@ -290,20 +436,58 @@ export default function RuangUjian() {
                   })}
                 </div>
               ) : (
-                <textarea
-                  rows={5}
-                  placeholder="Tuliskan jawaban praktik Anda di sini..."
-                  value={jawaban[soalAktif?.id]?.teks || ''}
-                  onChange={(e) => handleTextareaPraktik(e.target.value)}
-                  className="w-full p-4 bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-xs text-white rounded-xl focus:outline-none font-mono"
-                />
+                <div className="space-y-3">
+                  <textarea
+                    rows={5}
+                    placeholder="Tuliskan jawaban praktik Anda di sini..."
+                    value={jawaban[soalAktif?.id]?.teks || ''}
+                    onChange={(e) => handleTextareaPraktik(e.target.value)}
+                    className="w-full p-4 bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-xs text-white rounded-xl focus:outline-none font-mono"
+                  />
+
+                  {/* TOMBOL UPLOAD/UNGGAH FILE LAMPIRAN PRAKTIK (.docx/.xlsx/.pdf) -> SUPABASE STORAGE */}
+                  <input
+                    type="file"
+                    ref={fileInputPraktikRef}
+                    onChange={handleFileLampiranChange}
+                    accept=".docx,.xlsx,.pdf"
+                    className="hidden"
+                  />
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <Button
+                      type="button"
+                      onClick={() => fileInputPraktikRef.current && fileInputPraktikRef.current.click()}
+                      disabled={isUploadingFile}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs border-0 flex items-center gap-2 w-fit"
+                    >
+                      <Paperclip className="w-3.5 h-3.5" /> {isUploadingFile ? 'Mengunggah Lampiran...' : 'Unggah Lampiran Praktik (.docx/.xlsx/.pdf)'}
+                    </Button>
+                    {jawaban[soalAktif?.id]?.fileName && (
+                      <span className="text-xs text-emerald-400 font-mono flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg break-all">
+                        <FileCheck className="w-3.5 h-3.5 shrink-0" /> {jawaban[soalAktif.id].fileName}
+                      </span>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-800/40 pt-5 gap-2">
+            <div className="flex items-center justify-between border-t border-slate-800/40 pt-5 gap-2 flex-wrap">
               <Button onClick={() => setCurrentIdx(Math.max(0, currentIdx - 1))} disabled={currentIdx === 0} className="bg-slate-800 text-slate-300 text-xs border-0">
                 <ChevronLeft className="w-4 h-4 mr-1" /> Kembali
               </Button>
+
+              {/* TOMBOL RAGU-RAGU (KUNING) */}
+              <Button
+                type="button"
+                onClick={toggleRaguRagu}
+                className={`text-xs border-0 font-bold flex items-center gap-1.5 ${
+                  isSoalAktifRagu ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-slate-800 text-amber-400 hover:bg-slate-700'
+                }`}
+              >
+                <HelpCircle className="w-4 h-4" /> {isSoalAktifRagu ? 'Batal Ragu-ragu' : 'Tandai Ragu-ragu'}
+              </Button>
+
               <Button
                 onClick={() => {
                   if (currentIdx < listSoal.length - 1) setCurrentIdx(currentIdx + 1);
@@ -322,14 +506,22 @@ export default function RuangUjian() {
           <div className="grid grid-cols-5 gap-2">
             {listSoal.map((item, index) => {
               const isCurrent = index === currentIdx;
-              const isAnswered = jawaban[item.id] !== undefined;
+              const isAnswered = jawaban[item.id] !== undefined && jawaban[item.id] !== null && jawaban[item.id] !== '';
+              const isRagu = !!raguRagu[item.id];
 
               return (
                 <button
                   key={index}
                   onClick={() => setCurrentIdx(index)}
+                  title={isRagu ? 'Ditandai Ragu-ragu' : undefined}
                   className={`h-10 rounded-xl font-bold text-xs border transition-all ${
-                    isCurrent ? 'ring-2 ring-cyan-400 bg-cyan-400 text-slate-950' : isAnswered ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-[#030712] text-slate-400 border-slate-800'
+                    isCurrent
+                      ? 'ring-2 ring-cyan-400 bg-cyan-400 text-slate-950'
+                      : isRagu
+                      ? 'bg-amber-400/20 text-amber-400 border-amber-400/60'
+                      : isAnswered
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50'
+                      : 'bg-[#030712] text-slate-400 border-slate-800'
                   }`}
                 >
                   {index + 1}
@@ -337,6 +529,14 @@ export default function RuangUjian() {
               );
             })}
           </div>
+
+          {/* LEGENDA WARNA NAVIGASI */}
+          <div className="flex flex-wrap gap-3 text-[10px] text-slate-400 pt-1">
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500/60 inline-block" /> Terjawab</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400/70 inline-block" /> Ragu-ragu</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-slate-700 inline-block" /> Belum Dijawab</span>
+          </div>
+
           <Button onClick={() => setShowSubmitModal(true)} className="w-full mt-4 py-3 bg-cyan-400 text-slate-950 font-bold text-xs border-0 rounded-xl flex items-center justify-center gap-2">
             <Send className="w-3.5 h-3.5" /> SUBMIT SELESAI
           </Button>
@@ -347,7 +547,12 @@ export default function RuangUjian() {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#0d1527] border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-5">
             <h3 className="text-sm font-bold text-white flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-400" /> Konfirmasi Selesai Ujian</h3>
-            <p className="text-xs text-slate-300">Apakah Anda yakin ingin menyelesaikan ujian ini? Jawaban akan tersimpan permanen di Supabase Cloud.</p>
+            <p className="text-xs text-slate-300">Apakah Anda yakin ingin menyelesaikan ujian ini?</p>
+            {Object.values(raguRagu).some(Boolean) && (
+              <p className="text-[11px] text-amber-400 bg-amber-400/10 border border-amber-400/30 rounded-lg p-2.5 flex items-center gap-2">
+                <HelpCircle className="w-3.5 h-3.5 shrink-0" /> Anda masih memiliki soal yang ditandai Ragu-ragu.
+              </p>
+            )}
             <div className="flex gap-3">
               <Button onClick={() => setShowSubmitModal(false)} className="flex-1 bg-slate-800 text-xs border-0">Batal</Button>
               <Button onClick={handleAutoSubmit} className="flex-1 bg-cyan-400 text-slate-950 font-bold text-xs border-0">Ya, Submit</Button>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { supabase } from '../utils/supabaseClient';
+import { supabase, TABLES } from '../utils/supabaseClient';
 import { KATEGORI_RESMI, getLabelKategori, normalizeKategori } from '../utils/examCategories';
+import { STORAGE_KEYS } from '../utils/storageKeys';
 import Sidebar from '../components/ui/Sidebar';
 import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
@@ -10,15 +11,26 @@ import Input from '../components/ui/Input';
 import Textarea from '../components/ui/Textarea';
 import Select from '../components/ui/Select';
 import Badge from '../components/ui/Badge';
-import { Plus, Trash2, Edit3, Save, X, Database, Layers, Download, Upload, FileSpreadsheet } from 'lucide-react';
+import { Plus, Trash2, Edit3, Save, X, Database, Layers, Download, Upload, FileSpreadsheet, WifiOff } from 'lucide-react';
+
+// TIDAK ADA DATA DUMMY DI SINI. Bank soal 100% murni berasal dari Supabase
+// Cloud (tabel `bank_soal`), diisi lewat:
+// 1) Import Excel/CSV oleh Panitia, atau
+// 2) Import JSON (Backup), atau
+// 3) Input manual oleh Panitia lewat form di halaman ini.
+// LocalStorage HANYA dipakai sebagai cache/pengaman saat offline — Supabase
+// Cloud adalah satu-satunya sumber kebenaran (source of truth).
 
 export default function BankSoal() {
-  useDocumentTitle('Manajemen Bank Soal Cloud - DCC CBT');
+  useDocumentTitle('Manajemen Bank Soal - DCC CBT');
 
   const [listSoal, setDataSoal] = useState([]);
   const [filterKategori, setFilterKategori] = useState('semua');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isOffline, setIsOffline] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form States
   const [kategori, setKategori] = useState('word');
@@ -38,19 +50,39 @@ export default function BankSoal() {
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
-  // FETCH SOAL DIRECT SUPABASE CLOUD
+  // LOGIKA FETCH SOAL: 100% SUPABASE CLOUD.
+  // LocalStorage hanya dipakai sebagai fallback tampilan saat koneksi ke
+  // Supabase gagal (mode offline), BUKAN sebagai sumber data utama.
   const fetchSoal = async () => {
+    setIsLoading(true);
     try {
       const { data, error } = await supabase
-        .from('bank_soal')
+        .from(TABLES.BANK_SOAL)
         .select('*')
-        .order('id', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setDataSoal(data || []);
+
+      const rows = Array.isArray(data) ? data : [];
+      setDataSoal(rows);
+      setIsOffline(false);
+      localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(rows));
     } catch (err) {
-      console.error("Gagal mengambil soal dari Supabase:", err);
-      setDataSoal([]);
+      console.warn('Gagal terhubung ke Supabase Cloud, menampilkan cache lokal terakhir.', err);
+      setIsOffline(true);
+      const savedLocal = localStorage.getItem(STORAGE_KEYS.BANK_SOAL);
+      if (savedLocal) {
+        try {
+          const parsed = JSON.parse(savedLocal);
+          setDataSoal(Array.isArray(parsed) ? parsed : []);
+        } catch (e) {
+          setDataSoal([]);
+        }
+      } else {
+        setDataSoal([]);
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -87,60 +119,72 @@ export default function BankSoal() {
     setTipe(soal.tipe);
     setPertanyaan(soal.pertanyaan);
     if (soal.tipe === 'pg') {
-      const opsiArr = typeof soal.opsi === 'string' ? JSON.parse(soal.opsi) : (soal.opsi || []);
       setOpsi({
-        A: opsiArr[0]?.replace(/^A\.\s*/, '') || '',
-        B: opsiArr[1]?.replace(/^B\.\s*/, '') || '',
-        C: opsiArr[2]?.replace(/^C\.\s*/, '') || '',
-        D: opsiArr[3]?.replace(/^D\.\s*/, '') || ''
+        A: soal.opsi?.[0]?.replace(/^A\.\s*/, '') || '',
+        B: soal.opsi?.[1]?.replace(/^B\.\s*/, '') || '',
+        C: soal.opsi?.[2]?.replace(/^C\.\s*/, '') || '',
+        D: soal.opsi?.[3]?.replace(/^D\.\s*/, '') || ''
       });
       setJawabanBenar(soal.jawaban_benar || soal.jawabanBenar || 'A');
     } else {
-      const checkArr = typeof soal.checklist === 'string' ? JSON.parse(soal.checklist) : (soal.checklist || []);
-      setChecklist(checkArr);
+      setChecklist(soal.checklist || []);
     }
     setIsModalOpen(true);
   };
 
   const handleDelete = async (id) => {
-    if (confirm('Apakah Anda yakin ingin menghapus soal ini dari Supabase Cloud?')) {
-      const { error } = await supabase.from('bank_soal').delete().eq('id', id);
-      if (!error) {
-        fetchSoal();
-      } else {
-        alert("Gagal menghapus: " + error.message);
-      }
+    if (!confirm('Apakah Anda yakin ingin menghapus soal ini?')) return;
+
+    try {
+      const { error } = await supabase.from(TABLES.BANK_SOAL).delete().eq('id', id);
+      if (error) throw error;
+
+      const updated = listSoal.filter((item) => item.id !== id);
+      setDataSoal(updated);
+      localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(updated));
+    } catch (err) {
+      console.error('Gagal menghapus soal di Supabase Cloud:', err);
+      alert('Gagal menghapus soal di Supabase Cloud. Periksa koneksi internet Anda dan coba lagi.');
     }
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
     if (!pertanyaan.trim()) return alert('Teks pertanyaan wajib diisi!');
+    setIsSubmitting(true);
 
-    const formatOpsi = tipe === 'pg' ? [`A. ${opsi.A}`, `B. ${opsi.B}`, `C. ${opsi.C}`, `D. ${opsi.D}`] : null;
+    const formatOpsi = tipe === 'pg' ? [`A. ${opsi.A}`, `B. ${opsi.B}`, `C. ${opsi.C}`, `D. ${opsi.D}`] : [];
 
     const payload = {
       kategori,
       tipe,
       pertanyaan,
-      opsi: formatOpsi,
+      opsi: tipe === 'pg' ? formatOpsi : [],
       jawaban_benar: tipe === 'pg' ? jawabanBenar : null,
-      checklist: tipe === 'praktik' ? checklist : null
+      checklist: tipe === 'praktik' ? checklist : [],
     };
 
-    if (editingId) {
-      const { error } = await supabase.from('bank_soal').update(payload).eq('id', editingId);
-      if (error) alert("Gagal update soal: " + error.message);
-    } else {
-      const { error } = await supabase.from('bank_soal').insert([payload]);
-      if (error) alert("Gagal tambah soal: " + error.message);
-    }
+    try {
+      if (editingId) {
+        const { error } = await supabase.from(TABLES.BANK_SOAL).update(payload).eq('id', editingId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from(TABLES.BANK_SOAL).insert(payload);
+        if (error) throw error;
+      }
 
-    setIsModalOpen(false);
-    fetchSoal();
+      setIsModalOpen(false);
+      await fetchSoal();
+    } catch (err) {
+      console.error('Gagal menyimpan soal ke Supabase Cloud:', err);
+      alert('Gagal menyimpan soal ke Supabase Cloud. Periksa koneksi internet Anda dan coba lagi.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  // HANDLER IMPORT EXCEL/CSV MULTI-DELIMITER DIRECT SUPABASE CLOUD
+  // HANDLER IMPORT EXCEL / CSV CANGGIH (MULTIPLE DELIMITER DETECTOR: KOMA, TITIK KOMA, ATAU TAB)
+  // Hasil parsing langsung di-insert ke Supabase Cloud (bulk insert).
   const handleImportExcelCSV = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -153,13 +197,23 @@ export default function BankSoal() {
       let skippedKategoriTidakDikenal = 0;
 
       lines.forEach((line, index) => {
-        if (index === 0 && (line.toLowerCase().includes('kategori') || line.toLowerCase().includes('pertanyaan'))) return;
+        // Skip header
+        if (index === 0 && (line.toLowerCase().includes('kategori') || line.toLowerCase().includes('pertanyaan'))) {
+          return;
+        }
 
-        let delimiter = line.includes(';') ? ';' : line.includes('\t') ? '\t' : ',';
+        // DETEKSI OTOMATIS PEMISAH KOLOM (TITIK KOMA, KOMA, ATAU TAB)
+        let delimiter = ',';
+        if (line.includes(';')) delimiter = ';';
+        else if (line.includes('\t')) delimiter = '\t';
+
         const regex = new RegExp(`${delimiter}(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)`);
         const cols = line.split(regex).map(c => c.replace(/^"|"$/g, '').trim());
 
         if (cols.length >= 3) {
+          // MAPPER 5 KATEGORI RESMI (TERPUSAT). Jika kategori pada file Excel tidak
+          // bisa dipetakan ke salah satu dari 5 kategori resmi, baris ini DILEWATI
+          // (bukan dipaksa jadi 'word') agar Panitia sadar ada data yang perlu diperbaiki.
           const finalKategori = normalizeKategori(cols[0]);
           if (!finalKategori) {
             skippedKategoriTidakDikenal++;
@@ -171,12 +225,18 @@ export default function BankSoal() {
 
           if (tnya && !tnya.toLowerCase().includes('pertanyaan')) {
             if (tpe === 'pg') {
+              const opsA = cols[3] || '';
+              const opsB = cols[4] || '';
+              const opsC = cols[5] || '';
+              const opsD = cols[6] || '';
+              const knci = (cols[7] || 'A').toUpperCase();
+
               importedSoalArr.push({
                 kategori: finalKategori,
                 tipe: 'pg',
                 pertanyaan: tnya,
-                opsi: [`A. ${cols[3] || ''}`, `B. ${cols[4] || ''}`, `C. ${cols[5] || ''}`, `D. ${cols[6] || ''}`],
-                jawaban_benar: (cols[7] || 'A').toUpperCase()
+                opsi: [`A. ${opsA}`, `B. ${opsB}`, `C. ${opsC}`, `D. ${opsD}`],
+                jawaban_benar: knci,
               });
             } else {
               const rubrikRaw = cols[8] || cols[3] || 'Kesesuaian pengerjaan, Kerapihan berkas';
@@ -186,38 +246,44 @@ export default function BankSoal() {
                 kategori: finalKategori,
                 tipe: 'praktik',
                 pertanyaan: tnya,
-                checklist: rubrikArr
+                checklist: rubrikArr,
               });
             }
           }
         }
       });
 
-      if (importedSoalArr.length > 0) {
-        const { error } = await supabase.from('bank_soal').insert(importedSoalArr);
-        if (!error) {
-          let msg = `Berhasil mengimpor ${importedSoalArr.length} soal ke Supabase Cloud! Terpetakan ke 5 Kategori Ujian resmi.`;
-          if (skippedKategoriTidakDikenal > 0) {
-            msg += `\n\nPERINGATAN: ${skippedKategoriTidakDikenal} baris DILEWATI karena kolom Kategori tidak cocok dengan 5 kategori resmi.`;
-          }
-          alert(msg);
-          fetchSoal();
-        } else {
-          alert("Gagal mengunggah ke Supabase: " + error.message);
-        }
-      } else {
+      if (importedSoalArr.length === 0) {
         const pesanTambahan = skippedKategoriTidakDikenal > 0
           ? ` ${skippedKategoriTidakDikenal} baris dilewati karena kolom Kategori tidak dikenali.`
           : '';
         alert(`Tidak ada soal valid yang berhasil diimpor!${pesanTambahan} Periksa format kolom (Kategori, Tipe, Pertanyaan, ...).`);
+        e.target.value = '';
+        return;
+      }
+
+      try {
+        const { error } = await supabase.from(TABLES.BANK_SOAL).insert(importedSoalArr);
+        if (error) throw error;
+
+        await fetchSoal();
+
+        let msg = `Berhasil mengimpor ${importedSoalArr.length} soal ke Supabase Cloud! Terpetakan ke 5 Kategori Ujian resmi.`;
+        if (skippedKategoriTidakDikenal > 0) {
+          msg += `\n\nPERINGATAN: ${skippedKategoriTidakDikenal} baris DILEWATI karena kolom Kategori tidak cocok dengan 5 kategori resmi (word/excel/powerpoint/desain/pemrograman). Periksa kembali file Excel Anda.`;
+        }
+        alert(msg);
+      } catch (err) {
+        console.error('Gagal mengimpor soal ke Supabase Cloud:', err);
+        alert('Gagal mengimpor soal ke Supabase Cloud. Periksa koneksi internet Anda dan coba lagi.');
+      } finally {
+        e.target.value = '';
       }
     };
 
     reader.readAsText(file);
-    e.target.value = '';
   };
 
-  // EKSPOR BACKUP JSON (DARI KODE ASLI KAMU)
   const handleExportBackup = () => {
     if (listSoal.length === 0) return alert('Belum ada soal untuk diekspor!');
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(listSoal, null, 2));
@@ -229,7 +295,9 @@ export default function BankSoal() {
     downloadAnchor.remove();
   };
 
-  // IMPOR BACKUP JSON LANGSUNG KE SUPABASE CLOUD (DARI KODE ASLI KAMU)
+  // IMPORT BACKUP JSON -> INSERT KE SUPABASE CLOUD.
+  // `id` bawaan file backup lama SENGAJA dibuang sebelum insert karena kolom
+  // `id` di Supabase adalah bigint identity (auto-generate), bukan diisi manual.
   const handleImportBackup = (e) => {
     const fileReader = new FileReader();
     if (e.target.files && e.target.files[0]) {
@@ -237,32 +305,39 @@ export default function BankSoal() {
       fileReader.onload = async (event) => {
         try {
           const parsed = JSON.parse(event.target.result);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const cleaned = parsed.map(s => ({
-              kategori: normalizeKategori(s.kategori) || 'word',
-              tipe: s.tipe || 'pg',
-              pertanyaan: s.pertanyaan,
-              opsi: s.opsi || null,
-              jawaban_benar: s.jawaban_benar || s.jawabanBenar || null,
-              checklist: s.checklist || null
-            }));
-
-            const { error } = await supabase.from('bank_soal').insert(cleaned);
-            if (!error) {
-              alert(`Berhasil mengimpor ${parsed.length} soal dari file JSON ke Supabase Cloud!`);
-              fetchSoal();
-            } else {
-              alert("Gagal menyimpan JSON ke Supabase: " + error.message);
-            }
+          if (!Array.isArray(parsed)) {
+            alert('Gagal membaca file JSON! Format harus berupa array soal.');
+            return;
           }
-        } catch (err) { alert('Gagal membaca file JSON!'); }
+
+          const payload = parsed.map((item) => ({
+            kategori: normalizeKategori(item.kategori) || item.kategori || 'word',
+            tipe: item.tipe || 'pg',
+            pertanyaan: item.pertanyaan || '',
+            opsi: item.opsi || [],
+            jawaban_benar: item.jawaban_benar || item.jawabanBenar || null,
+            checklist: item.checklist || [],
+          }));
+
+          const { error } = await supabase.from(TABLES.BANK_SOAL).insert(payload);
+          if (error) throw error;
+
+          await fetchSoal();
+          alert(`Berhasil mengimpor ${payload.length} soal ke Bank Soal Supabase Cloud!`);
+        } catch (err) {
+          console.error('Gagal mengimpor backup JSON ke Supabase Cloud:', err);
+          alert('Gagal membaca/mengimpor file JSON ke Supabase Cloud!');
+        } finally {
+          e.target.value = '';
+        }
       };
     }
   };
 
-  const filteredSoalList = filterKategori === 'semua'
-    ? listSoal
-    : listSoal.filter((item) => (item.kategori || 'word') === filterKategori);
+  const filteredSoalList =
+    filterKategori === 'semua'
+      ? listSoal
+      : listSoal.filter((item) => (item.kategori || 'word') === filterKategori);
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
@@ -274,9 +349,14 @@ export default function BankSoal() {
             <div className="flex items-center gap-3">
               <Database className="text-cyan-400 w-5 h-5" />
               <div>
-                <h1 className="text-sm font-display font-bold text-white tracking-wide">BANK SOAL (SUPABASE LIVE)</h1>
+                <h1 className="text-sm font-display font-bold text-white tracking-wide">BANK SOAL (LIVE DB)</h1>
                 <p className="text-[11px] text-slate-400">Kelola & Import Bank Soal Spesialisasi</p>
               </div>
+              {isOffline && (
+                <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-1 rounded-lg">
+                  <WifiOff className="w-3 h-3" /> Mode Offline (Cache Lokal)
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -304,11 +384,13 @@ export default function BankSoal() {
 
         <main className="p-8 flex-1 overflow-y-auto">
           <div className="max-w-5xl mx-auto space-y-4">
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
               <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
                 Daftar Soal Tersedia ({filteredSoalList.length})
               </h2>
 
+              {/* 5 FILTER KATEGORI MURNI PER SEMESTER */}
               <div className="flex gap-1 bg-[#0d1527] p-1 rounded-xl border border-slate-800/80 text-[11px] overflow-x-auto">
                 {['semua', ...KATEGORI_RESMI].map((kat) => (
                   <button
@@ -325,13 +407,17 @@ export default function BankSoal() {
             </div>
 
             <div className="space-y-3">
-              {filteredSoalList.length === 0 ? (
+              {isLoading ? (
+                <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
+                  Memuat Bank Soal dari Supabase Cloud...
+                </div>
+              ) : filteredSoalList.length === 0 ? (
                 <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
                   Belum ada soal untuk kategori ini. Klik <strong>"Import Excel / CSV"</strong> atau <strong>"Tambah Manual"</strong> di atas.
                 </div>
               ) : (
                 filteredSoalList.map((row, index) => (
-                  <div 
+                  <div
                     key={row.id || index}
                     className="p-5 bg-[#0d1527]/60 backdrop-blur-md border border-slate-800/50 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-[#0d1527] transition-all duration-200"
                   >
@@ -356,7 +442,7 @@ export default function BankSoal() {
                             </span>
                           ) : (
                             <span className="text-xs text-slate-400">
-                              {(typeof row.checklist === 'string' ? JSON.parse(row.checklist) : row.checklist)?.length || 0} Kriteria Rubrik
+                              {row.checklist?.length || 0} Kriteria Rubrik
                             </span>
                           )}
                         </div>
@@ -368,10 +454,16 @@ export default function BankSoal() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                      <button onClick={() => openEditModal(row)} className="p-2 rounded-xl bg-slate-800/60 text-slate-300 hover:text-cyan-400 hover:bg-slate-800 transition">
+                      <button
+                        onClick={() => openEditModal(row)}
+                        className="p-2 rounded-xl bg-slate-800/60 text-slate-300 hover:text-cyan-400 hover:bg-slate-800 transition"
+                      >
                         <Edit3 className="w-4 h-4" />
                       </button>
-                      <button onClick={() => handleDelete(row.id)} className="p-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition">
+                      <button
+                        onClick={() => handleDelete(row.id)}
+                        className="p-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition"
+                      >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -379,6 +471,7 @@ export default function BankSoal() {
                 ))
               )}
             </div>
+
           </div>
         </main>
       </div>
@@ -387,7 +480,7 @@ export default function BankSoal() {
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={() => setIsModalOpen(false)} />
-            
+
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-[#0d1527] border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 text-white">
               <div className="flex items-center justify-between pb-3 border-b border-slate-800/60">
                 <h3 className="font-display text-base font-bold text-cyan-400 uppercase tracking-wider">{editingId ? 'EDIT SOAL DATABASE' : 'TAMBAH SOAL DATABASE'}</h3>
@@ -454,8 +547,8 @@ export default function BankSoal() {
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800/60">
                 <Button variant="outline" type="button" onClick={() => setIsModalOpen(false)} className="bg-slate-800 text-xs border-0">Batal</Button>
-                <Button variant="primary" onClick={handleSave} className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0">
-                  <Save className="w-4 h-4 mr-1.5" /> Simpan Soal
+                <Button variant="primary" onClick={handleSave} disabled={isSubmitting} className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0">
+                  <Save className="w-4 h-4 mr-1.5" /> {isSubmitting ? 'Menyimpan...' : 'Simpan Soal'}
                 </Button>
               </div>
             </motion.div>
