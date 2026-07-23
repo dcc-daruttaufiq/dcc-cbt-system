@@ -261,7 +261,9 @@ export default function DashboardPanitia() {
     }
   };
 
-  // FIX UTAMA PERIKSA JAWABAN (PARSING UNIVERSAL REALTIME)
+  // =========================================================================
+  // LOGIKA UTAMA FIX: FETCH & PARSING JAWABAN REALTIME PRAKTIK PESERTA
+  // =========================================================================
   const handlePeriksa = async (pesertaId) => {
     setSelectedSiswa(pesertaId);
     setIsSaved(false);
@@ -273,6 +275,7 @@ export default function DashboardPanitia() {
     let detailJawaban = [];
 
     try {
+      // 1. Ambil dari Supabase Cloud berdasarkan tech_id
       const { data: jawabanRows, error } = await supabase
         .from(TABLES.JAWABAN_PESERTA)
         .select('*')
@@ -280,27 +283,41 @@ export default function DashboardPanitia() {
 
       if (error) throw error;
 
-      detailJawaban = (jawabanRows || []).map((row) => {
-        const matchedSoal = bankSoalAll.find(s => String(s.id) === String(row.soal_id)) || {};
-        
-        let parsedJwb = row.jawaban;
-        if (typeof row.jawaban === 'string') {
-          if (row.jawaban.trim().startsWith('{') || row.jawaban.trim().startsWith('[')) {
-            try { parsedJwb = JSON.parse(row.jawaban); } catch (e) {}
+      if (jawabanRows && jawabanRows.length > 0) {
+        detailJawaban = jawabanRows.map((row) => {
+          const matchedSoal = bankSoalAll.find(s => String(s.id) === String(row.soal_id)) || {};
+          
+          let parsedJwb = row.jawaban;
+          if (typeof row.jawaban === 'string') {
+            try {
+              if (row.jawaban.trim().startsWith('{') || row.jawaban.trim().startsWith('[')) {
+                parsedJwb = JSON.parse(row.jawaban);
+              }
+            } catch (e) {
+              parsedJwb = row.jawaban;
+            }
           }
-        }
 
-        return {
-          soal_id: row.soal_id,
-          tipe: matchedSoal.tipe || (typeof parsedJwb === 'object' ? 'praktik' : 'pg'),
-          pertanyaan: matchedSoal.pertanyaan || `Soal #${row.soal_id}`,
-          jawaban: parsedJwb,
-          ragu_ragu: !!row.ragu_ragu,
-          checklist: matchedSoal.checklist || null,
-        };
-      });
+          // Deteksi tipe soal/jawaban secara aman
+          const isObj = typeof parsedJwb === 'object' && parsedJwb !== null;
+          const tipeDetected = matchedSoal.tipe || (isObj || (typeof parsedJwb === 'string' && parsedJwb.length > 10) ? 'praktik' : 'pg');
+
+          return {
+            soal_id: row.soal_id,
+            tipe: tipeDetected,
+            pertanyaan: matchedSoal.pertanyaan || `Soal / Instruksi Praktik #${row.soal_id}`,
+            jawaban: parsedJwb,
+            ragu_ragu: !!row.ragu_ragu,
+            checklist: matchedSoal.checklist || ['Instruksi terpenuhi dengan baik', 'Format & kerapihan dokumen sesuai'],
+          };
+        });
+      }
     } catch (err) {
-      console.warn('Fallback ke cache lokal...', err);
+      console.warn('Terjadi kesalahan fetch dari Supabase Cloud, mencoba restore dari LocalStorage...', err);
+    }
+
+    // 2. FALLBACK LOCALSTORAGE (jika database Supabase belum terisi atau offline)
+    if (detailJawaban.length === 0) {
       const savedJawabanStr = localStorage.getItem(jawabanLocalKey(userTechId)) ||
                               localStorage.getItem(STORAGE_KEYS.JAWABAN_LOCAL_LEGACY);
 
@@ -311,16 +328,20 @@ export default function DashboardPanitia() {
             const matchedSoal = bankSoalAll.find(s => String(s.id) === String(soalId)) || {};
             const entry = parsedJwb[soalId];
             const isWrapped = entry && typeof entry === 'object' && 'jawaban' in entry;
+            const actualJwb = isWrapped ? entry.jawaban : entry;
+
             return {
               soal_id: soalId,
-              tipe: matchedSoal.tipe || (typeof (isWrapped ? entry.jawaban : entry) === 'object' ? 'praktik' : 'pg'),
-              pertanyaan: matchedSoal.pertanyaan || `Soal #${soalId}`,
-              jawaban: isWrapped ? entry.jawaban : entry,
+              tipe: matchedSoal.tipe || (typeof actualJwb === 'object' ? 'praktik' : 'pg'),
+              pertanyaan: matchedSoal.pertanyaan || `Soal / Instruksi Praktik #${soalId}`,
+              jawaban: actualJwb,
               ragu_ragu: isWrapped ? !!entry.ragu_ragu : false,
-              checklist: matchedSoal.checklist || ['Format & Kerapihan Sesuai']
+              checklist: matchedSoal.checklist || ['Instruksi terpenuhi dengan baik', 'Format & kerapihan dokumen sesuai']
             };
           });
-        } catch (e) { detailJawaban = []; }
+        } catch (e) { 
+          detailJawaban = []; 
+        }
       }
     }
 
@@ -599,7 +620,7 @@ export default function DashboardPanitia() {
                 </div>
               </div>
 
-              {/* TAMPILAN CARD PESERTA - REVISI TOTAL LAYOUT CLEAN & PERSEGI */}
+              {/* DAFTAR CARD PESERTA */}
               {filteredPeserta.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
                   Tidak ada peserta pada status ini.
@@ -621,7 +642,6 @@ export default function DashboardPanitia() {
                             : 'bg-[#0d1527]/70 border-slate-800/80 hover:border-slate-700'
                         }`}
                       >
-                        {/* BARIS ATAS: CHECKBOX + AVATAR + NAMA + TECHID */}
                         <div className="flex items-center justify-between gap-2 border-b border-slate-800/50 pb-2.5">
                           <div className="flex items-center gap-2.5 min-w-0 flex-1">
                             <button
@@ -657,7 +677,6 @@ export default function DashboardPanitia() {
                           </button>
                         </div>
 
-                        {/* BARIS BAWAH: BADGE STATUS + SKOR BADGE + TOMBOL PERIKSA */}
                         <div className="flex items-center justify-between gap-2 pt-0.5">
                           <Badge variant={statusInfo.variant} className="text-[9px] px-2 py-0.5 rounded-md font-sans">
                             {statusInfo.text}
@@ -682,7 +701,6 @@ export default function DashboardPanitia() {
                     );
                   })}
 
-                  {/* PAGINASI */}
                   {filteredPeserta.length > ITEMS_PER_PAGE && (
                     <div className="flex items-center justify-between pt-2">
                       <button
@@ -706,7 +724,7 @@ export default function DashboardPanitia() {
               )}
             </div>
 
-            {/* BILAH KANAN: LEMBAR KOREKSI JAWABAN REALTIME (8 KOLOM GRID) */}
+            {/* BILAH KANAN: LEMBAR KOREKSI JAWABAN REALTIME */}
             <div className="lg:col-span-7 xl:col-span-8 space-y-6">
               {selectedSiswa ? (
                 <div className="space-y-6">
@@ -790,7 +808,7 @@ export default function DashboardPanitia() {
 
                           <p className="text-sm text-slate-200 font-medium leading-relaxed">{j.pertanyaan}</p>
 
-                          {/* REALTIME JAWABAN CONTAINER */}
+                          {/* CONTAINER UTAMA PENAMPIL TEKS & LINK LAMPIRAN */}
                           <div className="p-4 bg-[#030712]/80 border border-slate-800 rounded-xl text-sm space-y-3">
                             <p className="text-xs text-slate-400 font-display font-bold uppercase tracking-wider">Jawaban Peserta:</p>
 
