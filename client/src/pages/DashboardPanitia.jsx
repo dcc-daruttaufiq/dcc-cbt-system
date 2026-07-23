@@ -262,7 +262,7 @@ export default function DashboardPanitia() {
   };
 
   // =========================================================================
-  // LOGIKA UTAMA FIX: FETCH & PARSING JAWABAN REALTIME PRAKTIK PESERTA
+  // FIX UTAMA: PERIKSA JAWABAN PESERTA REALTIME & ISOLASI TECH_ID PRESISI
   // =========================================================================
   const handlePeriksa = async (pesertaId) => {
     setSelectedSiswa(pesertaId);
@@ -270,73 +270,78 @@ export default function DashboardPanitia() {
     setIsLoadingPeriksa(true);
 
     const targetUser = peserta.find(p => p.id === pesertaId);
-    const userTechId = targetUser?.tech_id;
+    if (!targetUser) {
+      setIsLoadingPeriksa(false);
+      return;
+    }
 
+    const cleanTechId = (targetUser.tech_id || '').trim();
     let detailJawaban = [];
 
     try {
-      // 1. Ambil dari Supabase Cloud berdasarkan tech_id
+      // Fetch data spesifik milik peserta berdasarkan tech_id (menggunakan ilike untuk toleransi kapitalisasi)
       const { data: jawabanRows, error } = await supabase
         .from(TABLES.JAWABAN_PESERTA)
         .select('*')
-        .eq('tech_id', userTechId);
+        .ilike('tech_id', cleanTechId);
 
       if (error) throw error;
 
       if (jawabanRows && jawabanRows.length > 0) {
         detailJawaban = jawabanRows.map((row) => {
-          const matchedSoal = bankSoalAll.find(s => String(s.id) === String(row.soal_id)) || {};
+          const matchedSoal = bankSoalAll.find(s => String(s.id).trim() === String(row.soal_id).trim()) || {};
           
           let parsedJwb = row.jawaban;
           if (typeof row.jawaban === 'string') {
             try {
-              if (row.jawaban.trim().startsWith('{') || row.jawaban.trim().startsWith('[')) {
-                parsedJwb = JSON.parse(row.jawaban);
+              const trimmed = row.jawaban.trim();
+              if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+                parsedJwb = JSON.parse(trimmed);
               }
             } catch (e) {
               parsedJwb = row.jawaban;
             }
           }
 
-          // Deteksi tipe soal/jawaban secara aman
           const isObj = typeof parsedJwb === 'object' && parsedJwb !== null;
-          const tipeDetected = matchedSoal.tipe || (isObj || (typeof parsedJwb === 'string' && parsedJwb.length > 10) ? 'praktik' : 'pg');
+          const rawTipe = (matchedSoal.tipe || '').toLowerCase();
+          const tipeFinal = (rawTipe.includes('prak') || rawTipe.includes('essay') || isObj) ? 'praktik' : 'pg';
 
           return {
             soal_id: row.soal_id,
-            tipe: tipeDetected,
-            pertanyaan: matchedSoal.pertanyaan || `Soal / Instruksi Praktik #${row.soal_id}`,
+            tipe: tipeFinal,
+            pertanyaan: matchedSoal.pertanyaan || `Butir Soal #${row.soal_id}`,
             jawaban: parsedJwb,
             ragu_ragu: !!row.ragu_ragu,
-            checklist: matchedSoal.checklist || ['Instruksi terpenuhi dengan baik', 'Format & kerapihan dokumen sesuai'],
+            checklist: matchedSoal.checklist || ['Instruksi pengerjaan terpenuhi', 'Format berkas valid'],
           };
         });
       }
     } catch (err) {
-      console.warn('Terjadi kesalahan fetch dari Supabase Cloud, mencoba restore dari LocalStorage...', err);
+      console.warn('Gagal fetch dari Cloud, membaca fallback LocalStorage...', err);
     }
 
-    // 2. FALLBACK LOCALSTORAGE (jika database Supabase belum terisi atau offline)
+    // FALLBACK LOCALSTORAGE
     if (detailJawaban.length === 0) {
-      const savedJawabanStr = localStorage.getItem(jawabanLocalKey(userTechId)) ||
+      const savedJawabanStr = localStorage.getItem(jawabanLocalKey(cleanTechId)) ||
                               localStorage.getItem(STORAGE_KEYS.JAWABAN_LOCAL_LEGACY);
 
       if (savedJawabanStr) {
         try {
           const parsedJwb = JSON.parse(savedJawabanStr);
           detailJawaban = Object.keys(parsedJwb).map(soalId => {
-            const matchedSoal = bankSoalAll.find(s => String(s.id) === String(soalId)) || {};
+            const matchedSoal = bankSoalAll.find(s => String(s.id).trim() === String(soalId).trim()) || {};
             const entry = parsedJwb[soalId];
             const isWrapped = entry && typeof entry === 'object' && 'jawaban' in entry;
             const actualJwb = isWrapped ? entry.jawaban : entry;
 
             return {
               soal_id: soalId,
-              tipe: matchedSoal.tipe || (typeof actualJwb === 'object' ? 'praktik' : 'pg'),
-              pertanyaan: matchedSoal.pertanyaan || `Soal / Instruksi Praktik #${soalId}`,
+              tipe: 'praktik',
+              pertanyaan: matchedSoal.pertanyaan || `Butir Soal #${soalId}`,
               jawaban: actualJwb,
               ragu_ragu: isWrapped ? !!entry.ragu_ragu : false,
-              checklist: matchedSoal.checklist || ['Instruksi terpenuhi dengan baik', 'Format & kerapihan dokumen sesuai']
+              checklist: matchedSoal.checklist || ['Instruksi pengerjaan terpenuhi', 'Format berkas valid']
             };
           });
         } catch (e) { 
@@ -345,6 +350,8 @@ export default function DashboardPanitia() {
       }
     }
 
+    // Set filter default ke "semua" agar data jawaban langsung terlihat tanpa tersembunyi
+    setFilterTipeJawaban('semua');
     setSoalPraktikList(detailJawaban);
     initChecklistData(detailJawaban);
     setIsLoadingPeriksa(false);
@@ -808,7 +815,7 @@ export default function DashboardPanitia() {
 
                           <p className="text-sm text-slate-200 font-medium leading-relaxed">{j.pertanyaan}</p>
 
-                          {/* CONTAINER UTAMA PENAMPIL TEKS & LINK LAMPIRAN */}
+                          {/* PENAMPIL REALTIME JAWABAN & LAMPIRAN */}
                           <div className="p-4 bg-[#030712]/80 border border-slate-800 rounded-xl text-sm space-y-3">
                             <p className="text-xs text-slate-400 font-display font-bold uppercase tracking-wider">Jawaban Peserta:</p>
 
