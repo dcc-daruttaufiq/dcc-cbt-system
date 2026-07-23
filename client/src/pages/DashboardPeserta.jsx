@@ -51,7 +51,7 @@ export default function DashboardPeserta() {
         return;
       }
 
-      // 2. SINKRON ULANG KE SUPABASE CLOUD (SUMBER KEBENARAN)
+      // 2. SINKRON ULANG KE SUPABASE CLOUD
       if (activeUser.tech_id) {
         try {
           const { data: freshRow, error } = await supabase
@@ -102,7 +102,6 @@ export default function DashboardPeserta() {
         const skorPG = activeUser?.nilai_pg !== undefined && activeUser?.nilai_pg !== null ? Number(activeUser.nilai_pg) : 0;
         const nilaiPraktik = activeUser?.nilai_praktik !== undefined && activeUser?.nilai_praktik !== null ? Number(activeUser.nilai_praktik) : null;
         
-        // Hitung total nilai jika sudah ada nilai praktik atau jika nilai total utama ada di DB
         let totalNilai = activeUser?.nilai !== undefined && activeUser?.nilai !== null ? Number(activeUser.nilai) : null;
         if (totalNilai === null && nilaiPraktik !== null) {
           totalNilai = skorPG + nilaiPraktik;
@@ -148,7 +147,6 @@ export default function DashboardPeserta() {
 
     const inputUpper = tokenInput.trim().toUpperCase();
 
-    // Support Token Default Kategori & Token Bypass Resmi
     if (
       inputUpper === activeExamDetail.tokenDefault ||
       inputUpper === 'WORD2026' ||
@@ -211,7 +209,7 @@ export default function DashboardPeserta() {
 
   return (
     <div className="min-h-screen bg-[#030712] text-slate-100 font-sans flex flex-col">
-      {/* CLEAN NAVBAR TANPA SHADOW GLOWING */}
+      {/* NAVBAR CLEAN DENGAN LOGO MURNI TRANSPARAN TANPA KOTAK BACKGROUND & SHADOW */}
       <header className="border-b border-slate-800 bg-[#0d1527]/80 backdrop-blur-md sticky top-0 z-40 px-6 py-3">
         <div className="flex justify-between items-center w-full max-w-5xl mx-auto">
           <div className="flex items-center gap-3">
@@ -220,12 +218,10 @@ export default function DashboardPeserta() {
                 src={LOGO_URL}
                 alt="Logo Lembaga"
                 onError={() => setLogoGagalDimuat(true)}
-                className="h-9 w-auto object-contain drop-shadow-md"
+                className="h-10 w-auto object-contain drop-shadow-md"
               />
             ) : (
-              <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center font-display font-bold">
-                D
-              </div>
+              <span className="text-cyan-400 font-display font-bold text-lg">DCC</span>
             )}
             <div>
               <h1 className="text-sm font-display font-bold text-white tracking-wide">DCC CBT PORTAL</h1>

@@ -165,7 +165,7 @@ export default function RuangUjian() {
     return `${h}:${m}:${s}`;
   };
 
-  // AUTOSAVE REALTIME KE SUPABASE CLOUD (JAWABAN_PESERTA)
+  // AUTOSAVE REALTIME KE SUPABASE CLOUD
   const persistJawaban = async (soalId, jawabanValue, raguValue) => {
     setIsSaving(true);
 
@@ -226,7 +226,7 @@ export default function RuangUjian() {
     persistJawaban(soalId, jawaban[soalId] !== undefined ? jawaban[soalId] : null, newRaguValue);
   };
 
-  // UPLOAD LAMPIRAN PRAKTIK KE SUPABASE STORAGE & AUTOSAVE REALTIME
+  // UPLOAD LAMPIRAN PRAKTIK
   const handleFileLampiranChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -266,8 +266,8 @@ export default function RuangUjian() {
       
       await persistJawaban(soalAktif.id, dataBaru, raguRagu[soalAktif.id] || false);
     } catch (err) {
-      console.error('Gagal mengunggah lampiran praktik ke Supabase Storage:', err);
-      alert('Gagal mengunggah lampiran praktik ke Supabase Cloud. Periksa koneksi internet Anda dan coba lagi.');
+      console.error('Gagal mengunggah lampiran praktik:', err);
+      alert('Gagal mengunggah lampiran praktik ke Supabase Cloud.');
     } finally {
       setIsUploadingFile(false);
       e.target.value = '';
@@ -377,7 +377,7 @@ export default function RuangUjian() {
 
   return (
     <div className="min-h-screen bg-[#030712] text-slate-100 font-sans flex flex-col select-none">
-      {/* CLEAN NAVBAR TRANSPARAN TANPA GLOWING SHADOW */}
+      {/* NAVBAR CLEAN TRANSPARAN (LOGO MURNI TANPA KOTAK BACKGROUND & SHADOW) */}
       <header className="border-b border-slate-800 bg-[#0d1527]/90 backdrop-blur-md sticky top-0 z-40 px-6 py-3">
         <div className="flex justify-between items-center w-full max-w-6xl mx-auto">
           <div className="flex items-center gap-3">
@@ -386,12 +386,10 @@ export default function RuangUjian() {
                 src={LOGO_URL}
                 alt="Logo Lembaga"
                 onError={() => setLogoGagalDimuat(true)}
-                className="h-9 w-auto object-contain drop-shadow-md"
+                className="h-10 w-auto object-contain drop-shadow-md"
               />
             ) : (
-              <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center font-bold">
-                D
-              </div>
+              <span className="text-cyan-400 font-display font-bold text-lg">DCC</span>
             )}
             <div>
               <h1 className="text-xs font-bold text-cyan-400 uppercase tracking-widest">{getLabelKategori(examKategori)}</h1>
@@ -488,7 +486,7 @@ export default function RuangUjian() {
                 <ChevronLeft className="w-4 h-4 mr-1" /> Kembali
               </Button>
 
-              {/* TOMBOL RAGU-RAGU (KUNING) */}
+              {/* TOMBOL RAGU-RAGU */}
               <Button
                 type="button"
                 onClick={toggleRaguRagu}
@@ -544,7 +542,7 @@ export default function RuangUjian() {
 
           <div className="flex flex-wrap gap-3 text-[10px] text-slate-400 pt-1">
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500/60 inline-block" /> Terjawab</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" /> Ragu-ragu (Kuning)</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" /> Ragu-ragu</span>
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-slate-700 inline-block" /> Belum Dijawab</span>
           </div>
 
