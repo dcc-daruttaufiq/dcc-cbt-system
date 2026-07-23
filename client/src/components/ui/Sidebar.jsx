@@ -42,10 +42,10 @@ export default function Sidebar({ userRole = 'Panitia' }) {
           <div className="flex flex-col justify-center">
             <div className="flex items-center gap-1 leading-none">
               <span className="font-extrabold text-base tracking-tight text-white">DCC</span>
-              <span className="font-extrabold text-base tracking-tight text-cyan-400">CBT</span>
+              <span className="font-extrabold text-base tracking-tight text-cyan-400">SISTEM</span>
             </div>
             <span className="text-[10px] font-semibold text-slate-400 tracking-[0.2em] uppercase mt-1">
-              {userRole} PANEL
+              {userRole} DASHBOARD
             </span>
           </div>
         </div>
