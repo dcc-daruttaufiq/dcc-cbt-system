@@ -20,7 +20,8 @@ import {
   Trash2,
   Trash,
   WifiOff,
-  AlertCircle
+  AlertCircle,
+  Search
 } from 'lucide-react';
 
 export default function DashboardPanitia() {
@@ -32,6 +33,7 @@ export default function DashboardPanitia() {
   const [isSaved, setIsSaved] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [isLoadingPeriksa, setIsLoadingPeriksa] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // State Pilihan Checkbox untuk Bulk Delete
   const [selectedIds, setSelectedIds] = useState([]);
@@ -39,6 +41,11 @@ export default function DashboardPanitia() {
   // Filter Status (6 Tab Utama Murni Teks)
   const [filterPeserta, setFilterPeserta] = useState('semua');
   const [filterTipeJawaban, setFilterTipeJawaban] = useState('praktik');
+
+  // Search & Pagination
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 8;
 
   const pesertaFileInputRef = useRef(null);
 
@@ -102,6 +109,11 @@ export default function DashboardPanitia() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Reset ke halaman 1 setiap kali filter status atau kata kunci pencarian berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterPeserta, searchQuery]);
 
   // HANDLER IMPOR PESERTA (SUPPORT MENUMPUK/APPEND 3+ FILE EXCEL/CSV & ANTI-DUPLIKAT TECHID)
   // Hasil parsing langsung di-insert ke Supabase Cloud (bulk insert).
@@ -243,9 +255,10 @@ export default function DashboardPanitia() {
     }
   };
 
-  // FITUR RESET SEMUA DATA PESERTA
+  // FITUR RESET SEMUA DATA PESERTA (KONFIRMASI 2 LANGKAH SEBAGAI PENGAMAN)
   const handleDeleteAll = async () => {
-    if (!confirm("PERINGATAN: Apakah Anda yakin ingin MENGHAPUS SEMUA PESERTA? Lakukan ini jika ingin mengganti data ke angkatan/tahun ajaran baru.")) return;
+    if (!confirm("PERINGATAN: Anda akan MENGHAPUS SEMUA PESERTA. Lanjutkan ke konfirmasi terakhir?")) return;
+    if (!confirm(`Konfirmasi terakhir: ${peserta.length} data peserta akan dihapus PERMANEN dan tidak bisa dikembalikan. Yakin lanjut?`)) return;
 
     try {
       const idsToDelete = peserta.map(p => p.id).filter(Boolean);
@@ -271,7 +284,7 @@ export default function DashboardPanitia() {
     );
   };
 
-  // TOGGLE CHECKALL
+  // TOGGLE CHECKALL (tetap berbasis seluruh hasil filter, lintas halaman)
   const toggleSelectAll = () => {
     if (selectedIds.length === filteredPeserta.length) {
       setSelectedIds([]);
@@ -408,18 +421,40 @@ export default function DashboardPanitia() {
     }
   };
 
-  // LOGIKA 6 FILTER STATUS REALTIME
+  // LOGIKA 6 FILTER STATUS REALTIME + PENCARIAN NAMA/TECHID
   const filteredPeserta = peserta.filter(p => {
     const statusP = p.status || 'belum_mulai';
     const isDikoreksi = p.status_koreksi === 'dikoreksi';
 
-    if (filterPeserta === 'belum_mulai') return statusP === 'belum_mulai';
-    if (filterPeserta === 'berjalan') return statusP === 'berjalan';
-    if (filterPeserta === 'perlu_dikoreksi') return statusP === 'selesai' && !isDikoreksi;
-    if (filterPeserta === 'selesai_dikoreksi') return statusP === 'selesai' && isDikoreksi;
-    if (filterPeserta === 'selesai_ujian') return statusP === 'selesai';
-    return true; // semua
+    let statusMatch = true;
+    if (filterPeserta === 'belum_mulai') statusMatch = statusP === 'belum_mulai';
+    else if (filterPeserta === 'berjalan') statusMatch = statusP === 'berjalan';
+    else if (filterPeserta === 'perlu_dikoreksi') statusMatch = statusP === 'selesai' && !isDikoreksi;
+    else if (filterPeserta === 'selesai_dikoreksi') statusMatch = statusP === 'selesai' && isDikoreksi;
+    else if (filterPeserta === 'selesai_ujian') statusMatch = statusP === 'selesai';
+
+    if (!statusMatch) return false;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const nama = (p.nama || p.nama_lengkap || '').toLowerCase();
+      const techId = (p.tech_id || '').toLowerCase();
+      return nama.includes(q) || techId.includes(q);
+    }
+
+    return true;
   });
+
+  // ANGKA COUNTER UNTUK SETIAP TAB FILTER STATUS (dihitung dari seluruh data, bukan hasil search)
+  const countBelumUjian = peserta.filter(p => (p.status || 'belum_mulai') === 'belum_mulai').length;
+  const countSedangUjian = peserta.filter(p => p.status === 'berjalan').length;
+  const countPerluDikoreksi = peserta.filter(p => p.status === 'selesai' && p.status_koreksi !== 'dikoreksi').length;
+  const countSelesaiDikoreksi = peserta.filter(p => p.status === 'selesai' && p.status_koreksi === 'dikoreksi').length;
+  const countSelesaiUjian = peserta.filter(p => p.status === 'selesai').length;
+
+  // PAGINASI
+  const totalPages = Math.max(1, Math.ceil(filteredPeserta.length / ITEMS_PER_PAGE));
+  const paginatedPeserta = filteredPeserta.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   const filteredJawabanList = soalPraktikList.filter(j => {
     if (filterTipeJawaban === 'praktik') return j.tipe === 'praktik' || typeof j.jawaban === 'object';
@@ -471,7 +506,7 @@ export default function DashboardPanitia() {
 
               <Button
                 onClick={() => pesertaFileInputRef.current.click()}
-                className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-display font-bold border-0 shadow-lg shadow-emerald-500/20"
+                className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-display font-bold border-0"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Import Peserta Excel / CSV
               </Button>
@@ -482,8 +517,16 @@ export default function DashboardPanitia() {
                 </Button>
               )}
 
-              <Button size="sm" onClick={loadPeserta} className="bg-slate-800 hover:bg-slate-700 text-xs border-0 text-slate-300">
-                <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh Status
+              <Button
+                size="sm"
+                onClick={async () => {
+                  setIsRefreshing(true);
+                  await loadPeserta();
+                  setTimeout(() => setIsRefreshing(false), 500);
+                }}
+                className="bg-slate-800 hover:bg-slate-700 text-xs border-0 text-slate-300"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} /> Refresh Status
               </Button>
             </div>
           </div>
@@ -500,7 +543,7 @@ export default function DashboardPanitia() {
                     Daftar Peserta ({filteredPeserta.length})
                   </h2>
 
-                  {/* TOMBOL PILIH ALL & BULK DELETE */}
+                  {/* TOMBOL PILIH ALL & BULK DELETE (muncul kontekstual saat ada yang dicentang) */}
                   {filteredPeserta.length > 0 && (
                     <div className="flex items-center gap-2">
                       <button
@@ -522,7 +565,19 @@ export default function DashboardPanitia() {
                   )}
                 </div>
 
-                {/* 6 TAB FILTER MURNI TEKS */}
+                {/* KOTAK PENCARIAN NAMA / TECHID */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Cari nama atau TechID..."
+                    className="w-full bg-[#0d1527] border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-400"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                </div>
+
+                {/* 6 TAB FILTER MURNI TEKS + ANGKA JUMLAH REALTIME */}
                 <div className="grid grid-cols-2 gap-1.5 bg-[#0d1527] p-2 rounded-xl border border-slate-800 text-xs font-display font-bold">
                   <button
                     onClick={() => setFilterPeserta('semua')}
@@ -539,7 +594,7 @@ export default function DashboardPanitia() {
                       filterPeserta === 'belum_mulai' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    Belum Ujian
+                    Belum Ujian ({countBelumUjian})
                   </button>
 
                   <button
@@ -548,7 +603,7 @@ export default function DashboardPanitia() {
                       filterPeserta === 'berjalan' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    Sedang Ujian
+                    Sedang Ujian ({countSedangUjian})
                   </button>
 
                   <button
@@ -557,7 +612,7 @@ export default function DashboardPanitia() {
                       filterPeserta === 'perlu_dikoreksi' ? 'bg-amber-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    Perlu Dikoreksi
+                    Perlu Dikoreksi ({countPerluDikoreksi})
                   </button>
 
                   <button
@@ -566,7 +621,7 @@ export default function DashboardPanitia() {
                       filterPeserta === 'selesai_dikoreksi' ? 'bg-emerald-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    Selesai Dikoreksi
+                    Selesai Dikoreksi ({countSelesaiDikoreksi})
                   </button>
 
                   <button
@@ -575,7 +630,7 @@ export default function DashboardPanitia() {
                       filterPeserta === 'selesai_ujian' ? 'bg-cyan-400 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    Selesai Ujian
+                    Selesai Ujian ({countSelesaiUjian})
                   </button>
                 </div>
               </div>
@@ -583,11 +638,11 @@ export default function DashboardPanitia() {
               {filteredPeserta.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs space-y-1">
                   <p className="font-semibold text-slate-400">Tidak ada peserta pada status ini.</p>
-                  <p className="text-[11px] text-slate-500">Impor Excel atau pilih tab filter lain.</p>
+                  <p className="text-[11px] text-slate-500">Impor Excel, ubah kata kunci pencarian, atau pilih tab filter lain.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {filteredPeserta.map((p, idx) => {
+                  {paginatedPeserta.map((p, idx) => {
                     const statusInfo = getBadgeStatus(p);
                     const isSelected = selectedSiswa === p.id;
                     const isChecked = selectedIds.includes(p.id);
@@ -597,18 +652,22 @@ export default function DashboardPanitia() {
                         key={p.id || idx}
                         className={`p-4 rounded-2xl border transition-all duration-200 flex items-center justify-between gap-3 ${
                           isSelected
-                            ? 'bg-cyan-500/10 border-cyan-400 shadow-lg shadow-cyan-400/10'
+                            ? 'bg-cyan-500/10 border-cyan-400'
                             : 'bg-[#0d1527]/60 border-slate-800/60 hover:bg-[#0d1527]'
                         }`}
                       >
                         <div className="flex items-center gap-3 flex-1 min-w-0">
-                          {/* Checkbox Individual untuk Hapus Masal */}
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => toggleSelectPeserta(p.id)}
-                            className="w-4 h-4 accent-cyan-400 cursor-pointer shrink-0"
-                          />
+                          {/* Checkbox Custom Circular untuk Hapus Masal */}
+                          <button
+                            type="button"
+                            onClick={() => toggleSelectPeserta(p.id)}
+                            title={isChecked ? 'Batal pilih' : 'Pilih peserta'}
+                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                              isChecked ? 'bg-cyan-400 border-cyan-400' : 'bg-transparent border-slate-700 hover:border-cyan-400/60'
+                            }`}
+                          >
+                            {isChecked && <CheckCircle2 className="w-3 h-3 text-slate-950" strokeWidth={3} />}
+                          </button>
 
                           <div className="p-2.5 bg-slate-800/50 rounded-xl shrink-0 cursor-pointer" onClick={() => handlePeriksa(p.id)}>
                             <User className="w-5 h-5 text-cyan-400" />
@@ -638,7 +697,7 @@ export default function DashboardPanitia() {
 
                         {/* TOMBOL AKSI: PERIKSA & HAPUS SINGLE */}
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <Button size="sm" onClick={() => handlePeriksa(p.id)} className="bg-cyan-400/10 hover:bg-cyan-400 text-cyan-400 hover:text-slate-950 border border-cyan-400/20 text-xs font-display font-bold">
+                          <Button size="sm" onClick={() => handlePeriksa(p.id)} className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 hover:text-slate-950 border border-cyan-400/20 text-xs font-display font-bold">
                             Periksa
                           </Button>
                           <button
@@ -652,6 +711,27 @@ export default function DashboardPanitia() {
                       </div>
                     );
                   })}
+
+                  {/* NAVIGASI PAGINASI */}
+                  {filteredPeserta.length > ITEMS_PER_PAGE && (
+                    <div className="flex items-center justify-between pt-2">
+                      <button
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1.5 rounded-lg bg-[#0d1527] border border-slate-800 text-xs text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:border-cyan-400/50"
+                      >
+                        ← Sebelumnya
+                      </button>
+                      <span className="text-[11px] text-slate-500 font-mono">Halaman {currentPage} / {totalPages}</span>
+                      <button
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1.5 rounded-lg bg-[#0d1527] border border-slate-800 text-xs text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:border-cyan-400/50"
+                      >
+                        Berikutnya →
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -793,7 +873,7 @@ export default function DashboardPanitia() {
                       <p className="text-xs text-slate-400 mt-1">Skor akan otomatis tersimpan dan merekap nilai akhir siswa.</p>
                     </div>
 
-                    <Button variant="primary" size="md" onClick={submitSimpanNilaiPraktik} className="w-full sm:w-auto bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold border-0 shadow-lg shadow-cyan-400/20">
+                    <Button variant="primary" size="md" onClick={submitSimpanNilaiPraktik} className="w-full sm:w-auto bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold border-0">
                       <CheckCircle2 className="w-4 h-4 mr-1.5" /> {isSaved ? 'Tersimpan!' : 'Simpan Nilai Praktik'}
                     </Button>
                   </div>

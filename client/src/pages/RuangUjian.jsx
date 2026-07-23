@@ -4,6 +4,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { supabase, TABLES, BUCKET_LAMPIRAN_PRAKTIK } from '../utils/supabaseClient';
 import { normalizeKategori, getLabelKategori } from '../utils/examCategories';
 import { STORAGE_KEYS, jawabanLocalKey } from '../utils/storageKeys';
+import { LOGO_URL } from '../config/brand';
 import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -25,6 +26,7 @@ export default function RuangUjian() {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [errorState, setErrorState] = useState(''); // pesan error presisi (bukan fallback diam-diam)
   const [examKategori, setExamKategori] = useState('');
+  const [logoGagalDimuat, setLogoGagalDimuat] = useState(false);
   const timerRef = useRef(null);
   const fileInputPraktikRef = useRef(null);
 
@@ -381,7 +383,18 @@ export default function RuangUjian() {
       <Navbar>
         <div className="flex justify-between items-center w-full max-w-6xl mx-auto px-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-cyan-400 flex items-center justify-center text-slate-950 font-bold">D</div>
+            {/* LOGO LEMBAGA (otomatis dari src/assets/logo.png). Jika file logo
+                belum ditaruh di sana, fallback aman ke kotak inisial "D". */}
+            {!logoGagalDimuat ? (
+              <img
+                src={LOGO_URL}
+                alt="Logo Lembaga"
+                onError={() => setLogoGagalDimuat(true)}
+                className="w-8 h-8 rounded-xl object-cover bg-cyan-400"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-xl bg-cyan-400 flex items-center justify-center text-slate-950 font-bold">D</div>
+            )}
             <div>
               <h1 className="text-xs font-bold text-cyan-400 uppercase tracking-widest">{getLabelKategori(examKategori)}</h1>
               <p className="text-[11px] text-slate-300">{userName} • TechID: {techId}</p>
