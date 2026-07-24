@@ -35,31 +35,47 @@ export default function RuangUjian() {
 
   const currentUser = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || '{}');
 
-  // HELPER BACA DURASI MENIT PER KATEGORI
+  // HELPER BACA DURASI MENIT PER KATEGORI (DINAMIS DARI KATALOG PENGATURAN)
   const fetchDurasiUjianMenit = async (katId) => {
-    let durasiMap = { word: 90, excel: 90, powerpoint: 90, desain: 90, pemrograman: 120 };
+    let defaultDurasiMap = { word: 90, excel: 90, powerpoint: 90, desain: 90, pemrograman: 120 };
+    let targetMenit = defaultDurasiMap[katId] || 90;
 
     try {
       const { data, error } = await supabase
         .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
         .select('*')
-        .eq('key', 'durasi_ujian_menit')
+        .eq('key', 'katalog_mata_ujian')
         .maybeSingle();
 
       if (!error && data && data.value) {
         const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
-        durasiMap = { ...durasiMap, ...parsed };
+        if (Array.isArray(parsed)) {
+          const found = parsed.find(m => m.id === katId);
+          if (found && found.durasi) {
+            targetMenit = Number(found.durasi);
+            return targetMenit * 60;
+          }
+        }
       }
     } catch (err) {
-      console.warn('Gagal membaca durasi dari Supabase, mencoba LocalStorage...', err);
-      const localDurasi = localStorage.getItem('dcc_durasi_ujian');
-      if (localDurasi) {
-        try { durasiMap = { ...durasiMap, ...JSON.parse(localDurasi) }; } catch (e) {}
-      }
+      console.warn('Gagal membaca katalog durasi dari Supabase Cloud, memeriksa LocalStorage...', err);
     }
 
-    const menitKat = durasiMap[katId] || 90;
-    return menitKat * 60; // Konversi ke Detik
+    // Fallback ke LocalStorage katalog
+    const localKatalog = localStorage.getItem('dcc_katalog_mapel');
+    if (localKatalog) {
+      try {
+        const parsedLocal = JSON.parse(localKatalog);
+        if (Array.isArray(parsedLocal)) {
+          const foundLocal = parsedLocal.find(m => m.id === katId);
+          if (foundLocal && foundLocal.durasi) {
+            targetMenit = Number(foundLocal.durasi);
+          }
+        }
+      } catch (e) {}
+    }
+
+    return targetMenit * 60; // Konversi ke Detik
   };
 
   useEffect(() => {
@@ -90,7 +106,7 @@ export default function RuangUjian() {
 
       setExamKategori(storedExamId);
 
-      // 1. FETCH DURASI SEBELUM TIMER AKTIF
+      // 1. FETCH DURASI DINAMIS SEBELUM TIMER AKTIF
       const totalDetikKategori = await fetchDurasiUjianMenit(storedExamId);
 
       // Hitung selisih detik jika waktu mulai sudah tercatat
@@ -408,10 +424,10 @@ export default function RuangUjian() {
     }
 
     return (
-      <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center gap-3 p-4 text-center">
+      <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center gap-3 p-4 text-center font-sans">
         <p className="text-sm font-bold text-cyan-400">{judul}</p>
         <p className="text-xs text-slate-400 max-w-md">{pesan}</p>
-        <Button onClick={() => navigate('/dashboard-peserta')} className="mt-2 bg-slate-800 text-xs text-slate-300">
+        <Button onClick={() => navigate('/dashboard-peserta')} className="mt-2 bg-slate-800 text-xs text-slate-300 font-sans">
           ← Kembali ke Dashboard
         </Button>
       </div>
@@ -420,7 +436,7 @@ export default function RuangUjian() {
 
   if (listSoal.length === 0) {
     return (
-      <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center gap-3 p-4 text-center">
+      <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center gap-3 p-4 text-center font-sans">
         <p className="text-sm font-bold text-cyan-400">Memuat soal ujian...</p>
       </div>
     );
