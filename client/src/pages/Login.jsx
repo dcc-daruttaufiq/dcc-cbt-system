@@ -151,14 +151,15 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md p-8 border-borderCustom bg-surface space-y-6">
+      <Card className="w-full max-w-md p-8 border-borderCustom bg-surface space-y-6 shadow-2xl">
 
-        {/* 2. SISTEM UJIAN DCC */}
+        {/* JUDUL SISTEM */}
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-display font-bold text-primary tracking-wider">SISTEM UJIAN DCC</h1>
           <p className="text-xs text-slate-400 font-sans">Pilih peran Anda untuk masuk ke dalam sistem</p>
         </div>
 
+        {/* SELEKSI PERAN */}
         <div className="grid grid-cols-3 gap-1 bg-background p-1.5 rounded-xl border border-borderCustom/60">
           <button
             type="button"
@@ -173,7 +174,6 @@ export default function Login() {
             <span>PESERTA</span>
           </button>
 
-          {/* 1. PENGAWAS */}
           <button
             type="button"
             onClick={() => { setSelectedRole('panitia'); setErrorMsg(''); }}
@@ -187,7 +187,6 @@ export default function Login() {
             <span>PENGAWAS</span>
           </button>
 
-          {/* 3. LEAD INSTRUCTOR */}
           <button
             type="button"
             onClick={() => { setSelectedRole('master_admin'); setErrorMsg(''); }}
@@ -202,19 +201,19 @@ export default function Login() {
           </button>
         </div>
 
+        {/* PESAN ERROR */}
         {errorMsg && (
           <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs text-center font-sans">
             {errorMsg}
           </div>
         )}
 
+        {/* FORM LOGIN */}
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            {/* 4. NAMA LENGKAP */}
             <label className="text-xs font-display font-semibold text-slate-300 mb-1 block uppercase">
               {selectedRole === 'peserta' ? 'Nama Lengkap' : 'Username Admin / Pengawas'}
             </label>
-            {/* 5. PLACEHOLDER: Masukkan Nama Lengkap */}
             <Input
               type="text"
               placeholder={selectedRole === 'peserta' ? 'Masukkan Nama Lengkap...' : 'Masukkan username...'}
@@ -226,7 +225,7 @@ export default function Login() {
 
           <div>
             <label className="text-xs font-display font-semibold text-slate-300 mb-1 block uppercase">
-              {selectedRole === 'peserta' ? 'Password / PIN Ujian' : 'Password Akses'}
+              {selectedRole === 'peserta' ? 'TechID' : 'Password Akses'}
             </label>
             <Input
               type="password"
@@ -254,16 +253,11 @@ export default function Login() {
           </Button>
         </form>
 
-        <div className="text-center border-t border-borderCustom/40 pt-4 space-y-1">
-          {selectedRole === 'peserta' ? (
-            <p className="text-[11px] text-slate-400">
-              Siswa menggunakan <strong className="text-primary">Nama Lengkap</strong> hasil impor Pengawas dari file Excel.
-            </p>
-          ) : (
-            <p className="text-[10px] text-slate-500 font-mono">
-              Username Pengawas: <code className="text-primary">panitia</code> | Lead Instructor: <code className="text-primary">admin</code> (Pass: <code className="text-primary">123</code> / <code className="text-primary">admin123</code>)
-            </p>
-          )}
+        {/* FOOTER DCC */}
+        <div className="text-center border-t border-borderCustom/40 pt-4">
+          <p className="text-xs text-slate-400 font-medium tracking-wide">
+            Daruttaufiq Computer Centre
+          </p>
         </div>
 
       </Card>
