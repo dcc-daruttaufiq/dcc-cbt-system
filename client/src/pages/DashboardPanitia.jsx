@@ -76,12 +76,6 @@ export default function DashboardPanitia() {
 
   const pesertaFileInputRef = useRef(null);
 
-  const menuPanitia = [
-    { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
-    { label: 'Bank Soal', path: '/bank-soal', icon: '📚' },
-    { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
-  ];
-
   // 1. LOAD CONFIG DURASI DARI SUPABASE / LOCALSTORAGE
   const loadPengaturanDurasi = async () => {
     try {
