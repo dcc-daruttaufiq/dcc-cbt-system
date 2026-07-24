@@ -5,16 +5,14 @@ import { supabase, TABLES } from '../utils/supabaseClient';
 import { normalizeKategori, getLabelKategori } from '../utils/examCategories';
 import { STORAGE_KEYS } from '../utils/storageKeys';
 import { LOGO_URL } from '../config/brand';
-import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Badge from '../components/ui/Badge';
 import {
   CreditCard, Key, Play, LogOut, User,
-  AlertCircle, Sparkles, Award, CheckCircle2
+  AlertCircle, Sparkles, Award, CheckCircle2, Clock
 } from 'lucide-react';
 
-// Katalog metadata UI 5 Kategori Ujian Resmi
 const DAFTAR_UJIAN = [
   { id: 'word', nama: 'Microsoft Word', subNama: 'Pengolahan Dokumen & Surat', kategori: 'Perkantoran', durasi: '90 Menit', detailSoal: 'Soal PG + Praktik Word', tokenDefault: 'WORD2026' },
   { id: 'excel', nama: 'Microsoft Excel', subNama: 'Pengolahan Data & Formula', kategori: 'Perkantoran', durasi: '90 Menit', detailSoal: 'Soal PG + Praktik Excel', tokenDefault: 'EXCEL2026' },
@@ -40,9 +38,25 @@ export default function DashboardPeserta() {
 
   const [dataError, setDataError] = useState('');
 
+  // Helper Format Durasi Waktu Pengerjaan
+  const formatLamaPengerjaan = (mulaiStr, selesaiStr) => {
+    if (!mulaiStr) return null;
+    const tMulai = new Date(mulaiStr).getTime();
+    const tSelesai = selesaiStr ? new Date(selesaiStr).getTime() : Date.now();
+    
+    if (isNaN(tMulai) || isNaN(tSelesai)) return null;
+
+    const diffMs = Math.max(0, tSelesai - tMulai);
+    const totalDetik = Math.floor(diffMs / 1000);
+    const menit = Math.floor(totalDetik / 60);
+    const detik = totalDetik % 60;
+
+    if (menit === 0) return `${detik} Detik`;
+    return `${menit} Menit ${detik} Detik`;
+  };
+
   useEffect(() => {
     const initDashboard = async () => {
-      // 1. AMBIL PROFIL SISWA AKTIF
       const savedUserStr = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
       let activeUser = savedUserStr ? JSON.parse(savedUserStr) : null;
 
@@ -51,7 +65,6 @@ export default function DashboardPeserta() {
         return;
       }
 
-      // 2. SINKRON ULANG KE SUPABASE CLOUD
       if (activeUser.tech_id) {
         try {
           const { data: freshRow, error } = await supabase
@@ -66,7 +79,7 @@ export default function DashboardPeserta() {
             localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(activeUser));
           }
         } catch (err) {
-          console.warn('Gagal menyinkronkan profil dari Supabase Cloud, menggunakan data sesi lokal terakhir.', err);
+          console.warn('Gagal menyinkronkan profil dari Supabase Cloud.', err);
           const localSesi = JSON.parse(localStorage.getItem(STORAGE_KEYS.PESERTA) || '[]');
           const matchedFromCache = localSesi.find(p => p.tech_id?.toLowerCase().trim() === activeUser.tech_id?.toLowerCase().trim());
           if (matchedFromCache) {
@@ -81,42 +94,47 @@ export default function DashboardPeserta() {
       setUserName(nameToDisplay);
       setTechId(techIdToDisplay);
 
-      // 3. DETEKSI KATEGORI MATA UJIAN SISWA
       const rawKat = activeUser?.kategori || localStorage.getItem(STORAGE_KEYS.USER_KATEGORI) || '';
       const initialKat = normalizeKategori(rawKat);
 
       if (!initialKat) {
-        setDataError(`Kategori ujian untuk akun ini tidak valid ("${rawKat || '-'}"). Silakan hubungi Panitia untuk memperbaiki data.`);
+        setDataError(`Kategori ujian untuk akun ini tidak valid ("${rawKat || '-'}"). Silakan hubungi Pengawas untuk memperbaiki data.`);
         return;
       }
 
       setSelectedUjian(initialKat);
 
-      // 4. CEK STATUS SELESAI & TAMPILAN NILAI
       const isFinished = activeUser?.status === 'selesai' || activeUser?.status_koreksi === 'SELESAI' || localStorage.getItem(STORAGE_KEYS.IS_EXAM_FINISHED) === 'true';
 
       if (isFinished) {
         setIsExamCompleted(true);
         const activeExam = DAFTAR_UJIAN.find(u => u.id === initialKat);
         
-        const skorPG = activeUser?.nilai_pg !== undefined && activeUser?.nilai_pg !== null ? Number(activeUser.nilai_pg) : 0;
+        const nilaiPG = activeUser?.nilai_pg !== undefined && activeUser?.nilai_pg !== null ? Number(activeUser.nilai_pg) : 0;
         const nilaiPraktik = activeUser?.nilai_praktik !== undefined && activeUser?.nilai_praktik !== null ? Number(activeUser.nilai_praktik) : null;
         
         let totalNilai = activeUser?.nilai !== undefined && activeUser?.nilai !== null ? Number(activeUser.nilai) : null;
         if (totalNilai === null && nilaiPraktik !== null) {
-          totalNilai = skorPG + nilaiPraktik;
+          totalNilai = nilaiPG + nilaiPraktik;
         }
 
         const isFullyCorrected = activeUser?.status_koreksi === 'SELESAI' || activeUser?.status_koreksi === 'dikoreksi' || nilaiPraktik !== null;
 
+        // Hitung Timer Durasi Pengerjaan
+        const lamaKerja = activeUser?.lama_pengerjaan 
+          || formatLamaPengerjaan(activeUser?.waktu_mulai, activeUser?.waktu_selesai) 
+          || localStorage.getItem(`duration_${techIdToDisplay}`)
+          || 'Selesai';
+
         setCompletedExamInfo({
           namaUjian: activeExam ? activeExam.nama : getLabelKategori(initialKat),
-          skorPG: skorPG,
+          nilaiPG: nilaiPG,
           nilaiPraktik: nilaiPraktik,
           totalNilai: totalNilai,
-          statusPraktik: isFullyCorrected 
-            ? (nilaiPraktik !== null ? `Nilai Praktik: ${nilaiPraktik}` : 'Selesai Dikoreksi Panitia') 
-            : 'Berkas Diterima & Dalam Koreksi Panitia'
+          lamaPengerjaan: lamaKerja,
+          statusPraktikText: isFullyCorrected 
+            ? (nilaiPraktik !== null ? `${nilaiPraktik}` : 'Selesai Dikoreksi') 
+            : 'Dalam Koreksi Pengawas'
         });
       }
     };
@@ -155,24 +173,26 @@ export default function DashboardPeserta() {
       inputUpper === '1234'
     ) {
       (async () => {
+        const nowIso = new Date().toISOString();
         sessionStorage.setItem('examStarted', 'true');
         sessionStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, activeExamDetail.id);
         localStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, activeExamDetail.id);
         localStorage.setItem(STORAGE_KEYS.USER_KATEGORI, activeExamDetail.id);
+        localStorage.setItem(`startTime_${techId}`, nowIso);
 
         try {
           await supabase
             .from(TABLES.PESERTA)
-            .update({ status: 'berjalan', kategori: activeExamDetail.id })
+            .update({ status: 'berjalan', kategori: activeExamDetail.id, waktu_mulai: nowIso })
             .eq('tech_id', techId);
         } catch (err) {
-          console.warn('Gagal memperbarui status ke Supabase Cloud, akan tetap tersimpan di LocalStorage.', err);
+          console.warn('Gagal memperbarui status ke Supabase Cloud.', err);
         }
 
         const localSesi = JSON.parse(localStorage.getItem(STORAGE_KEYS.PESERTA) || '[]');
         const updatedSesi = localSesi.map(p => {
           if (p.tech_id?.toLowerCase().trim() === techId.toLowerCase().trim()) {
-            return { ...p, status: 'berjalan', kategori: activeExamDetail.id };
+            return { ...p, status: 'berjalan', kategori: activeExamDetail.id, waktu_mulai: nowIso };
           }
           return p;
         });
@@ -182,14 +202,14 @@ export default function DashboardPeserta() {
         if (currentUserStr) {
           try {
             const cu = JSON.parse(currentUserStr);
-            localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify({ ...cu, status: 'berjalan', kategori: activeExamDetail.id }));
+            localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify({ ...cu, status: 'berjalan', kategori: activeExamDetail.id, waktu_mulai: nowIso }));
           } catch (e) {}
         }
 
         navigate('/ruang-ujian');
       })();
     } else {
-      setTokenError(`Token untuk ujian ${activeExamDetail.nama} tidak valid! Gunakan token resmi atau hubungi panitia.`);
+      setTokenError(`Token untuk ujian ${activeExamDetail.nama} tidak valid! Gunakan token resmi atau hubungi Pengawas.`);
       setIsLoading(false);
     }
   };
@@ -209,14 +229,13 @@ export default function DashboardPeserta() {
 
   return (
     <div className="min-h-screen bg-[#030712] text-slate-100 font-sans flex flex-col">
-      {/* NAVBAR CLEAN DENGAN LOGO MURNI TRANSPARAN TANPA KOTAK BACKGROUND & SHADOW */}
       <header className="border-b border-slate-800 bg-[#0d1527]/80 backdrop-blur-md sticky top-0 z-40 px-6 py-3">
         <div className="flex justify-between items-center w-full max-w-5xl mx-auto">
           <div className="flex items-center gap-3">
             {!logoGagalDimuat ? (
               <img
                 src={LOGO_URL}
-                alt="Logo Lembaga"
+                alt="Logo DCC"
                 onError={() => setLogoGagalDimuat(true)}
                 className="h-10 w-auto object-contain drop-shadow-md"
               />
@@ -225,7 +244,8 @@ export default function DashboardPeserta() {
             )}
             <div>
               <h1 className="text-sm font-display font-bold text-white tracking-wide">DCC CBT PORTAL</h1>
-              <p className="text-[10px] text-slate-400 font-sans">Panel Ruang Ujian Peserta</p>
+              {/* 5. DIPERBAIKI JADI "Dashboard Peserta" */}
+              <p className="text-[10px] text-slate-400 font-sans">Dashboard Peserta</p>
             </div>
           </div>
           <button 
@@ -275,39 +295,45 @@ export default function DashboardPeserta() {
                     <h3 className="text-lg font-display font-bold text-white">{completedExamInfo?.namaUjian}</h3>
                   </div>
                 </div>
-                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-xs px-3 py-1 font-display font-bold flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4" /> UJIAN SELESAI
-                </Badge>
+                <div className="flex items-center gap-2">
+                  {/* 4. BADGE TIMER LAMA PENGERJAAN */}
+                  <div className="bg-slate-800/80 text-cyan-400 border border-cyan-400/30 text-xs px-3 py-1 rounded-lg font-mono flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5" /> {completedExamInfo?.lamaPengerjaan}
+                  </div>
+                  <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-xs px-3 py-1 font-display font-bold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4" /> UJIAN SELESAI
+                  </Badge>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* 2. NILAI PILIHAN GANDA */}
                 <div className="p-5 rounded-xl bg-[#030712]/80 border border-slate-800/80 space-y-2">
-                  <p className="text-[11px] font-display font-bold text-slate-400 uppercase tracking-wider">SKOR PILIHAN GANDA</p>
+                  <p className="text-[11px] font-display font-bold text-slate-400 uppercase tracking-wider">NILAI PILIHAN GANDA</p>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-display font-bold text-cyan-400">{completedExamInfo?.skorPG}</span>
+                    <span className="text-3xl font-display font-bold text-cyan-400">{completedExamInfo?.nilaiPG}</span>
                     <span className="text-xs text-slate-500 font-sans">/ 100</span>
                   </div>
                 </div>
 
+                {/* 3. NILAI PRAKTIK */}
                 <div className="p-5 rounded-xl bg-[#030712]/80 border border-slate-800/80 space-y-2">
-                  <p className="text-[11px] font-display font-bold text-slate-400 uppercase tracking-wider">STATUS / NILAI PRAKTIK</p>
+                  <p className="text-[11px] font-display font-bold text-slate-400 uppercase tracking-wider">NILAI PRAKTIK</p>
                   <p className="text-sm font-display font-bold text-amber-400 pt-1">
                     {completedExamInfo?.nilaiPraktik !== null ? (
-                      <span className="text-2xl font-mono text-amber-400">{completedExamInfo.nilaiPraktik}</span>
+                      <span className="text-3xl font-display font-bold text-amber-400">{completedExamInfo.nilaiPraktik}</span>
                     ) : (
-                      completedExamInfo?.statusPraktik
+                      <span className="text-xs font-sans text-amber-400/90">{completedExamInfo?.statusPraktikText}</span>
                     )}
                   </p>
                 </div>
 
+                {/* 2. NILAI AKHIR TOTAL */}
                 <div className="p-5 rounded-xl bg-[#030712]/80 border border-emerald-500/30 space-y-2">
-                  <p className="text-[11px] font-display font-bold text-emerald-400 uppercase tracking-wider">SKOR AKHIR TOTAL</p>
+                  <p className="text-[11px] font-display font-bold text-emerald-400 uppercase tracking-wider">NILAI AKHIR TOTAL</p>
                   <div className="flex items-baseline gap-2">
                     <span className="text-3xl font-display font-bold text-emerald-400">
-                      {completedExamInfo?.totalNilai !== null ? completedExamInfo.totalNilai : completedExamInfo?.skorPG}
-                    </span>
-                    <span className="text-xs text-slate-500 font-sans">
-                      {completedExamInfo?.totalNilai !== null ? 'Poin' : '(PG Saja)'}
+                      {completedExamInfo?.totalNilai !== null ? completedExamInfo.totalNilai : completedExamInfo?.nilaiPG}
                     </span>
                   </div>
                 </div>
@@ -315,11 +341,11 @@ export default function DashboardPeserta() {
             </div>
           ) : (
             <>
-              {/* CARD MATA UJIAN TERKUNCI (SESUAI IMPOR PANITIA) */}
+              {/* CARD MATA UJIAN TERKUNCI (1. SESUAI IMPOR PENGAWAS) */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-cyan-400 px-1">
                   <Sparkles className="w-4 h-4" />
-                  <h3 className="text-xs font-display font-bold uppercase tracking-widest">MATA UJIAN ANDA (SESUAI DATA PANITIA)</h3>
+                  <h3 className="text-xs font-display font-bold uppercase tracking-widest">MATA UJIAN ANDA (SESUAI DATA PENGAWAS)</h3>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4">
@@ -329,7 +355,7 @@ export default function DashboardPeserta() {
                         <span className="text-[10px] font-display font-bold uppercase px-2.5 py-0.5 rounded-md bg-cyan-400 text-slate-950">
                           {activeExamDetail.kategori}
                         </span>
-                        <span className="text-xs font-display font-bold text-cyan-400">Ditetapkan Panitia</span>
+                        <span className="text-xs font-display font-bold text-cyan-400">Ditetapkan Pengawas</span>
                       </div>
                       <h4 className="text-base font-display font-bold text-white tracking-wide">{activeExamDetail.nama}</h4>
                       <p className="text-xs text-slate-400 font-sans">{activeExamDetail.subNama}</p>
