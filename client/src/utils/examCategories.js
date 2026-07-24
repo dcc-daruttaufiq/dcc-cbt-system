@@ -1,8 +1,5 @@
 // ============================================================================
-// SUMBER KEBENARAN TUNGGAL UNTUK 5 KATEGORI UJIAN RESMI DCC CBT
-// Semua file (BankSoal, DashboardPanitia, DashboardPeserta, RuangUjian, Login)
-// WAJIB import dari sini. Jangan menulis ulang daftar kategori atau mapper
-// kategori secara lokal di file lain — itu penyebab utama data "tidak sinkron".
+// MODUL UTILITY KATEGORI MATA UJIAN ADAPTIF DCC CBT
 // ============================================================================
 
 export const KATEGORI_RESMI = ['word', 'excel', 'powerpoint', 'desain', 'pemrograman'];
@@ -15,31 +12,48 @@ export const KATEGORI_LABEL = {
   pemrograman: 'Pemrograman Web',
 };
 
+/**
+ * Mendapatkan label tampilan nama mata ujian.
+ * Jika ID kategori ada di dictionary statis, gunakan label tersebut.
+ * Jika ID baru dari Supabase/Pengaturan (misal: 'photoshop'), kapitalisasi huruf awal otomatis.
+ */
 export function getLabelKategori(kategoriId) {
-  return KATEGORI_LABEL[kategoriId] || kategoriId || '-';
+  if (!kategoriId) return '-';
+  
+  // 1. Cek dari dictionary bawaan
+  if (KATEGORI_LABEL[kategoriId]) {
+    return KATEGORI_LABEL[kategoriId];
+  }
+
+  // 2. Fallback cerdas: ubah 'adobe-photoshop' atau 'photoshop' jadi 'Adobe Photoshop' / 'Photoshop'
+  return String(kategoriId)
+    .split(/[-_\s]+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
 }
 
 /**
- * Normalisasi string kategori MENTAH (dari kolom Excel/CSV, input manual, dsb)
- * menjadi salah satu dari 5 KATEGORI_RESMI.
- *
- * PENTING: fungsi ini SENGAJA mengembalikan `null` jika tidak ada kecocokan,
- * bukan default diam-diam ke 'word'. Default diam-diam adalah bentuk data
- * dummy terselubung — ia menyembunyikan kesalahan input Excel Panitia dan
- * membuat peserta salah kategori tanpa siapapun sadar. Pemanggil (caller)
- * WAJIB menangani kasus null dengan menampilkan pesan error yang jelas,
- * bukan meneruskan data yang tidak valid.
+ * Normalisasi string kategori MENTAH (dari Excel/CSV, input manual, dsb)
  */
-export function normalizeKategori(rawInput) {
+export function normalizeKategori(rawInput, dynamicCategories = []) {
   if (!rawInput) return null;
   const kat = String(rawInput).toLowerCase().trim();
 
-  if (KATEGORI_RESMI.includes(kat)) return kat;
+  // Array gabungan kategori bawaan + kategori baru hasil input pengawas
+  const validCategories = Array.from(new Set([...KATEGORI_RESMI, ...dynamicCategories]));
 
-  if (kat.includes('excel') || kat.includes('spreadsheet') || kat.includes('sheet') || kat.includes('data')) return 'excel';
+  // 1. Cek langsung persis jika cocok dengan ID dinamis maupun statis
+  if (validCategories.includes(kat)) return kat;
+
+  // 2. Cek kemiripan string untuk ID baru
+  const matchDynamic = validCategories.find(c => kat.includes(c) || c.includes(kat));
+  if (matchDynamic) return matchDynamic;
+
+  // 3. Fallback pencocokan kata kunci dasar
+  if (kat.includes('excel') || kat.includes('spreadsheet') || kat.includes('sheet')) return 'excel';
   if (kat.includes('power') || kat.includes('ppt') || kat.includes('slide') || kat.includes('presentasi')) return 'powerpoint';
   if (kat.includes('word') || kat.includes('doc') || kat.includes('surat')) return 'word';
-  if (kat.includes('desain') || kat.includes('design') || kat.includes('canva') || kat.includes('grafis') || kat.includes('visual')) return 'desain';
+  if (kat.includes('desain') || kat.includes('design') || kat.includes('canva') || kat.includes('grafis')) return 'desain';
   if (
     kat.includes('pemrograman') ||
     kat.includes('coding') ||
@@ -51,6 +65,10 @@ export function normalizeKategori(rawInput) {
   ) {
     return 'pemrograman';
   }
+
+  // Jika berupa ID unik baru buatan pengawas tanpa spasi
+  const cleanSlug = kat.replace(/[^a-z0-9]/g, '');
+  if (cleanSlug) return cleanSlug;
 
   return null;
 }

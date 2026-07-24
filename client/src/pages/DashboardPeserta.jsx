@@ -13,12 +13,12 @@ import {
   AlertCircle, Sparkles, Award, CheckCircle2, Clock
 } from 'lucide-react';
 
-const DAFTAR_UJIAN = [
-  { id: 'word', nama: 'Microsoft Word', subNama: 'Pengolahan Dokumen & Surat', kategori: 'Perkantoran', durasi: '90 Menit', detailSoal: 'Soal PG + Praktik Word', tokenDefault: 'WORD2026' },
-  { id: 'excel', nama: 'Microsoft Excel', subNama: 'Pengolahan Data & Formula', kategori: 'Perkantoran', durasi: '90 Menit', detailSoal: 'Soal PG + Praktik Excel', tokenDefault: 'EXCEL2026' },
-  { id: 'powerpoint', nama: 'Microsoft PowerPoint', subNama: 'Desain Presentasi Interaktif', kategori: 'Perkantoran', durasi: '90 Menit', detailSoal: 'Soal PG + Praktik Slide', tokenDefault: 'PPT2026' },
-  { id: 'desain', nama: 'Desain Grafis', subNama: 'Canva & Visual Typography', kategori: 'Kreatif & Desain', durasi: '90 Menit', detailSoal: 'Soal PG + Praktik Layout', tokenDefault: 'DESAIN2026' },
-  { id: 'pemrograman', nama: 'Pemrograman Web', subNama: 'HTML, CSS, & Logic JavaScript', kategori: 'Teknologi', durasi: '120 Menit', detailSoal: 'Soal PG + Praktik Web', tokenDefault: 'CODING2026' }
+const DEFAULT_KATALOG = [
+  { id: 'word', nama: 'Microsoft Word', subNama: 'Pengolahan Dokumen & Surat', kategori: 'Spesialisasi', durasi: '90 Menit', tokenDefault: 'WORD2026' },
+  { id: 'excel', nama: 'Microsoft Excel', subNama: 'Pengolahan Data & Formula', kategori: 'Spesialisasi', durasi: '90 Menit', tokenDefault: 'EXCEL2026' },
+  { id: 'powerpoint', nama: 'Microsoft PowerPoint', subNama: 'Desain Presentasi Interaktif', kategori: 'Spesialisasi', durasi: '90 Menit', tokenDefault: 'PPT2026' },
+  { id: 'desain', nama: 'Desain Grafis', subNama: 'Canva & Visual Typography', kategori: 'Spesialisasi', durasi: '90 Menit', tokenDefault: 'DESAIN2026' },
+  { id: 'pemrograman', nama: 'Pemrograman Web', subNama: 'HTML, CSS, & Logic JavaScript', kategori: 'Spesialisasi', durasi: '120 Menit', tokenDefault: 'CODING2026' }
 ];
 
 export default function DashboardPeserta() {
@@ -36,6 +36,8 @@ export default function DashboardPeserta() {
   const [completedExamInfo, setCompletedExamInfo] = useState(null);
   const [logoGagalDimuat, setLogoGagalDimuat] = useState(false);
 
+  // State Katalog Ujian Dinamis
+  const [daftarUjianDinamis, setDaftarUjianDinamis] = useState(DEFAULT_KATALOG);
   const [dataError, setDataError] = useState('');
 
   // Helper Format Durasi Waktu Pengerjaan (Kebal NaN & Lintas Browser)
@@ -45,7 +47,6 @@ export default function DashboardPeserta() {
     const parseDateToMs = (str) => {
       if (!str) return null;
       if (typeof str === 'number') return str;
-      // Konversi format PostgreSQL 'YYYY-MM-DD HH:MM:SS' jadi ISO 'YYYY-MM-DDTHH:MM:SS'
       const isoFormatted = str.toString().trim().replace(' ', 'T');
       const timeMs = new Date(isoFormatted).getTime();
       return isNaN(timeMs) ? null : timeMs;
@@ -75,7 +76,53 @@ export default function DashboardPeserta() {
   };
 
   useEffect(() => {
+    const loadKatalogDinamis = async () => {
+      let catalogArr = DEFAULT_KATALOG;
+      try {
+        const { data } = await supabase
+          .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
+          .select('*')
+          .eq('key', 'katalog_mata_ujian')
+          .maybeSingle();
+
+        if (data && data.value) {
+          const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            catalogArr = parsed.map(item => ({
+              id: item.id,
+              nama: item.nama || getLabelKategori(item.id),
+              subNama: item.desc || 'Ujian Sertifikasi Kompetensi',
+              kategori: 'Spesialisasi',
+              durasi: `${item.durasi || 90} Menit`,
+              tokenDefault: `${item.id.toUpperCase()}2026`
+            }));
+          }
+        }
+      } catch (e) {
+        console.warn('Membaca katalog mata ujian dari local storage...');
+        const local = localStorage.getItem('dcc_katalog_mapel');
+        if (local) {
+          try {
+            const parsed = JSON.parse(local);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              catalogArr = parsed.map(item => ({
+                id: item.id,
+                nama: item.nama || getLabelKategori(item.id),
+                subNama: item.desc || 'Ujian Sertifikasi Kompetensi',
+                kategori: 'Spesialisasi',
+                durasi: `${item.durasi || 90} Menit`,
+                tokenDefault: `${item.id.toUpperCase()}2026`
+              }));
+            }
+          } catch (e) {}
+        }
+      }
+      setDaftarUjianDinamis(catalogArr);
+      return catalogArr;
+    };
+
     const initDashboard = async () => {
+      const activeCatalog = await loadKatalogDinamis();
       const savedUserStr = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
       let activeUser = savedUserStr ? JSON.parse(savedUserStr) : null;
 
@@ -114,7 +161,8 @@ export default function DashboardPeserta() {
       setTechId(techIdToDisplay);
 
       const rawKat = activeUser?.kategori || localStorage.getItem(STORAGE_KEYS.USER_KATEGORI) || '';
-      const initialKat = normalizeKategori(rawKat);
+      const dynamicCategoryIds = activeCatalog.map(item => item.id);
+      const initialKat = normalizeKategori(rawKat, dynamicCategoryIds);
 
       if (!initialKat) {
         setDataError(`Kategori ujian untuk akun ini tidak valid ("${rawKat || '-'}"). Silakan hubungi Pengawas untuk memperbaiki data.`);
@@ -127,7 +175,7 @@ export default function DashboardPeserta() {
 
       if (isFinished) {
         setIsExamCompleted(true);
-        const activeExam = DAFTAR_UJIAN.find(u => u.id === initialKat);
+        const activeExam = activeCatalog.find(u => u.id === initialKat);
         
         const nilaiPG = activeUser?.nilai_pg !== undefined && activeUser?.nilai_pg !== null ? Number(activeUser.nilai_pg) : 0;
         const nilaiPraktik = activeUser?.nilai_praktik !== undefined && activeUser?.nilai_praktik !== null ? Number(activeUser.nilai_praktik) : null;
@@ -139,7 +187,6 @@ export default function DashboardPeserta() {
 
         const isFullyCorrected = activeUser?.status_koreksi === 'SELESAI' || activeUser?.status_koreksi === 'dikoreksi' || nilaiPraktik !== null;
 
-        // Ambil timestamp dari Supabase atau LocalStorage/SessionStorage
         const wMulai = activeUser?.waktu_mulai 
           || localStorage.getItem(`startTime_${techIdToDisplay}`)
           || sessionStorage.getItem(`startTime_${techIdToDisplay}`);
@@ -148,10 +195,8 @@ export default function DashboardPeserta() {
           || localStorage.getItem(`endTime_${techIdToDisplay}`)
           || sessionStorage.getItem(`endTime_${techIdToDisplay}`);
 
-        // Hitung Timer Durasi Pengerjaan yang Akurat
         let lamaKerja = formatLamaPengerjaan(wMulai, wSelesai);
         
-        // Anti-NaN: Jika kalkulasi gagal/null/mengandung 'NaN', ganti ke fallback
         if (!lamaKerja || lamaKerja.includes('NaN')) {
           lamaKerja = activeUser?.lama_pengerjaan || 'Selesai Ujian';
         }
@@ -172,7 +217,7 @@ export default function DashboardPeserta() {
     initDashboard();
   }, [navigate]);
 
-  const activeExamDetail = DAFTAR_UJIAN.find((u) => u.id === selectedUjian) || DAFTAR_UJIAN[0];
+  const activeExamDetail = daftarUjianDinamis.find((u) => u.id === selectedUjian) || daftarUjianDinamis[0] || DEFAULT_KATALOG[0];
 
   const handleLogout = () => {
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
@@ -247,11 +292,11 @@ export default function DashboardPeserta() {
 
   if (dataError) {
     return (
-      <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center gap-3 p-4 text-center">
+      <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center gap-3 p-4 text-center font-sans">
         <AlertCircle className="w-8 h-8 text-rose-400" />
         <p className="text-sm font-bold text-rose-400">Data Peserta Bermasalah</p>
         <p className="text-xs text-slate-400 max-w-md">{dataError}</p>
-        <Button onClick={handleLogout} className="mt-2 bg-slate-800 text-xs text-slate-300">
+        <Button onClick={handleLogout} className="mt-2 bg-slate-800 text-xs text-slate-300 font-sans">
           ← Kembali ke Login
         </Button>
       </div>
@@ -287,7 +332,7 @@ export default function DashboardPeserta() {
         </div>
       </header>
 
-      <main className="flex-1 p-6 md:p-10 overflow-y-auto">
+      <main className="flex-1 p-6 md:p-10 overflow-y-auto font-sans">
         <div className="max-w-4xl mx-auto space-y-6">
 
           {/* CARD PROFIL PESERTA */}
@@ -314,7 +359,7 @@ export default function DashboardPeserta() {
 
           {/* TAMPILAN LEMBAR HASIL JIKA SUDAH SELESAI UJIAN */}
           {isExamCompleted ? (
-            <div className="p-6 md:p-8 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl border border-emerald-500/40 space-y-6 shadow-2xl">
+            <div className="p-6 md:p-8 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl border border-emerald-500/40 space-y-6 shadow-2xl font-sans">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/60 pb-5">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center shrink-0">
@@ -326,10 +371,9 @@ export default function DashboardPeserta() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {/* BADGE TIMER LAMA PENGERJAAN */}
                   <div className="bg-slate-800/80 text-cyan-400 border border-cyan-400/30 text-xs px-3 py-1 rounded-lg font-display font-bold tracking-wide flex items-center gap-1.5">
-  <Clock className="w-3.5 h-3.5" /> {completedExamInfo?.lamaPengerjaan}
-</div>
+                    <Clock className="w-3.5 h-3.5" /> {completedExamInfo?.lamaPengerjaan}
+                  </div>
                   <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-xs px-3 py-1 font-display font-bold flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4" /> UJIAN SELESAI
                   </Badge>
@@ -372,7 +416,7 @@ export default function DashboardPeserta() {
           ) : (
             <>
               {/* CARD MATA UJIAN TERKUNCI */}
-              <div className="space-y-3">
+              <div className="space-y-3 font-sans">
                 <div className="flex items-center gap-2 text-cyan-400 px-1">
                   <Sparkles className="w-4 h-4" />
                   <h3 className="text-xs font-display font-bold uppercase tracking-widest">MATA UJIAN ANDA (SESUAI DATA PENGAWAS)</h3>
@@ -385,7 +429,7 @@ export default function DashboardPeserta() {
                         <span className="text-[10px] font-display font-bold uppercase px-2.5 py-0.5 rounded-md bg-cyan-400 text-slate-950">
                           {activeExamDetail.kategori}
                         </span>
-                        <span className="text-xs font-display font-bold text-cyan-400">Ditetapkan Pengawas</span>
+                        <span className="text-xs font-display font-bold text-cyan-400">Durasi: {activeExamDetail.durasi}</span>
                       </div>
                       <h4 className="text-base font-display font-bold text-white tracking-wide">{activeExamDetail.nama}</h4>
                       <p className="text-xs text-slate-400 font-sans">{activeExamDetail.subNama}</p>
@@ -395,7 +439,7 @@ export default function DashboardPeserta() {
               </div>
 
               {/* FORM VERIFIKASI TOKEN UJIAN */}
-              <div className="p-6 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 space-y-4">
+              <div className="p-6 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 space-y-4 font-sans">
                 <div className="border-b border-slate-800/50 pb-3 flex justify-between items-center">
                   <div>
                     <h4 className="text-xs font-display font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
@@ -405,7 +449,7 @@ export default function DashboardPeserta() {
                       Mata Ujian Terpilih: <strong className="text-white font-bold">{activeExamDetail.nama}</strong>
                     </p>
                   </div>
-                  <span className="text-[11px] font-mono text-cyan-400 bg-cyan-400/10 px-2.5 py-1 rounded-lg border border-cyan-400/20">
+                  <span className="text-[11px] font-display font-bold text-cyan-400 bg-cyan-400/10 px-2.5 py-1 rounded-lg border border-cyan-400/20">
                     Token: {activeExamDetail.tokenDefault}
                   </span>
                 </div>
@@ -418,7 +462,7 @@ export default function DashboardPeserta() {
                         placeholder={`Masukkan Token Ujian ${activeExamDetail.nama}...`}
                         value={tokenInput}
                         onChange={(e) => setTokenInput(e.target.value.toUpperCase())}
-                        className="w-full px-4 py-3 uppercase font-display font-bold tracking-widest text-sm bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-white rounded-xl"
+                        className="w-full px-4 py-3 uppercase font-display font-bold tracking-widest text-sm bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-white rounded-xl font-sans"
                       />
                     </div>
                     <Button type="submit" disabled={isLoading} className="w-full py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0 rounded-xl shadow-lg shadow-cyan-400/20 flex items-center justify-center gap-2">
@@ -428,11 +472,11 @@ export default function DashboardPeserta() {
 
                   <div className="flex items-center gap-2">
                     <input type="checkbox" id="agree" checked={isAgreed} onChange={(e) => setIsAgreed(e.target.checked)} className="w-3.5 h-3.5 accent-cyan-400 rounded cursor-pointer" />
-                    <label htmlFor="agree" className="text-[11px] text-slate-400 cursor-pointer select-none">Saya menyetujui tata tertib pengerjaan ujian {activeExamDetail.nama}.</label>
+                    <label htmlFor="agree" className="text-[11px] text-slate-400 cursor-pointer select-none font-sans">Saya menyetujui tata tertib pengerjaan ujian {activeExamDetail.nama}.</label>
                   </div>
 
                   {tokenError && (
-                    <div className="p-3 bg-rose-500/10 rounded-xl text-rose-400 text-xs flex items-center gap-2 border border-rose-500/20">
+                    <div className="p-3 bg-rose-500/10 rounded-xl text-rose-400 text-xs flex items-center gap-2 border border-rose-500/20 font-sans">
                       <AlertCircle className="w-4 h-4 shrink-0" />
                       <span>{tokenError}</span>
                     </div>

@@ -65,37 +65,43 @@ export default function PengaturanUjian() {
     loadPengaturan();
   }, []);
 
-  // Simpan Katalog Mata Ujian ke Supabase Cloud
-  const handleSimpan = async (e) => {
-    if (e) e.preventDefault();
+  // Helper Auto-Save Ke Supabase Cloud
+  const saveToSupabase = async (updatedList) => {
     setIsSaving(true);
     setMessage({ type: '', text: '' });
 
     try {
-      localStorage.setItem('dcc_katalog_mapel', JSON.stringify(katalogMapel));
+      localStorage.setItem('dcc_katalog_mapel', JSON.stringify(updatedList));
 
       const { error } = await supabase
         .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
         .upsert({
           key: 'katalog_mata_ujian',
-          value: JSON.stringify(katalogMapel),
+          value: JSON.stringify(updatedList),
           updated_at: new Date().toISOString()
         }, { onConflict: 'key' });
 
       if (error) throw error;
 
-      setMessage({ type: 'success', text: 'Pengaturan mata ujian & durasi berhasil disimpan!' });
+      setMessage({ type: 'success', text: 'Katalog mata ujian berhasil disimpan permanen ke Cloud!' });
     } catch (err) {
       console.error('Gagal menyimpan ke Cloud:', err);
-      setMessage({ type: 'warning', text: 'Tersimpan di Lokal. Pastikan database Supabase terhubung.' });
+      setMessage({ type: 'warning', text: 'Tersimpan di Lokal. Pastikan Supabase terhubung.' });
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Handler Durasi Per-Item
+  // Simpan Manual lewat tombol bawah
+  const handleSimpan = (e) => {
+    if (e) e.preventDefault();
+    saveToSupabase(katalogMapel);
+  };
+
+  // Handler Edit Durasi Angka
   const handleDurasiChange = (id, val) => {
-    setKatalogMapel(prev => prev.map(m => m.id === id ? { ...m, durasi: val } : m));
+    const updated = katalogMapel.map(m => m.id === id ? { ...m, durasi: val } : m);
+    setKatalogMapel(updated);
   };
 
   // Buka Modal Tambah
@@ -112,7 +118,7 @@ export default function PengaturanUjian() {
     setIsModalOpen(true);
   };
 
-  // Hapus Mata Ujian
+  // Hapus Mata Ujian (Auto-Save)
   const handleDeleteMapel = (id, nama) => {
     if (katalogMapel.length <= 1) {
       return alert('Sistem harus memiliki minimal 1 Mata Ujian!');
@@ -121,10 +127,10 @@ export default function PengaturanUjian() {
 
     const updated = katalogMapel.filter(m => m.id !== id);
     setKatalogMapel(updated);
-    localStorage.setItem('dcc_katalog_mapel', JSON.stringify(updated));
+    saveToSupabase(updated);
   };
 
-  // Submit Modal Form (Tambah / Edit)
+  // Submit Modal Form (Tambah / Edit + Auto-Save)
   const handleSaveModal = (e) => {
     e.preventDefault();
     if (!formMapel.nama.trim()) return alert('Nama Mata Ujian wajib diisi!');
@@ -145,7 +151,7 @@ export default function PengaturanUjian() {
     }
 
     setKatalogMapel(updatedList);
-    localStorage.setItem('dcc_katalog_mapel', JSON.stringify(updatedList));
+    saveToSupabase(updatedList); // AUTO-SAVE LANGSUNG
     setIsModalOpen(false);
   };
 
@@ -259,7 +265,7 @@ export default function PengaturanUjian() {
                       disabled={isSaving}
                       className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs px-6 py-2.5 border-0 rounded-xl flex items-center gap-2 shadow-lg shadow-cyan-400/20"
                     >
-                      <Save className="w-4 h-4" /> {isSaving ? 'Menyimpan...' : 'Simpan Perubahan'}
+                      <Save className="w-4 h-4" /> {isSaving ? 'Menyimpan...' : 'Simpan Perubahan Durasi'}
                     </Button>
                   </div>
                 </form>

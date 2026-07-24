@@ -27,6 +27,9 @@ export default function BankSoal() {
   const [isOffline, setIsOffline] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Kategori Dinamis dari Supabase / LocalStorage
+  const [kategoriDinamis, setKategoriDinamis] = useState(KATEGORI_RESMI);
+
   // State untuk Pilihan Checkbox (Bulk Delete)
   const [selectedIds, setSelectedIds] = useState([]);
 
@@ -42,12 +45,14 @@ export default function BankSoal() {
   const fileInputRef = useRef(null);
   const excelInputRef = useRef(null);
 
-  const menuPanitia = [
+  const menuPengawas = [
     { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
     { label: 'Bank Soal', path: '/bank-soal', icon: '📚' },
+    { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: '⚙️' },
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
+  // Fetch Bank Soal dari Supabase Cloud
   const fetchSoal = async () => {
     setIsLoading(true);
     try {
@@ -81,8 +86,40 @@ export default function BankSoal() {
     }
   };
 
+  // Fetch Kategori Mata Ujian Dinamis
+  const loadKategoriDinamis = async () => {
+    try {
+      const { data } = await supabase
+        .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
+        .select('*')
+        .eq('key', 'katalog_mata_ujian')
+        .maybeSingle();
+
+      if (data && data.value) {
+        const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setKategoriDinamis(parsed.map(item => item.id));
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Gagal memuat kategori dari cloud, membaca dari local cache...');
+    }
+
+    const local = localStorage.getItem('dcc_katalog_mapel');
+    if (local) {
+      try {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setKategoriDinamis(parsed.map(item => item.id));
+        }
+      } catch (e) {}
+    }
+  };
+
   useEffect(() => {
     fetchSoal();
+    loadKategoriDinamis();
   }, []);
 
   const handleAddChecklist = (e) => {
@@ -99,7 +136,7 @@ export default function BankSoal() {
 
   const openCreateModal = () => {
     setEditingId(null);
-    setKategori('word');
+    setKategori(kategoriDinamis[0] || 'word');
     setTipe('pg');
     setPertanyaan('');
     setOpsi({ A: '', B: '', C: '', D: '' });
@@ -110,7 +147,7 @@ export default function BankSoal() {
 
   const openEditModal = (soal) => {
     setEditingId(soal.id);
-    setKategori(soal.kategori || 'word');
+    setKategori(soal.kategori || kategoriDinamis[0] || 'word');
     setTipe(soal.tipe);
     setPertanyaan(soal.pertanyaan);
     if (soal.tipe === 'pg') {
@@ -374,26 +411,24 @@ export default function BankSoal() {
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
-      <Sidebar links={menuPanitia} userRole="Pengawas" />
+      <Sidebar links={menuPengawas} userRole="Pengawas" />
 
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* CLEAN NAVBAR TANPA SHADOW GLOWING */}
+      <div className="flex-1 flex flex-col min-w-0 font-sans">
         <Navbar>
           <div className="flex justify-between items-center w-full">
             <div className="flex items-center gap-3">
               <Database className="text-cyan-400 w-5 h-5" />
               <div>
                 <h1 className="text-sm font-display font-bold text-white tracking-wide">BANK SOAL (LIVE DB)</h1>
-                <p className="text-[11px] text-slate-400">Kelola & Import Bank Soal Spesialisasi</p>
+                <p className="text-[11px] text-slate-400 font-sans">Kelola & Import Bank Soal Spesialisasi</p>
               </div>
               {isOffline && (
-                <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-1 rounded-lg">
+                <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-1 rounded-lg font-sans">
                   <WifiOff className="w-3 h-3" /> Mode Offline
                 </span>
               )}
             </div>
 
-            {/* ACTION BUTTONS (FLAT CLEAN MURNI) */}
             <div className="flex items-center gap-2">
               <input type="file" ref={fileInputRef} onChange={handleImportBackup} accept=".json" className="hidden" />
               <input type="file" ref={excelInputRef} onChange={handleImportExcelCSV} accept=".csv,.xlsx" className="hidden" />
@@ -426,7 +461,7 @@ export default function BankSoal() {
         <main className="p-8 flex-1 overflow-y-auto">
           <div className="max-w-5xl mx-auto space-y-4">
 
-            {/* CONTROLS BAR: FILTER & BULK DELETE */}
+            {/* TAB FILTER MATA UJIAN DINAMIS */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
               <div className="flex items-center gap-3">
                 <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
@@ -437,7 +472,7 @@ export default function BankSoal() {
                   <div className="flex items-center gap-2 border-l border-slate-800 pl-3">
                     <button
                       onClick={toggleSelectAll}
-                      className="text-[11px] text-cyan-400 hover:underline font-mono"
+                      className="text-[11px] text-cyan-400 hover:underline font-display font-bold"
                     >
                       {selectedIds.length === filteredSoalList.length ? 'Batal Pilih' : 'Pilih Semua'}
                     </button>
@@ -445,7 +480,7 @@ export default function BankSoal() {
                     {selectedIds.length > 0 && (
                       <button
                         onClick={handleDeleteSelected}
-                        className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 text-[10px] font-bold flex items-center gap-1 hover:bg-rose-500/40 transition"
+                        className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 text-[10px] font-bold font-sans flex items-center gap-1 hover:bg-rose-500/40 transition"
                       >
                         <Trash className="w-3 h-3" /> Hapus Terpilih ({selectedIds.length})
                       </button>
@@ -454,9 +489,8 @@ export default function BankSoal() {
                 )}
               </div>
 
-              {/* FILTER KATEGORI */}
               <div className="flex gap-1 bg-[#0d1527] p-1 rounded-xl border border-slate-800/80 text-[11px] overflow-x-auto">
-                {['semua', ...KATEGORI_RESMI].map((kat) => (
+                {['semua', ...kategoriDinamis].map((kat) => (
                   <button
                     key={kat}
                     onClick={() => setFilterKategori(kat)}
@@ -470,14 +504,13 @@ export default function BankSoal() {
               </div>
             </div>
 
-            {/* LIST DAFTAR SOAL (FLAT CLEAN TANPA SHADOW) */}
             <div className="space-y-3">
               {isLoading ? (
-                <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
+                <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs font-sans">
                   Memuat Bank Soal dari Supabase Cloud...
                 </div>
               ) : filteredSoalList.length === 0 ? (
-                <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
+                <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs font-sans">
                   Belum ada soal untuk kategori ini.
                 </div>
               ) : (
@@ -492,7 +525,6 @@ export default function BankSoal() {
                       }`}
                     >
                       <div className="flex items-start gap-3 flex-1 min-w-0">
-                        {/* Custom Round Checkbox */}
                         <button
                           type="button"
                           onClick={() => toggleSelectSoal(row.id)}
@@ -503,8 +535,8 @@ export default function BankSoal() {
                           {isChecked && <CheckCircle2 className="w-3.5 h-3.5 text-slate-950" strokeWidth={3} />}
                         </button>
 
-                        <span className="text-xs font-mono text-slate-500 bg-slate-900/60 px-2.5 py-1 rounded-lg shrink-0 mt-0.5">
-                          #{index + 1}
+                        <span className="text-xs font-display font-bold text-slate-400 bg-slate-900/60 px-2.5 py-1 rounded-lg shrink-0 mt-0.5">
+                          {index + 1}
                         </span>
 
                         <div className="space-y-2 flex-1 min-w-0">
@@ -513,16 +545,16 @@ export default function BankSoal() {
                               {row.kategori || 'KATEGORI TIDAK DIKENALI'}
                             </Badge>
 
-                            <Badge variant={row.tipe === 'pg' ? 'primary' : 'secondary'} className="text-[10px] px-2 py-0.5 rounded-md">
+                            <Badge variant={row.tipe === 'pg' ? 'primary' : 'secondary'} className="text-[10px] px-2 py-0.5 rounded-md font-sans">
                               {row.tipe === 'pg' ? 'Pilihan Ganda' : 'Praktik'}
                             </Badge>
 
                             {row.tipe === 'pg' ? (
-                              <span className="text-xs text-slate-400">
-                                Kunci: <strong className="text-cyan-400 font-mono">{row.jawaban_benar || row.jawabanBenar}</strong>
+                              <span className="text-xs text-slate-400 font-sans">
+                                Kunci: <strong className="text-cyan-400 font-display font-bold">{row.jawaban_benar || row.jawabanBenar}</strong>
                               </span>
                             ) : (
-                              <span className="text-xs text-slate-400">
+                              <span className="text-xs text-slate-400 font-sans">
                                 {row.checklist?.length || 0} Kriteria Rubrik
                               </span>
                             )}
@@ -534,7 +566,6 @@ export default function BankSoal() {
                         </div>
                       </div>
 
-                      {/* Tombol Aksi Single */}
                       <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                         <button
                           onClick={() => openEditModal(row)}
@@ -564,7 +595,7 @@ export default function BankSoal() {
       {/* MODAL INPUT / EDIT SOAL */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto font-sans">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={() => setIsModalOpen(false)} />
 
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-[#0d1527] border border-slate-800 rounded-2xl max-w-2xl w-full p-6 space-y-5 text-white">
@@ -578,8 +609,9 @@ export default function BankSoal() {
                   <label className="text-xs font-display font-bold text-slate-300 mb-1.5 flex items-center gap-1.5 uppercase">
                     <Layers className="w-3.5 h-3.5 text-cyan-400" /> Mata Ujian Spesialisasi
                   </label>
-                  <Select value={kategori} onChange={(e) => setKategori(e.target.value)} className="bg-[#030712]/60 border border-slate-800 text-sm rounded-xl">
-                    {KATEGORI_RESMI.map((kat) => (
+                  {/* SELECT KATEGORI DINAMIS */}
+                  <Select value={kategori} onChange={(e) => setKategori(e.target.value)} className="bg-[#030712]/60 border border-slate-800 text-sm rounded-xl font-sans">
+                    {kategoriDinamis.map((kat) => (
                       <option key={kat} value={kat}>{getLabelKategori(kat)}</option>
                     ))}
                   </Select>
@@ -587,13 +619,13 @@ export default function BankSoal() {
 
                 <div>
                   <label className="text-xs font-display font-bold text-slate-300 mb-1.5 block uppercase">Tipe Konten Pertanyaan</label>
-                  <Select value={tipe} onChange={(e) => { setTipe(e.target.value); setChecklist([]); }} disabled={!!editingId} className="bg-[#030712]/60 border border-slate-800 text-sm rounded-xl">
+                  <Select value={tipe} onChange={(e) => { setTipe(e.target.value); setChecklist([]); }} disabled={!!editingId} className="bg-[#030712]/60 border border-slate-800 text-sm rounded-xl font-sans">
                     <option value="pg">Pilihan Ganda (PG)</option>
                     <option value="praktik">Ujian Praktik</option>
                   </Select>
                 </div>
 
-                <Textarea label="Butir Soal / Pertanyaan Ujian" placeholder="Tulis pertanyaan lengkap..." value={pertanyaan} onChange={(e) => setPertanyaan(e.target.value)} required className="bg-[#030712]/60 border border-slate-800 text-sm rounded-xl" />
+                <Textarea label="Butir Soal / Pertanyaan Ujian" placeholder="Tulis pertanyaan lengkap..." value={pertanyaan} onChange={(e) => setPertanyaan(e.target.value)} required className="bg-[#030712]/60 border border-slate-800 text-sm rounded-xl font-sans" />
 
                 {tipe === 'pg' ? (
                   <div className="space-y-3 p-4 bg-[#030712]/40 border border-slate-800 rounded-xl">
@@ -605,7 +637,7 @@ export default function BankSoal() {
                     </div>
                     <div className="mt-2">
                       <label className="text-xs font-display font-bold text-slate-300 mb-1.5 block uppercase">Kunci Jawaban</label>
-                      <Select value={jawabanBenar} onChange={(e) => setJawabanBenar(e.target.value)} className="bg-[#030712]/60 border border-slate-800 text-sm rounded-xl">
+                      <Select value={jawabanBenar} onChange={(e) => setJawabanBenar(e.target.value)} className="bg-[#030712]/60 border border-slate-800 text-sm rounded-xl font-sans">
                         <option value="A">Opsi A</option>
                         <option value="B">Opsi B</option>
                         <option value="C">Opsi C</option>
@@ -617,11 +649,11 @@ export default function BankSoal() {
                   <div className="space-y-3 p-4 bg-[#030712]/40 border border-slate-800 rounded-xl">
                     <div className="flex gap-2 items-end">
                       <div className="flex-1"><Input label="Tambah Kriteria Penilaian" value={inputChecklist} onChange={(e) => setInputChecklist(e.target.value)} /></div>
-                      <Button variant="outline" type="button" onClick={handleAddChecklist} className="h-10 mb-0.5 bg-slate-800 text-xs border-0">Tambah</Button>
+                      <Button variant="outline" type="button" onClick={handleAddChecklist} className="h-10 mb-0.5 bg-slate-800 text-xs border-0 font-sans">Tambah</Button>
                     </div>
                     <div className="space-y-1.5 mt-2">
                       {checklist.map((item, index) => (
-                        <div key={index} className="flex items-center justify-between p-2.5 bg-[#030712]/60 rounded-xl text-xs border border-slate-800/60">
+                        <div key={index} className="flex items-center justify-between p-2.5 bg-[#030712]/60 rounded-xl text-xs border border-slate-800/60 font-sans">
                           <span>{index + 1}. {item}</span>
                           <button type="button" onClick={() => handleRemoveChecklist(index)} className="text-rose-400 hover:text-rose-300"><X className="w-3.5 h-3.5" /></button>
                         </div>
@@ -632,7 +664,7 @@ export default function BankSoal() {
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800/60">
-                <Button variant="outline" type="button" onClick={() => setIsModalOpen(false)} className="bg-slate-800 text-xs border-0">Batal</Button>
+                <Button variant="outline" type="button" onClick={() => setIsModalOpen(false)} className="bg-slate-800 text-xs border-0 font-sans">Batal</Button>
                 <Button variant="primary" onClick={handleSave} disabled={isSubmitting} className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0">
                   <Save className="w-4 h-4 mr-1.5" /> {isSubmitting ? 'Menyimpan...' : 'Simpan Soal'}
                 </Button>
