@@ -2,14 +2,14 @@
 // SUMBER KEBENARAN TUNGGAL UNTUK SEMUA KEY LOCALSTORAGE/SESSIONSTORAGE DCC CBT
 // Jangan pernah menulis string key secara manual (misal 'dcc_sesi_peserta')
 // langsung di dalam komponen. Selalu import STORAGE_KEYS dari sini agar tidak
-// ada typo/drift antara Login, DashboardPeserta, DashboardPanitia, BankSoal,
+// ada typo/drift antara Login, DashboardPeserta, DashboardPengawas, BankSoal,
 // dan RuangUjian.
 // ============================================================================
 
 export const STORAGE_KEYS = {
-  // Data murni hasil impor Panitia (SATU-SATUNYA sumber data peserta)
+  // Data murni hasil impor Pengawas (SATU-SATUNYA sumber data peserta)
   PESERTA: 'dcc_sesi_peserta',
-  // Data murni hasil impor Panitia (SATU-SATUNYA sumber Repositori Soal)
+  // Data murni hasil impor Pengawas (SATU-SATUNYA sumber Repositori Soal)
   BANK_SOAL: 'dcc_bank_soal',
 
   // Sesi login yang sedang aktif di browser ini

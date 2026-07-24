@@ -32,9 +32,9 @@ export default function Login() {
         saveAndRedirect('master_admin', 'token-master-admin-real', 'Lead Instructor DCC', 'ADMIN-001', 'all');
         return;
       }
-    } else if (selectedRole === 'panitia') {
-      if ((inputUser.toLowerCase() === 'panitia' || inputUser.toLowerCase() === 'admin' || inputUser.toLowerCase() === 'pengawas') && (inputPass === 'panitia123' || inputPass === 'admin123' || inputPass === '123')) {
-        saveAndRedirect('panitia', 'token-panitia-real', 'Pengawas Ujian', 'PANITIA-001', 'all');
+    } else if (selectedRole === 'Pengawas') {
+      if ((inputUser.toLowerCase() === 'Pengawas' || inputUser.toLowerCase() === 'admin' || inputUser.toLowerCase() === 'pengawas') && (inputPass === 'Pengawas123' || inputPass === 'admin123' || inputPass === '123')) {
+        saveAndRedirect('Pengawas', 'token-Pengawas-real', 'Pengawas Ujian', 'Pengawas-001', 'all');
         return;
       }
     }
@@ -142,8 +142,8 @@ export default function Login() {
     const formattedRole = role.toLowerCase();
     if (formattedRole === 'master_admin' || formattedRole === 'admin') {
       navigate('/dashboard-admin');
-    } else if (formattedRole === 'panitia') {
-      navigate('/dashboard-panitia');
+    } else if (formattedRole === 'Pengawas') {
+      navigate('/dashboard-Pengawas');
     } else {
       navigate('/dashboard-peserta');
     }
@@ -176,9 +176,9 @@ export default function Login() {
 
           <button
             type="button"
-            onClick={() => { setSelectedRole('panitia'); setErrorMsg(''); }}
+            onClick={() => { setSelectedRole('Pengawas'); setErrorMsg(''); }}
             className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${
-              selectedRole === 'panitia'
+              selectedRole === 'Pengawas'
                 ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100'
                 : 'text-slate-400 hover:text-white hover:bg-surface/50'
             }`}
@@ -249,7 +249,7 @@ export default function Login() {
           </div>
 
           <Button type="submit" variant="primary" size="lg" className="w-full mt-2" disabled={isLoading}>
-            {isLoading ? 'MEMVERIFIKASI...' : `MASUK SEBAGAI ${selectedRole === 'panitia' ? 'PENGAWAS' : selectedRole === 'master_admin' ? 'LEAD INSTRUCTOR' : 'PESERTA'}`}
+            {isLoading ? 'MEMVERIFIKASI...' : `MASUK SEBAGAI ${selectedRole === 'Pengawas' ? 'PENGAWAS' : selectedRole === 'master_admin' ? 'LEAD INSTRUCTOR' : 'PESERTA'}`}
           </Button>
         </form>
 

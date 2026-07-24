@@ -7,7 +7,7 @@ import Loader from '../components/ui/Loader';
 const Home = lazy(() => import('../pages/Home'));
 const Login = lazy(() => import('../pages/Login'));
 const DashboardPeserta = lazy(() => import('../pages/DashboardPeserta'));
-const DashboardPanitia = lazy(() => import('../pages/DashboardPanitia'));
+const DashboardPengawas = lazy(() => import('../pages/DashboardPengawas'));
 const DashboardAdmin = lazy(() => import('../pages/DashboardAdmin'));
 const RuangUjian = lazy(() => import('../pages/RuangUjian'));
 const BankSoal = lazy(() => import('../pages/BankSoal'));
@@ -35,7 +35,7 @@ export const router = createBrowserRouter([
       { index: true, element: <SuspenseWrapper><Home /></SuspenseWrapper> },
       { path: 'login', element: <SuspenseWrapper><Login /></SuspenseWrapper> },
       { path: 'dashboard-peserta', element: <SuspenseWrapper><DashboardPeserta /></SuspenseWrapper> },
-      { path: 'dashboard-panitia', element: <SuspenseWrapper><DashboardPanitia /></SuspenseWrapper> },
+      { path: 'dashboard-Pengawas', element: <SuspenseWrapper><DashboardPengawas /></SuspenseWrapper> },
       { path: 'dashboard-admin', element: <SuspenseWrapper><DashboardAdmin /></SuspenseWrapper> },
       { path: 'ruang-ujian', element: <SuspenseWrapper><RuangUjian /></SuspenseWrapper> },
       { path: 'bank-soal', element: <SuspenseWrapper><BankSoal /></SuspenseWrapper> },

@@ -51,7 +51,7 @@ function initDB() {
         );
       `);
 
-      // 4. Tabel committees (Panitia)
+      // 4. Tabel committees (Pengawas)
       await db.exec(`
         CREATE TABLE IF NOT EXISTS committees (
           id INTEGER PRIMARY KEY AUTOINCREMENT,

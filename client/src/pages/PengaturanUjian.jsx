@@ -27,7 +27,7 @@ export default function PengaturanUjian() {
   const [formMapel, setFormMapel] = useState({ id: '', nama: '', desc: '', durasi: 90 });
 
   const menuPengawas = [
-    { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
+    { label: 'Koreksi Ujian', path: '/dashboard-Pengawas', icon: '📊' },
     { label: 'Repositori Soal', path: '/bank-soal', icon: '📚' },
     { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: '⚙️' },
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },

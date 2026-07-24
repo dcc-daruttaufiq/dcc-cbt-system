@@ -95,7 +95,7 @@ router.post('/soal', handlePostSoal);
 router.post('/ujian/soal', handlePostSoal);
 
 // =========================================================
-// 🚀 UJIAN & SINKRONISASI REALTIME PANITIA
+// 🚀 UJIAN & SINKRONISASI REALTIME Pengawas
 // =========================================================
 
 // 1. [GET] MULAI UJIAN
@@ -190,7 +190,7 @@ router.post('/submit', async (req, res) => {
   }
 });
 
-// 4. [GET] DAFTAR PESERTA UNTUK KOREKSI PANITIA (REAL DATA)
+// 4. [GET] DAFTAR PESERTA UNTUK KOREKSI Pengawas (REAL DATA)
 router.get('/peserta', async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -231,7 +231,7 @@ router.get('/peserta/:userId', async (req, res) => {
   }
 });
 
-// 6. [POST] SIMPAN NILAI PRAKTIK PANITIA
+// 6. [POST] SIMPAN NILAI PRAKTIK Pengawas
 router.post('/simpan-praktik', async (req, res) => {
   const { userId, skorPraktik } = req.body;
   try {
