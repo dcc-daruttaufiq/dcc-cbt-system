@@ -28,14 +28,6 @@ import {
 } from 'lucide-react';
 
 export default function DashboardPanitia() {
-  // Menu Navigasi Sidebar Pengawas
-  const menuPanitia = [
-    { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
-    { label: 'Bank Soal', path: '/bank-soal', icon: '📚' },
-    { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: '⚙️' },
-    { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
-  ];
-
   const [peserta, setPeserta] = useState([]);
   const [bankSoalAll, setBankSoalAll] = useState([]);
   const [selectedSiswa, setSelectedSiswa] = useState(null);
@@ -49,7 +41,7 @@ export default function DashboardPanitia() {
   // State Checkbox Bulk Delete
   const [selectedIds, setSelectedIds] = useState([]);
 
-  // Filter Status
+  // Filter Status (6 Tab Utama)
   const [filterPeserta, setFilterPeserta] = useState('semua');
   const [filterTipeJawaban, setFilterTipeJawaban] = useState('semua');
 
@@ -59,6 +51,12 @@ export default function DashboardPanitia() {
   const ITEMS_PER_PAGE = 8;
 
   const pesertaFileInputRef = useRef(null);
+
+  const menuPanitia = [
+    { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
+    { label: 'Bank Soal', path: '/bank-soal', icon: '📚' },
+    { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
+  ];
 
   const loadPeserta = async () => {
     try {
@@ -263,6 +261,9 @@ export default function DashboardPanitia() {
     }
   };
 
+  // =========================================================================
+  // FIX UTAMA: PERIKSA JAWABAN PESERTA REALTIME & ISOLASI TECH_ID PRESISI
+  // =========================================================================
   const handlePeriksa = async (pesertaId) => {
     setSelectedSiswa(pesertaId);
     setIsSaved(false);
@@ -278,6 +279,7 @@ export default function DashboardPanitia() {
     let detailJawaban = [];
 
     try {
+      // Fetch data spesifik milik peserta berdasarkan tech_id
       const { data: jawabanRows, error } = await supabase
         .from(TABLES.JAWABAN_PESERTA)
         .select('*')
@@ -319,6 +321,7 @@ export default function DashboardPanitia() {
       console.warn('Gagal fetch dari Cloud, membaca fallback LocalStorage...', err);
     }
 
+    // FALLBACK LOCALSTORAGE
     if (detailJawaban.length === 0) {
       const savedJawabanStr = localStorage.getItem(jawabanLocalKey(cleanTechId)) ||
                               localStorage.getItem(STORAGE_KEYS.JAWABAN_LOCAL_LEGACY);
@@ -468,9 +471,10 @@ export default function DashboardPanitia() {
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
-      <Sidebar links={menuPanitia} userRole="Pengawas" />
+      <Sidebar links={menuPanitia} userRole="Panitia" />
 
       <div className="flex-1 flex flex-col min-w-0">
+        {/* CLEAN NAVBAR (FLAT TANPA SHADOW) */}
         <Navbar>
           <div className="flex justify-between items-center w-full">
             <div className="flex items-center gap-3">
@@ -526,7 +530,7 @@ export default function DashboardPanitia() {
         <main className="p-6 md:p-8 flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-            {/* BILAH KIRI: ANTREAN PESERTA */}
+            {/* BILAH KIRI: ANTREAN PESERTA (4 KOLOM GRID) */}
             <div className="lg:col-span-5 xl:col-span-4 space-y-4">
               <div className="flex flex-col gap-2 px-1">
                 <div className="flex justify-between items-center">
@@ -623,7 +627,7 @@ export default function DashboardPanitia() {
                 </div>
               </div>
 
-              {/* DAFTAR CARD PESERTA */}
+              {/* DAFTAR CARD PESERTA (FLAT CLEAN TANPA SHADOW) */}
               {filteredPeserta.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
                   Tidak ada peserta pada status ini.
@@ -687,7 +691,7 @@ export default function DashboardPanitia() {
 
                           <div className="flex items-center gap-2">
                             <div className="flex items-center gap-1 bg-[#030712] px-2 py-0.5 rounded border border-slate-800">
-                              <span className="text-[9px] text-slate-500 font-bold">NILAI:</span>
+                              <span className="text-[9px] text-slate-500 font-bold">SKOR:</span>
                               <span className="text-xs font-bold font-mono text-cyan-400">{nilaiDisplay}</span>
                             </div>
 
@@ -811,6 +815,7 @@ export default function DashboardPanitia() {
 
                           <p className="text-sm text-slate-200 font-medium leading-relaxed">{j.pertanyaan}</p>
 
+                          {/* CONTAINER UTAMA PENAMPIL TEKS & LINK LAMPIRAN */}
                           <div className="p-4 bg-[#030712]/80 border border-slate-800 rounded-xl text-sm space-y-3">
                             <p className="text-xs text-slate-400 font-display font-bold uppercase tracking-wider">Jawaban Peserta:</p>
 
@@ -869,7 +874,7 @@ export default function DashboardPanitia() {
                   <div className="p-6 bg-gradient-to-r from-cyan-950/40 to-[#0d1527] border border-cyan-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div>
                       <h3 className="font-display font-bold text-base flex items-center gap-2 text-white">
-                        <Award className="text-cyan-400 w-5 h-5" /> Estimasi Nilai Praktik:
+                        <Award className="text-cyan-400 w-5 h-5" /> Estimasi Skor Praktik:
                         <span className="text-emerald-400 font-mono text-xl">{hitungSkorPraktikLokal()} / 100</span>
                       </h3>
                     </div>
