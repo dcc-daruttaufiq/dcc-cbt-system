@@ -156,9 +156,9 @@ export default function PengaturanUjian() {
                               const val = parseInt(e.target.value) || 0;
                               setDurasiUjian(prev => ({ ...prev, [kat.id]: val }));
                             }}
-                            className="w-24 text-center font-display font-extrabold text-slate-950 text-sm py-2 bg-cyan-400 border-2 border-cyan-300 focus:bg-cyan-300 focus:border-cyan-200 focus:outline-none shadow-[0_0_15px_rgba(34,211,238,0.4)] rounded-xl transition-all"
+                            className="w-24 text-center font-display font-bold text-cyan-400 text-sm py-2 bg-[#0d1527] border-slate-700"
                           />
-                          <span className="text-xs text-slate-300 font-sans font-bold">Menit</span>
+                          <span className="text-xs text-slate-400 font-sans font-bold">Menit</span>
                         </div>
                       </div>
                     ))}
