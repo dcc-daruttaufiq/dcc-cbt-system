@@ -15,9 +15,10 @@ export default function Laporan() {
     dataLaporan: []
   });
 
-  const menuPanitia = [
+  const menuPengawas = [
     { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
     { label: 'Bank Soal', path: '/bank-soal', icon: '📚' },
+    { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: '⚙️' },
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
@@ -113,9 +114,9 @@ export default function Laporan() {
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
-      <Sidebar links={menuPanitia} userRole="Panitia" />
+      <Sidebar links={menuPengawas} userRole="Pengawas" />
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 font-sans">
         {/* CLEAN NAVBAR TANPA GLOWING SHADOW */}
         <Navbar>
           <div className="flex justify-between items-center w-full">
@@ -123,13 +124,13 @@ export default function Laporan() {
               <BarChart3 className="text-cyan-400 w-5 h-5" />
               <div>
                 <h1 className="text-sm font-display font-bold text-white tracking-wide">LAPORAN & RANKING UJIAN</h1>
-                <p className="text-[11px] text-slate-400">Analitik Realtime Hasil Ujian Peserta</p>
+                <p className="text-[11px] text-slate-400 font-sans">Analitik Realtime Hasil Ujian Peserta</p>
               </div>
             </div>
 
             {/* ACTION BUTTONS (FLAT CLEAN) */}
             <div className="flex items-center gap-2">
-              <Button onClick={handleExportExcel} className="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border-0">
+              <Button onClick={handleExportExcel} className="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border-0 font-sans">
                 <Download className="w-3.5 h-3.5 mr-1.5" /> Export Excel
               </Button>
               <Button onClick={handleExportPDF} className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0">
@@ -147,7 +148,7 @@ export default function Laporan() {
               <div className="p-4 bg-[#0d1527]/60 border border-slate-800/60 rounded-2xl flex items-center gap-4">
                 <div className="p-3 bg-cyan-400/10 text-cyan-400 rounded-xl"><Users className="w-5 h-5" /></div>
                 <div>
-                  <p className="text-[11px] text-slate-400 uppercase font-semibold">Total Peserta Selesai</p>
+                  <p className="text-[11px] text-slate-400 uppercase font-semibold font-sans">Total Peserta Selesai</p>
                   <h3 className="text-lg font-display font-bold text-white">{laporan.statistik.totalSiswa} Siswa</h3>
                 </div>
               </div>
@@ -155,7 +156,7 @@ export default function Laporan() {
               <div className="p-4 bg-[#0d1527]/60 border border-slate-800/60 rounded-2xl flex items-center gap-4">
                 <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl"><TrendingUp className="w-5 h-5" /></div>
                 <div>
-                  <p className="text-[11px] text-slate-400 uppercase font-semibold">Rata-Rata Nilai</p>
+                  <p className="text-[11px] text-slate-400 uppercase font-semibold font-sans">Rata-Rata Nilai</p>
                   <h3 className="text-lg font-display font-bold text-white">{laporan.statistik.rataRata}</h3>
                 </div>
               </div>
@@ -163,7 +164,7 @@ export default function Laporan() {
               <div className="p-4 bg-[#0d1527]/60 border border-slate-800/60 rounded-2xl flex items-center gap-4">
                 <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl"><Trophy className="w-5 h-5" /></div>
                 <div>
-                  <p className="text-[11px] text-slate-400 uppercase font-semibold">Nilai Tertinggi</p>
+                  <p className="text-[11px] text-slate-400 uppercase font-semibold font-sans">Nilai Tertinggi</p>
                   <h3 className="text-lg font-display font-bold text-emerald-400">{laporan.statistik.tertinggi}</h3>
                 </div>
               </div>
@@ -171,7 +172,7 @@ export default function Laporan() {
               <div className="p-4 bg-[#0d1527]/60 border border-slate-800/60 rounded-2xl flex items-center gap-4">
                 <div className="p-3 bg-rose-500/10 text-rose-400 rounded-xl"><Award className="w-5 h-5" /></div>
                 <div>
-                  <p className="text-[11px] text-slate-400 uppercase font-semibold">Nilai Terendah</p>
+                  <p className="text-[11px] text-slate-400 uppercase font-semibold font-sans">Nilai Terendah</p>
                   <h3 className="text-lg font-display font-bold text-rose-400">{laporan.statistik.terendah}</h3>
                 </div>
               </div>
@@ -184,7 +185,7 @@ export default function Laporan() {
               </div>
 
               {laporan.dataLaporan.length === 0 ? (
-                <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
+                <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs font-sans">
                   Belum ada peserta yang menyelesaikan ujian.
                 </div>
               ) : (
@@ -195,16 +196,17 @@ export default function Laporan() {
                   const techId = row.tech_id || `DCC25-000${row.user_id}`;
 
                   return (
-                    <div key={idx} className="p-5 bg-[#0d1527]/60 border border-slate-800/50 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div key={idx} className="p-5 bg-[#0d1527]/60 border border-slate-800/50 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 font-sans">
                       <div className="flex items-center gap-4 flex-1 min-w-0">
+                        {/* PENOMORAN TANPA TANDA # */}
                         <span className="text-xs font-display font-bold text-cyan-400 bg-cyan-400/10 px-3 py-1.5 rounded-xl shrink-0">
-                          #{idx + 1}
+                          {idx + 1}
                         </span>
 
                         <div className="space-y-1 min-w-[200px]">
                           <h3 className="text-sm font-display font-bold text-white truncate">{namaSiswa}</h3>
-                          <p className="text-[11px] text-slate-400 flex items-center gap-1">
-                            <CreditCard className="w-3 h-3 text-cyan-400 inline" /> TechID: <span className="text-slate-200 font-semibold">{techId}</span>
+                          <p className="text-[11px] text-slate-400 flex items-center gap-1 font-sans">
+                            <CreditCard className="w-3 h-3 text-cyan-400 inline" /> TechID: <span className="text-slate-200 font-semibold font-display">{techId}</span>
                           </p>
                         </div>
 
