@@ -38,21 +38,29 @@ export default function DashboardPeserta() {
 
   const [dataError, setDataError] = useState('');
 
-  // Helper Format Durasi Waktu Pengerjaan
+  // Helper Format Durasi Waktu Pengerjaan (Akurat dari Detik)
   const formatLamaPengerjaan = (mulaiStr, selesaiStr) => {
     if (!mulaiStr) return null;
+
     const tMulai = new Date(mulaiStr).getTime();
     const tSelesai = selesaiStr ? new Date(selesaiStr).getTime() : Date.now();
-    
-    if (isNaN(tMulai) || isNaN(tSelesai)) return null;
+
+    if (isNaN(tMulai)) return null;
 
     const diffMs = Math.max(0, tSelesai - tMulai);
     const totalDetik = Math.floor(diffMs / 1000);
-    const menit = Math.floor(totalDetik / 60);
+    
+    const jam = Math.floor(totalDetik / 3600);
+    const menit = Math.floor((totalDetik % 3600) / 60);
     const detik = totalDetik % 60;
 
-    if (menit === 0) return `${detik} Detik`;
-    return `${menit} Menit ${detik} Detik`;
+    if (jam > 0) {
+      return `${jam} Jam ${menit} Mnt ${detik} Dtk`;
+    } else if (menit > 0) {
+      return `${menit} Menit ${detik} Detik`;
+    } else {
+      return `${detik} Detik`; // Tetap tampil meski pengerjaan di bawah 1 menit
+    }
   };
 
   useEffect(() => {
@@ -120,11 +128,15 @@ export default function DashboardPeserta() {
 
         const isFullyCorrected = activeUser?.status_koreksi === 'SELESAI' || activeUser?.status_koreksi === 'dikoreksi' || nilaiPraktik !== null;
 
-        // Hitung Timer Durasi Pengerjaan
-        const lamaKerja = activeUser?.lama_pengerjaan 
-          || formatLamaPengerjaan(activeUser?.waktu_mulai, activeUser?.waktu_selesai) 
-          || localStorage.getItem(`duration_${techIdToDisplay}`)
-          || 'Selesai';
+        // Ambil waktu dari Supabase atau LocalStorage
+        const wMulai = activeUser?.waktu_mulai || localStorage.getItem(`startTime_${techIdToDisplay}`);
+        const wSelesai = activeUser?.waktu_selesai || localStorage.getItem(`endTime_${techIdToDisplay}`);
+
+        // Hitung Timer Durasi Pengerjaan yang Akurat
+        let lamaKerja = formatLamaPengerjaan(wMulai, wSelesai);
+        if (!lamaKerja) {
+          lamaKerja = activeUser?.lama_pengerjaan || 'Selesai';
+        }
 
         setCompletedExamInfo({
           namaUjian: activeExam ? activeExam.nama : getLabelKategori(initialKat),
@@ -244,7 +256,6 @@ export default function DashboardPeserta() {
             )}
             <div>
               <h1 className="text-sm font-display font-bold text-white tracking-wide">DCC CBT PORTAL</h1>
-              {/* 5. DIPERBAIKI JADI "Dashboard Peserta" */}
               <p className="text-[10px] text-slate-400 font-sans">Dashboard Peserta</p>
             </div>
           </div>
@@ -296,7 +307,7 @@ export default function DashboardPeserta() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {/* 4. BADGE TIMER LAMA PENGERJAAN */}
+                  {/* BADGE TIMER LAMA PENGERJAAN */}
                   <div className="bg-slate-800/80 text-cyan-400 border border-cyan-400/30 text-xs px-3 py-1 rounded-lg font-mono flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5" /> {completedExamInfo?.lamaPengerjaan}
                   </div>
@@ -307,7 +318,7 @@ export default function DashboardPeserta() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* 2. NILAI PILIHAN GANDA */}
+                {/* NILAI PILIHAN GANDA */}
                 <div className="p-5 rounded-xl bg-[#030712]/80 border border-slate-800/80 space-y-2">
                   <p className="text-[11px] font-display font-bold text-slate-400 uppercase tracking-wider">NILAI PILIHAN GANDA</p>
                   <div className="flex items-baseline gap-2">
@@ -316,7 +327,7 @@ export default function DashboardPeserta() {
                   </div>
                 </div>
 
-                {/* 3. NILAI PRAKTIK */}
+                {/* NILAI PRAKTIK */}
                 <div className="p-5 rounded-xl bg-[#030712]/80 border border-slate-800/80 space-y-2">
                   <p className="text-[11px] font-display font-bold text-slate-400 uppercase tracking-wider">NILAI PRAKTIK</p>
                   <p className="text-sm font-display font-bold text-amber-400 pt-1">
@@ -328,7 +339,7 @@ export default function DashboardPeserta() {
                   </p>
                 </div>
 
-                {/* 2. NILAI AKHIR TOTAL */}
+                {/* NILAI AKHIR TOTAL */}
                 <div className="p-5 rounded-xl bg-[#030712]/80 border border-emerald-500/30 space-y-2">
                   <p className="text-[11px] font-display font-bold text-emerald-400 uppercase tracking-wider">NILAI AKHIR TOTAL</p>
                   <div className="flex items-baseline gap-2">
@@ -341,7 +352,7 @@ export default function DashboardPeserta() {
             </div>
           ) : (
             <>
-              {/* CARD MATA UJIAN TERKUNCI (1. SESUAI IMPOR PENGAWAS) */}
+              {/* CARD MATA UJIAN TERKUNCI */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-cyan-400 px-1">
                   <Sparkles className="w-4 h-4" />
