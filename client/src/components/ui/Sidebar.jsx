@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { CheckSquare, Database, FileBarChart, LogOut } from 'lucide-react';
+import { CheckSquare, Database, FileBarChart, Sliders, LogOut } from 'lucide-react';
 import { LOGO_URL } from '../../config/brand';
 
-export default function Sidebar({ userRole = 'Panitia' }) {
+export default function Sidebar({ userRole = 'Pengawas' }) {
   const navigate = useNavigate();
   const [logoGagalDimuat, setLogoGagalDimuat] = useState(false);
 
-  // Icon Lucide Modern & Elegan
+  // Icon Lucide Modern & Elegan (Termasuk Pengaturan Ujian)
   const links = [
     { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: CheckSquare },
     { label: 'Bank Soal', path: '/bank-soal', icon: Database },
+    { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: Sliders },
     { label: 'Laporan Nilai', path: '/laporan', icon: FileBarChart },
   ];
 
@@ -25,7 +26,7 @@ export default function Sidebar({ userRole = 'Panitia' }) {
       <div className="flex flex-col gap-6">
         
         {/* Brand Header: Logo Proporsional & Tipografi Dual-Tone */}
-        <div className="flex items-center gap-3.5 px-2 py-1">
+        <div className="flex items-center gap-3.5 px-2 py-1 min-w-0">
           {!logoGagalDimuat ? (
             <img
               src={LOGO_URL}
@@ -39,12 +40,13 @@ export default function Sidebar({ userRole = 'Panitia' }) {
             </div>
           )}
 
-          <div className="flex flex-col justify-center">
+          <div className="flex flex-col justify-center min-w-0 flex-1">
             <div className="flex items-center gap-1 leading-none">
               <span className="font-extrabold text-base tracking-tight text-white">DCC</span>
               <span className="font-extrabold text-base tracking-tight text-cyan-400">SISTEM</span>
             </div>
-            <span className="text-[10px] font-semibold text-slate-400 tracking-[0.2em] uppercase mt-1">
+            {/* whitespace-nowrap & truncate memastikan teks PENGAWAS DASHBOARD selalu 1 baris */}
+            <span className="text-[10px] font-semibold text-slate-400 tracking-[0.15em] uppercase mt-1 whitespace-nowrap truncate">
               {userRole} DASHBOARD
             </span>
           </div>
@@ -74,7 +76,7 @@ export default function Sidebar({ userRole = 'Panitia' }) {
         </nav>
       </div>
 
-      {/* Logout Section dengan Icon Elegant */}
+      {/* Logout Section */}
       <div className="pt-4 flex flex-col gap-3">
         <button
           onClick={handleLogout}
