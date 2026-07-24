@@ -108,11 +108,11 @@ export default function Laporan() {
     let htmlContent = `
       <html>
         <head>
-          <title>Laporan Rekapitulasi Hasil Ujian DCC-CBT</title>
+          <title>Laporan Rekapitulasi Hasil Ujian DCC</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
             h2 { text-align: center; margin-bottom: 5px; color: #0f172a; }
-            p { text-align: center; font-size: 12px; color: #64748b; margin-bottom: 20px; }
+            p { text-align: center; font-size: 12px; color: #64748b; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; }
             table { width: 100%; border-collapse: collapse; margin-top: 10px; }
             th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; font-size: 12px; }
             th { background-color: #06b6d4; color: #ffffff; }
@@ -122,8 +122,8 @@ export default function Laporan() {
           </style>
         </head>
         <body>
-          <h2>LAPORAN REKAPITULASI HASIL UJIAN DCC-CBT</h2>
-          <p>Dicetak secara otomatis dari Sistem CBT</p>
+          <h2>LAPORAN REKAPITULASI HASIL UJIAN DCC</h2>
+          <p>daruttaufiq computer centre</p>
           <table>
             <thead>
               <tr>
