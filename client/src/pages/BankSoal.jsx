@@ -374,7 +374,7 @@ export default function BankSoal() {
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
-      <Sidebar links={menuPanitia} userRole="Panitia" />
+      <Sidebar links={menuPanitia} userRole="Pengawas" />
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* CLEAN NAVBAR TANPA SHADOW GLOWING */}
