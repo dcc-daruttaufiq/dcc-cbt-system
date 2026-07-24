@@ -7,8 +7,6 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import { BarChart3, Download, FileText, Trophy, Users, Award, TrendingUp, CreditCard } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 
 export default function Laporan() {
   const [laporan, setLaporan] = useState({
@@ -101,41 +99,76 @@ export default function Laporan() {
   const handleExportPDF = () => {
     if (laporan.dataLaporan.length === 0) return alert('Belum ada data nilai peserta untuk diexport!');
 
-    try {
-      const doc = new jsPDF();
-      doc.text("LAPORAN REKAPITULASI HASIL UJIAN DCC-CBT", 14, 15);
-      
-      const tableColumn = ["Rank", "TechID", "Nama Lengkap", "Nilai PG", "Nilai Praktik", "Nilai Akhir", "Status"];
-      const tableRows = [];
-
-      laporan.dataLaporan.forEach((item, index) => {
-        const skorAkhir = Number(item.nilai_akhir || item.nilai_pg || 0);
-        const rowData = [
-          index + 1,
-          item.tech_id || `DCC25-000${index}`,
-          item.nama || item.nama_lengkap || `Peserta #${index}`,
-          item.nilai_pg || 0,
-          item.nilai_praktik || 0,
-          skorAkhir,
-          skorAkhir >= 75 ? 'LULUS' : 'TIDAK LULUS'
-        ];
-        tableRows.push(rowData);
-      });
-
-      // Pemanggilan aman jspdf-autotable
-      doc.autoTable({
-        head: [tableColumn],
-        body: tableRows,
-        startY: 25,
-        theme: 'grid',
-        headStyles: { fillColor: [0, 217, 255], textColor: [7, 20, 38] }
-      });
-
-      doc.save("Rekap_Nilai_CBT_Real.pdf");
-    } catch (err) {
-      console.error('Gagal export PDF:', err);
-      alert('Terjadi kesalahan saat mengunduh PDF. Pastikan library jspdf terpasang dengan benar.');
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Pop-up diblokir oleh browser. Izinkan pop-up untuk mengunduh PDF.');
+      return;
     }
+
+    let htmlContent = `
+      <html>
+        <head>
+          <title>Laporan Rekapitulasi Hasil Ujian DCC-CBT</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+            h2 { text-align: center; margin-bottom: 5px; color: #0f172a; }
+            p { text-align: center; font-size: 12px; color: #64748b; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; font-size: 12px; }
+            th { background-color: #06b6d4; color: #ffffff; }
+            tr:nth-child(even) { background-color: #f8fafc; }
+            .status-lulus { color: #10b981; font-weight: bold; }
+            .status-tidaklulus { color: #f43f5e; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <h2>LAPORAN REKAPITULASI HASIL UJIAN DCC-CBT</h2>
+          <p>Dicetak secara otomatis dari Sistem CBT</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>TechID</th>
+                <th>Nama Lengkap</th>
+                <th>Nilai PG</th>
+                <th>Nilai Praktik</th>
+                <th>Nilai Akhir</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    laporan.dataLaporan.forEach((item, index) => {
+      const skorAkhir = Number(item.nilai_akhir || item.nilai_pg || 0);
+      const isLulus = skorAkhir >= 75;
+      htmlContent += `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${item.tech_id || '-'}</td>
+          <td>${item.nama || item.nama_lengkap || 'Peserta'}</td>
+          <td>${item.nilai_pg || 0}</td>
+          <td>${item.nilai_praktik || 0}</td>
+          <td><b>${skorAkhir}</b></td>
+          <td class="${isLulus ? 'status-lulus' : 'status-tidaklulus'}">${isLulus ? 'LULUS' : 'TIDAK LULUS'}</td>
+        </tr>
+      `;
+    });
+
+    htmlContent += `
+            </tbody>
+          </table>
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
   };
 
   return (
@@ -234,7 +267,6 @@ export default function Laporan() {
                         </div>
 
                         <div className="w-32 shrink-0 hidden sm:block">
-                          {/* BADGE WARNA HIJAU JIKA LULUS, MERAH MENYALA JIKA TIDAK LULUS */}
                           <Badge className={`text-[10px] font-display font-bold px-2.5 py-1 rounded-md uppercase text-center w-full block border ${
                             isLulus 
                               ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
