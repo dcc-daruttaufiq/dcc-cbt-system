@@ -5,10 +5,9 @@ import { supabase, TABLES, BUCKET_LAMPIRAN_PRAKTIK } from '../utils/supabaseClie
 import { normalizeKategori, getLabelKategori } from '../utils/examCategories';
 import { STORAGE_KEYS, jawabanLocalKey } from '../utils/storageKeys';
 import { LOGO_URL } from '../config/brand';
-import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import { Clock, ChevronLeft, ChevronRight, Save, Send, AlertTriangle, X, HelpCircle, Paperclip, FileCheck } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, Save, Send, AlertTriangle, HelpCircle, Paperclip, FileCheck } from 'lucide-react';
 
 export default function RuangUjian() {
   useDocumentTitle('Ruang Ujian Berjalan - DCC CBT');
@@ -22,6 +21,8 @@ export default function RuangUjian() {
   const [raguRagu, setRaguRagu] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
+  
+  // Timer diinisialisasi dinamis (Default fallback 90 menit = 5400 detik)
   const [timeLeft, setTimeLeft] = useState(5400);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [errorState, setErrorState] = useState('');
@@ -31,6 +32,33 @@ export default function RuangUjian() {
   const fileInputPraktikRef = useRef(null);
 
   const currentUser = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || '{}');
+
+  // HELPER BACA DURASI MENIT PER KATEGORI
+  const fetchDurasiUjianMenit = async (katId) => {
+    let durasiMap = { word: 90, excel: 90, powerpoint: 90, desain: 90, pemrograman: 120 };
+
+    try {
+      const { data, error } = await supabase
+        .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
+        .select('*')
+        .eq('key', 'durasi_ujian_menit')
+        .maybeSingle();
+
+      if (!error && data && data.value) {
+        const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+        durasiMap = { ...durasiMap, ...parsed };
+      }
+    } catch (err) {
+      console.warn('Gagal membaca durasi dari Supabase, mencoba LocalStorage...', err);
+      const localDurasi = localStorage.getItem('dcc_durasi_ujian');
+      if (localDurasi) {
+        try { durasiMap = { ...durasiMap, ...JSON.parse(localDurasi) }; } catch (e) {}
+      }
+    }
+
+    const menitKat = durasiMap[katId] || 90;
+    return menitKat * 60; // Konversi ke Detik
+  };
 
   useEffect(() => {
     const initRuangUjian = async () => {
@@ -54,13 +82,32 @@ export default function RuangUjian() {
       const storedExamId = normalizeKategori(rawExamId);
 
       if (!storedExamId) {
-        setErrorState(`Kategori ujian Anda tidak valid/tidak dikenali ("${rawExamId || '-'}"). Silakan hubungi Panitia.`);
+        setErrorState(`Kategori ujian Anda tidak valid/tidak dikenali ("${rawExamId || '-'}"). Silakan hubungi Pengawas.`);
         return;
       }
 
       setExamKategori(storedExamId);
 
-      // 1. AMBIL BANK SOAL DARI SUPABASE CLOUD
+      // 1. HITUNG & SET TIMER DARI CONFIG PENGAWAS
+      const totalDetikKategori = await fetchDurasiUjianMenit(storedExamId);
+
+      // Hitung selisih detik jika waktu mulai sudah tercatat
+      const wMulaiStr = currentUser?.waktu_mulai || localStorage.getItem(`startTime_${realTechId}`);
+      if (wMulaiStr) {
+        const tMulai = new Date(wMulaiStr).getTime();
+        const tSekarang = Date.now();
+        if (!isNaN(tMulai)) {
+          const detikBerlalu = Math.floor((tSekarang - tMulai) / 1000);
+          const sisaDetikReal = Math.max(0, totalDetikKategori - detikBerlalu);
+          setTimeLeft(sisaDetikReal);
+        } else {
+          setTimeLeft(totalDetikKategori);
+        }
+      } else {
+        setTimeLeft(totalDetikKategori);
+      }
+
+      // 2. AMBIL BANK SOAL DARI SUPABASE CLOUD
       let bankSoalImpor = [];
       try {
         const { data, error } = await supabase.from(TABLES.BANK_SOAL).select('*');
@@ -81,7 +128,7 @@ export default function RuangUjian() {
         return;
       }
 
-      // 2. FILTER SOAL KATEGORI PESERTA
+      // 3. FILTER SOAL KATEGORI PESERTA
       const filteredSoal = bankSoalImpor.filter(s => normalizeKategori(s.kategori) === storedExamId);
 
       if (filteredSoal.length === 0) {
@@ -91,7 +138,7 @@ export default function RuangUjian() {
 
       setListSoal(filteredSoal);
 
-      // 3. RESTORE JAWABAN + STATUS RAGU-RAGU DARI SUPABASE CLOUD
+      // 4. RESTORE JAWABAN + STATUS RAGU-RAGU DARI SUPABASE CLOUD
       try {
         const { data: jawabanRows, error: jawabanErr } = await supabase
           .from(TABLES.JAWABAN_PESERTA)
@@ -276,7 +323,9 @@ export default function RuangUjian() {
 
   const handleAutoSubmit = async () => {
     clearInterval(timerRef.current);
+    const nowIso = new Date().toISOString();
     localStorage.setItem(STORAGE_KEYS.IS_EXAM_FINISHED, 'true');
+    localStorage.setItem(`endTime_${techId}`, nowIso);
 
     let soalPG = listSoal.filter(s => s.tipe === 'pg');
     let benarCount = 0;
@@ -288,7 +337,6 @@ export default function RuangUjian() {
     });
 
     const calculatedSkorPG = soalPG.length > 0 ? Math.round((benarCount / soalPG.length) * 100) : 0;
-    const waktuSelesai = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
 
     try {
       const { error } = await supabase
@@ -298,7 +346,7 @@ export default function RuangUjian() {
           status_koreksi: 'belum_dikoreksi',
           nilai_pg: calculatedSkorPG,
           nilai_akhir: calculatedSkorPG,
-          waktu_selesai: waktuSelesai,
+          waktu_selesai: nowIso,
         })
         .eq('tech_id', techId);
 
@@ -316,7 +364,7 @@ export default function RuangUjian() {
           status_koreksi: 'belum_dikoreksi',
           nilai_pg: calculatedSkorPG,
           nilai_akhir: calculatedSkorPG,
-          waktu_selesai: waktuSelesai
+          waktu_selesai: nowIso
         };
       }
       return p;
@@ -333,7 +381,7 @@ export default function RuangUjian() {
           status_koreksi: 'belum_dikoreksi',
           nilai_pg: calculatedSkorPG,
           nilai_akhir: calculatedSkorPG,
-          waktu_selesai: waktuSelesai
+          waktu_selesai: nowIso
         }));
       } catch (e) {}
     }
@@ -347,7 +395,7 @@ export default function RuangUjian() {
 
     if (errorState === 'EMPTY_BANK_SOAL') {
       judul = 'Bank Soal Masih Kosong';
-      pesan = 'Panitia belum mengimpor Bank Soal sama sekali ke Supabase Cloud.';
+      pesan = 'Pengawas belum mengimpor Bank Soal sama sekali ke Supabase Cloud.';
     } else if (errorState === 'EMPTY_KATEGORI') {
       judul = 'Soal Untuk Kategori Anda Belum Tersedia';
       pesan = `Belum ada soal untuk kategori "${getLabelKategori(examKategori)}" di Bank Soal.`;
@@ -377,14 +425,13 @@ export default function RuangUjian() {
 
   return (
     <div className="min-h-screen bg-[#030712] text-slate-100 font-sans flex flex-col select-none">
-      {/* NAVBAR CLEAN TRANSPARAN (LOGO MURNI TANPA KOTAK BACKGROUND & SHADOW) */}
       <header className="border-b border-slate-800 bg-[#0d1527]/90 backdrop-blur-md sticky top-0 z-40 px-6 py-3">
         <div className="flex justify-between items-center w-full max-w-6xl mx-auto">
           <div className="flex items-center gap-3">
             {!logoGagalDimuat ? (
               <img
                 src={LOGO_URL}
-                alt="Logo Lembaga"
+                alt="Logo DCC"
                 onError={() => setLogoGagalDimuat(true)}
                 className="h-10 w-auto object-contain drop-shadow-md"
               />
@@ -399,7 +446,7 @@ export default function RuangUjian() {
 
           <div className="p-2 px-4 rounded-xl bg-[#030712] border border-slate-800 flex items-center gap-2">
             <Clock className="w-4 h-4 text-cyan-400 animate-pulse" />
-            <span className="font-bold text-sm tracking-wider text-emerald-400">{formatTime(timeLeft)}</span>
+            <span className="font-bold text-sm tracking-wider text-emerald-400 font-display">{formatTime(timeLeft)}</span>
           </div>
         </div>
       </header>
@@ -451,10 +498,9 @@ export default function RuangUjian() {
                     placeholder="Tuliskan jawaban praktik Anda di sini..."
                     value={(typeof jawaban[soalAktif?.id] === 'object' ? jawaban[soalAktif?.id]?.teks : jawaban[soalAktif?.id]) || ''}
                     onChange={(e) => handleTextareaPraktik(e.target.value)}
-                    className="w-full p-4 bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-xs text-white rounded-xl focus:outline-none font-mono"
+                    className="w-full p-4 bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-xs text-white rounded-xl focus:outline-none font-sans"
                   />
 
-                  {/* UPLOAD LAMPIRAN PRAKTIK */}
                   <input
                     type="file"
                     ref={fileInputPraktikRef}
@@ -472,7 +518,7 @@ export default function RuangUjian() {
                       <Paperclip className="w-3.5 h-3.5" /> {isUploadingFile ? 'Mengunggah Lampiran...' : 'Unggah Lampiran Praktik (.docx/.xlsx/.pdf)'}
                     </Button>
                     {typeof jawaban[soalAktif?.id] === 'object' && jawaban[soalAktif?.id]?.fileName && (
-                      <span className="text-xs text-emerald-400 font-mono flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg break-all">
+                      <span className="text-xs text-emerald-400 font-sans flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg break-all">
                         <FileCheck className="w-3.5 h-3.5 shrink-0" /> {jawaban[soalAktif.id].fileName}
                       </span>
                     )}
@@ -486,7 +532,6 @@ export default function RuangUjian() {
                 <ChevronLeft className="w-4 h-4 mr-1" /> Kembali
               </Button>
 
-              {/* TOMBOL RAGU-RAGU */}
               <Button
                 type="button"
                 onClick={toggleRaguRagu}

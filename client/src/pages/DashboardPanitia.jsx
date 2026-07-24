@@ -6,6 +6,7 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Sidebar from '../components/ui/Sidebar';
 import Navbar from '../components/ui/Navbar';
+import Input from '../components/ui/Input';
 import {
   CheckSquare,
   Square,
@@ -24,8 +25,20 @@ import {
   Search,
   ExternalLink,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Clock,
+  Save,
+  Sliders
 } from 'lucide-react';
+
+// Katalog 5 Mata Ujian
+const KATALOG_KATEGORI = [
+  { id: 'word', nama: 'Microsoft Word' },
+  { id: 'excel', nama: 'Microsoft Excel' },
+  { id: 'powerpoint', nama: 'Microsoft PowerPoint' },
+  { id: 'desain', nama: 'Desain Grafis' },
+  { id: 'pemrograman', nama: 'Pemrograman Web' }
+];
 
 export default function DashboardPanitia() {
   const [peserta, setPeserta] = useState([]);
@@ -38,10 +51,21 @@ export default function DashboardPanitia() {
   const [isLoadingPeriksa, setIsLoadingPeriksa] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // State Pengaturan Durasi Ujian (Dalam Menit)
+  const [durasiUjian, setDurasiUjian] = useState({
+    word: 90,
+    excel: 90,
+    powerpoint: 90,
+    desain: 90,
+    pemrograman: 120
+  });
+  const [showDurasiModal, setShowDurasiModal] = useState(false);
+  const [isSavingDurasi, setIsSavingDurasi] = useState(false);
+
   // State Checkbox Bulk Delete
   const [selectedIds, setSelectedIds] = useState([]);
 
-  // Filter Status (6 Tab Utama)
+  // Filter Status
   const [filterPeserta, setFilterPeserta] = useState('semua');
   const [filterTipeJawaban, setFilterTipeJawaban] = useState('semua');
 
@@ -57,6 +81,62 @@ export default function DashboardPanitia() {
     { label: 'Bank Soal', path: '/bank-soal', icon: '📚' },
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
+
+  // 1. LOAD CONFIG DURASI DARI SUPABASE / LOCALSTORAGE
+  const loadPengaturanDurasi = async () => {
+    try {
+      const { data, error } = await supabase
+        .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
+        .select('*')
+        .eq('key', 'durasi_ujian_menit')
+        .maybeSingle();
+
+      if (!error && data && data.value) {
+        const parsedVal = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+        setDurasiUjian(prev => ({ ...prev, ...parsedVal }));
+        localStorage.setItem('dcc_durasi_ujian', JSON.stringify(parsedVal));
+        return;
+      }
+    } catch (err) {
+      console.warn('Gagal membaca durasi dari Supabase, membaca dari LocalStorage...', err);
+    }
+
+    // Fallback LocalStorage
+    const localDurasi = localStorage.getItem('dcc_durasi_ujian');
+    if (localDurasi) {
+      try {
+        setDurasiUjian(JSON.parse(localDurasi));
+      } catch (e) {}
+    }
+  };
+
+  // 2. SIMPAN DURASI UJIAN KE SUPABASE & LOCALSTORAGE
+  const handleSaveDurasi = async () => {
+    setIsSavingDurasi(true);
+    try {
+      localStorage.setItem('dcc_durasi_ujian', JSON.stringify(durasiUjian));
+
+      // Simpan/Upsert ke Supabase
+      const { error } = await supabase
+        .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
+        .upsert({
+          key: 'durasi_ujian_menit',
+          value: JSON.stringify(durasiUjian),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'key' });
+
+      if (error) console.warn('Peringatan Upsert Supabase:', error);
+
+      alert('Pengaturan durasi ujian berhasil disimpan!');
+      setShowDurasiModal(false);
+    } catch (err) {
+      console.error('Gagal menyimpan durasi:', err);
+      alert('Durasi tersimpan di sesi lokal.');
+      setShowDurasiModal(false);
+    } finally {
+      setIsSavingDurasi(false);
+    }
+  };
 
   const loadPeserta = async () => {
     try {
@@ -100,6 +180,7 @@ export default function DashboardPanitia() {
   useEffect(() => {
     loadPeserta();
     loadBankSoal();
+    loadPengaturanDurasi();
     const interval = setInterval(() => {
       loadPeserta();
     }, 4000);
@@ -261,9 +342,6 @@ export default function DashboardPanitia() {
     }
   };
 
-  // =========================================================================
-  // FIX UTAMA: PERIKSA JAWABAN PESERTA REALTIME & ISOLASI TECH_ID PRESISI
-  // =========================================================================
   const handlePeriksa = async (pesertaId) => {
     setSelectedSiswa(pesertaId);
     setIsSaved(false);
@@ -279,7 +357,6 @@ export default function DashboardPanitia() {
     let detailJawaban = [];
 
     try {
-      // Fetch data spesifik milik peserta berdasarkan tech_id
       const { data: jawabanRows, error } = await supabase
         .from(TABLES.JAWABAN_PESERTA)
         .select('*')
@@ -321,7 +398,6 @@ export default function DashboardPanitia() {
       console.warn('Gagal fetch dari Cloud, membaca fallback LocalStorage...', err);
     }
 
-    // FALLBACK LOCALSTORAGE
     if (detailJawaban.length === 0) {
       const savedJawabanStr = localStorage.getItem(jawabanLocalKey(cleanTechId)) ||
                               localStorage.getItem(STORAGE_KEYS.JAWABAN_LOCAL_LEGACY);
@@ -471,10 +547,9 @@ export default function DashboardPanitia() {
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
-      <Sidebar links={menuPanitia} userRole="Panitia" />
+      <Sidebar links={menuPanitia} userRole="Pengawas" />
 
       <div className="flex-1 flex flex-col min-w-0">
-        {/* CLEAN NAVBAR (FLAT TANPA SHADOW) */}
         <Navbar>
           <div className="flex justify-between items-center w-full">
             <div className="flex items-center gap-3">
@@ -498,6 +573,14 @@ export default function DashboardPanitia() {
                 accept=".csv,.xlsx"
                 className="hidden"
               />
+
+              {/* FITUR TOMBOL PENGATURAN DURASI */}
+              <Button
+                onClick={() => setShowDurasiModal(true)}
+                className="text-xs bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-display font-bold border-0 flex items-center gap-1.5"
+              >
+                <Clock className="w-3.5 h-3.5" /> Atur Durasi Ujian
+              </Button>
 
               <Button
                 onClick={() => pesertaFileInputRef.current.click()}
@@ -530,7 +613,7 @@ export default function DashboardPanitia() {
         <main className="p-6 md:p-8 flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-            {/* BILAH KIRI: ANTREAN PESERTA (4 KOLOM GRID) */}
+            {/* BILAH KIRI: ANTREAN PESERTA */}
             <div className="lg:col-span-5 xl:col-span-4 space-y-4">
               <div className="flex flex-col gap-2 px-1">
                 <div className="flex justify-between items-center">
@@ -627,7 +710,7 @@ export default function DashboardPanitia() {
                 </div>
               </div>
 
-              {/* DAFTAR CARD PESERTA (FLAT CLEAN TANPA SHADOW) */}
+              {/* DAFTAR CARD PESERTA */}
               {filteredPeserta.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
                   Tidak ada peserta pada status ini.
@@ -691,7 +774,7 @@ export default function DashboardPanitia() {
 
                           <div className="flex items-center gap-2">
                             <div className="flex items-center gap-1 bg-[#030712] px-2 py-0.5 rounded border border-slate-800">
-                              <span className="text-[9px] text-slate-500 font-bold">SKOR:</span>
+                              <span className="text-[9px] text-slate-500 font-bold">NILAI:</span>
                               <span className="text-xs font-bold font-mono text-cyan-400">{nilaiDisplay}</span>
                             </div>
 
@@ -815,7 +898,6 @@ export default function DashboardPanitia() {
 
                           <p className="text-sm text-slate-200 font-medium leading-relaxed">{j.pertanyaan}</p>
 
-                          {/* CONTAINER UTAMA PENAMPIL TEKS & LINK LAMPIRAN */}
                           <div className="p-4 bg-[#030712]/80 border border-slate-800 rounded-xl text-sm space-y-3">
                             <p className="text-xs text-slate-400 font-display font-bold uppercase tracking-wider">Jawaban Peserta:</p>
 
@@ -874,7 +956,7 @@ export default function DashboardPanitia() {
                   <div className="p-6 bg-gradient-to-r from-cyan-950/40 to-[#0d1527] border border-cyan-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div>
                       <h3 className="font-display font-bold text-base flex items-center gap-2 text-white">
-                        <Award className="text-cyan-400 w-5 h-5" /> Estimasi Skor Praktik:
+                        <Award className="text-cyan-400 w-5 h-5" /> Estimasi Nilai Praktik:
                         <span className="text-emerald-400 font-mono text-xl">{hitungSkorPraktikLokal()} / 100</span>
                       </h3>
                     </div>
@@ -895,6 +977,69 @@ export default function DashboardPanitia() {
           </div>
         </main>
       </div>
+
+      {/* MODAL PENGATURAN DURASI UJIAN (PER MATA UJIAN) */}
+      {showDurasiModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0d1527] border border-cyan-500/40 rounded-2xl p-6 w-full max-w-lg space-y-5 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-5 h-5 text-cyan-400" />
+                <h3 className="font-display font-bold text-lg text-white">Pengaturan Durasi Ujian</h3>
+              </div>
+              <button
+                onClick={() => setShowDurasiModal(false)}
+                className="text-slate-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Atur alokasi waktu pengerjaan (dalam menit) untuk masing-masing kategori mata ujian.
+            </p>
+
+            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+              {KATALOG_KATEGORI.map((kat) => (
+                <div key={kat.id} className="flex items-center justify-between gap-4 p-3 rounded-xl bg-[#030712] border border-slate-800">
+                  <span className="text-xs font-display font-bold text-slate-200">{kat.nama}</span>
+                  <div className="flex items-center gap-2 w-36">
+                    <Input
+                      type="number"
+                      min="5"
+                      max="300"
+                      value={durasiUjian[kat.id] || 90}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        setDurasiUjian(prev => ({ ...prev, [kat.id]: val }));
+                      }}
+                      className="text-right font-mono font-bold text-cyan-400 py-1 px-2 text-xs"
+                    />
+                    <span className="text-xs text-slate-400 font-sans">Menit</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+              <Button
+                onClick={() => setShowDurasiModal(false)}
+                className="bg-slate-800 text-slate-300 text-xs hover:bg-slate-700"
+              >
+                Batal
+              </Button>
+              <Button
+                onClick={handleSaveDurasi}
+                disabled={isSavingDurasi}
+                className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0 flex items-center gap-1.5"
+              >
+                <Save className="w-4 h-4" /> {isSavingDurasi ? 'Menyimpan...' : 'Simpan Durasi'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
