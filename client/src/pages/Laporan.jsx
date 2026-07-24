@@ -101,35 +101,41 @@ export default function Laporan() {
   const handleExportPDF = () => {
     if (laporan.dataLaporan.length === 0) return alert('Belum ada data nilai peserta untuk diexport!');
 
-    const doc = new jsPDF();
-    doc.text("LAPORAN REKAPITULASI HASIL UJIAN DCC-CBT", 14, 15);
-    
-    const tableColumn = ["Rank", "TechID", "Nama Lengkap", "Nilai PG", "Nilai Praktik", "Nilai Akhir", "Status"];
-    const tableRows = [];
+    try {
+      const doc = new jsPDF();
+      doc.text("LAPORAN REKAPITULASI HASIL UJIAN DCC-CBT", 14, 15);
+      
+      const tableColumn = ["Rank", "TechID", "Nama Lengkap", "Nilai PG", "Nilai Praktik", "Nilai Akhir", "Status"];
+      const tableRows = [];
 
-    laporan.dataLaporan.forEach((item, index) => {
-      const skorAkhir = Number(item.nilai_akhir || item.nilai_pg || 0);
-      const rowData = [
-        index + 1,
-        item.tech_id || `DCC25-000${index}`,
-        item.nama || item.nama_lengkap || `Peserta #${index}`,
-        item.nilai_pg || 0,
-        item.nilai_praktik || 0,
-        skorAkhir,
-        skorAkhir >= 75 ? 'LULUS' : 'TIDAK LULUS' // Label diubah konsisten jadi TIDAK LULUS
-      ];
-      tableRows.push(rowData);
-    });
+      laporan.dataLaporan.forEach((item, index) => {
+        const skorAkhir = Number(item.nilai_akhir || item.nilai_pg || 0);
+        const rowData = [
+          index + 1,
+          item.tech_id || `DCC25-000${index}`,
+          item.nama || item.nama_lengkap || `Peserta #${index}`,
+          item.nilai_pg || 0,
+          item.nilai_praktik || 0,
+          skorAkhir,
+          skorAkhir >= 75 ? 'LULUS' : 'TIDAK LULUS'
+        ];
+        tableRows.push(rowData);
+      });
 
-    doc.autoTable({
-      head: [tableColumn],
-      body: tableRows,
-      startY: 25,
-      theme: 'grid',
-      headStyles: { fillColor: [0, 217, 255], textColor: [7, 20, 38] }
-    });
+      // Pemanggilan aman jspdf-autotable
+      doc.autoTable({
+        head: [tableColumn],
+        body: tableRows,
+        startY: 25,
+        theme: 'grid',
+        headStyles: { fillColor: [0, 217, 255], textColor: [7, 20, 38] }
+      });
 
-    doc.save("Rekap_Nilai_CBT_Real.pdf");
+      doc.save("Rekap_Nilai_CBT_Real.pdf");
+    } catch (err) {
+      console.error('Gagal export PDF:', err);
+      alert('Terjadi kesalahan saat mengunduh PDF. Pastikan library jspdf terpasang dengan benar.');
+    }
   };
 
   return (
@@ -227,8 +233,13 @@ export default function Laporan() {
                           </p>
                         </div>
 
-                        <div className="w-28 shrink-0 hidden sm:block">
-                          <Badge variant={isLulus ? 'primary' : 'secondary'} className={`text-[10px] font-display font-bold px-2.5 py-1 rounded-md uppercase text-center w-full block ${isLulus ? '' : 'bg-rose-500/20 text-rose-400 border-rose-500/40'}`}>
+                        <div className="w-32 shrink-0 hidden sm:block">
+                          {/* BADGE WARNA HIJAU JIKA LULUS, MERAH MENYALA JIKA TIDAK LULUS */}
+                          <Badge className={`text-[10px] font-display font-bold px-2.5 py-1 rounded-md uppercase text-center w-full block border ${
+                            isLulus 
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
+                              : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                          }`}>
                             {isLulus ? 'LULUS' : 'TIDAK LULUS'}
                           </Badge>
                         </div>
