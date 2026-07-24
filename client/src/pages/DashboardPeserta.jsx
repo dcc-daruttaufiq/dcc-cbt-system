@@ -38,28 +38,39 @@ export default function DashboardPeserta() {
 
   const [dataError, setDataError] = useState('');
 
-  // Helper Format Durasi Waktu Pengerjaan (Akurat dari Detik)
+  // Helper Format Durasi Waktu Pengerjaan (Kebal NaN & Lintas Browser)
   const formatLamaPengerjaan = (mulaiStr, selesaiStr) => {
     if (!mulaiStr) return null;
 
-    const tMulai = new Date(mulaiStr).getTime();
-    const tSelesai = selesaiStr ? new Date(selesaiStr).getTime() : Date.now();
+    const parseDateToMs = (str) => {
+      if (!str) return null;
+      if (typeof str === 'number') return str;
+      // Konversi format PostgreSQL 'YYYY-MM-DD HH:MM:SS' jadi ISO 'YYYY-MM-DDTHH:MM:SS'
+      const isoFormatted = str.toString().trim().replace(' ', 'T');
+      const timeMs = new Date(isoFormatted).getTime();
+      return isNaN(timeMs) ? null : timeMs;
+    };
 
-    if (isNaN(tMulai)) return null;
+    const tMulai = parseDateToMs(mulaiStr);
+    const tSelesai = parseDateToMs(selesaiStr) || Date.now();
+
+    if (!tMulai) return null;
 
     const diffMs = Math.max(0, tSelesai - tMulai);
     const totalDetik = Math.floor(diffMs / 1000);
-    
+
+    if (isNaN(totalDetik)) return null;
+
     const jam = Math.floor(totalDetik / 3600);
     const menit = Math.floor((totalDetik % 3600) / 60);
     const detik = totalDetik % 60;
 
     if (jam > 0) {
-      return `${jam} Jam ${menit} Mnt ${detik} Dtk`;
+      return `${jam} Jam ${menit} Mnt`;
     } else if (menit > 0) {
-      return `${menit} Menit ${detik} Detik`;
+      return `${menit} Menit ${detik} Dtk`;
     } else {
-      return `${detik} Detik`; // Tetap tampil meski pengerjaan di bawah 1 menit
+      return `${detik} Detik`;
     }
   };
 
@@ -128,14 +139,21 @@ export default function DashboardPeserta() {
 
         const isFullyCorrected = activeUser?.status_koreksi === 'SELESAI' || activeUser?.status_koreksi === 'dikoreksi' || nilaiPraktik !== null;
 
-        // Ambil waktu dari Supabase atau LocalStorage
-        const wMulai = activeUser?.waktu_mulai || localStorage.getItem(`startTime_${techIdToDisplay}`);
-        const wSelesai = activeUser?.waktu_selesai || localStorage.getItem(`endTime_${techIdToDisplay}`);
+        // Ambil timestamp dari Supabase atau LocalStorage/SessionStorage
+        const wMulai = activeUser?.waktu_mulai 
+          || localStorage.getItem(`startTime_${techIdToDisplay}`)
+          || sessionStorage.getItem(`startTime_${techIdToDisplay}`);
+          
+        const wSelesai = activeUser?.waktu_selesai 
+          || localStorage.getItem(`endTime_${techIdToDisplay}`)
+          || sessionStorage.getItem(`endTime_${techIdToDisplay}`);
 
         // Hitung Timer Durasi Pengerjaan yang Akurat
         let lamaKerja = formatLamaPengerjaan(wMulai, wSelesai);
-        if (!lamaKerja) {
-          lamaKerja = activeUser?.lama_pengerjaan || 'Selesai';
+        
+        // Anti-NaN: Jika kalkulasi gagal/null/mengandung 'NaN', ganti ke fallback
+        if (!lamaKerja || lamaKerja.includes('NaN')) {
+          lamaKerja = activeUser?.lama_pengerjaan || 'Selesai Ujian';
         }
 
         setCompletedExamInfo({
@@ -191,6 +209,7 @@ export default function DashboardPeserta() {
         localStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, activeExamDetail.id);
         localStorage.setItem(STORAGE_KEYS.USER_KATEGORI, activeExamDetail.id);
         localStorage.setItem(`startTime_${techId}`, nowIso);
+        sessionStorage.setItem(`startTime_${techId}`, nowIso);
 
         try {
           await supabase
