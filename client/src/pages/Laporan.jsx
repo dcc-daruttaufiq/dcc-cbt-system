@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import API from '../utils/api';
+import { supabase, TABLES } from '../utils/supabaseClient';
+import { STORAGE_KEYS } from '../utils/storageKeys';
 import Sidebar from '../components/ui/Sidebar';
 import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
@@ -24,26 +25,44 @@ export default function Laporan() {
 
   const fetchLaporan = async () => {
     let dataReal = [];
+    
+    // 1. Ambil data langsung dari Supabase Cloud
     try {
-      const res = await API.get('/ujian/laporan');
-      if (res.data && res.data.dataLaporan && res.data.dataLaporan.length > 0) {
-        setLaporan(res.data);
-        return;
+      const { data, error } = await supabase
+        .from(TABLES.PESERTA)
+        .select('*');
+
+      if (!error && data && data.length > 0) {
+        dataReal = data.filter(p => p.status === 'selesai' || Number(p.nilai_akhir) > 0 || Number(p.nilai_pg) > 0);
       }
     } catch (err) {
-      console.warn('Gagal fetch laporan server, menggunakan storage lokal');
+      console.warn('Gagal fetch dari Supabase Cloud, membaca storage lokal...');
     }
 
-    // Fallback: Membaca Sesi Peserta Asli dari LocalStorage
-    const localSesi = localStorage.getItem('dcc_sesi_peserta');
-    if (localSesi) {
-      dataReal = JSON.parse(localSesi).filter(p => p.status === 'selesai' || p.nilai_akhir > 0 || p.nilai_pg > 0);
+    // 2. Fallback ke LocalStorage jika data dari Cloud kosong
+    if (dataReal.length === 0) {
+      const localSesi = localStorage.getItem(STORAGE_KEYS.PESERTA) || localStorage.getItem('dcc_sesi_peserta');
+      if (localSesi) {
+        try {
+          const parsed = JSON.parse(localSesi);
+          if (Array.isArray(parsed)) {
+            dataReal = parsed.filter(p => p.status === 'selesai' || Number(p.nilai_akhir) > 0 || Number(p.nilai_pg) > 0);
+          }
+        } catch (e) {}
+      }
     }
+
+    // Urutkan berdasarkan nilai tertinggi ke terendah secara otomatis
+    dataReal.sort((a, b) => {
+      const skorA = Number(a.nilai_akhir || a.nilai_pg || 0);
+      const skorB = Number(b.nilai_akhir || b.nilai_pg || 0);
+      return skorB - skorA;
+    });
 
     const totalSiswa = dataReal.length;
-    const totalNilai = dataReal.reduce((acc, curr) => acc + (curr.nilai_akhir || curr.nilai_pg || 0), 0);
+    const totalNilai = dataReal.reduce((acc, curr) => acc + Number(curr.nilai_akhir || curr.nilai_pg || 0), 0);
     const rataRata = totalSiswa > 0 ? Math.round(totalNilai / totalSiswa) : 0;
-    const nilaiList = dataReal.map(d => d.nilai_akhir || d.nilai_pg || 0);
+    const nilaiList = dataReal.map(d => Number(d.nilai_akhir || d.nilai_pg || 0));
 
     setLaporan({
       statistik: {
@@ -65,12 +84,12 @@ export default function Laporan() {
 
     const dataExcel = laporan.dataLaporan.map((item, index) => ({
       'Ranking': index + 1,
-      'TechID': item.tech_id || `DCC25-000${item.user_id}`,
-      'Nama Lengkap': item.nama || item.nama_lengkap || `Peserta #${item.user_id}`,
+      'TechID': item.tech_id || `DCC25-000${item.user_id || index}`,
+      'Nama Lengkap': item.nama || item.nama_lengkap || `Peserta #${index + 1}`,
       'Nilai PG': item.nilai_pg || 0,
       'Nilai Praktik': item.nilai_praktik || 0,
       'Nilai Akhir': item.nilai_akhir || item.nilai_pg || 0,
-      'Status': (item.nilai_akhir || item.nilai_pg || 0) >= 75 ? 'LULUS' : 'TIDAK LULUS'
+      'Status': (Number(item.nilai_akhir || item.nilai_pg || 0)) >= 75 ? 'LULUS' : 'TIDAK LULUS'
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataExcel);
@@ -89,14 +108,15 @@ export default function Laporan() {
     const tableRows = [];
 
     laporan.dataLaporan.forEach((item, index) => {
+      const skorAkhir = Number(item.nilai_akhir || item.nilai_pg || 0);
       const rowData = [
         index + 1,
-        item.tech_id || `DCC25-000${item.user_id}`,
-        item.nama || item.nama_lengkap || `Peserta #${item.user_id}`,
+        item.tech_id || `DCC25-000${index}`,
+        item.nama || item.nama_lengkap || `Peserta #${index}`,
         item.nilai_pg || 0,
         item.nilai_praktik || 0,
-        item.nilai_akhir || item.nilai_pg || 0,
-        (item.nilai_akhir || item.nilai_pg || 0) >= 75 ? 'LULUS' : 'REMIDI'
+        skorAkhir,
+        skorAkhir >= 75 ? 'LULUS' : 'TIDAK LULUS' // Label diubah konsisten jadi TIDAK LULUS
       ];
       tableRows.push(rowData);
     });
@@ -117,7 +137,6 @@ export default function Laporan() {
       <Sidebar links={menuPengawas} userRole="Pengawas" />
 
       <div className="flex-1 flex flex-col min-w-0 font-sans">
-        {/* CLEAN NAVBAR TANPA GLOWING SHADOW */}
         <Navbar>
           <div className="flex justify-between items-center w-full">
             <div className="flex items-center gap-3">
@@ -128,7 +147,6 @@ export default function Laporan() {
               </div>
             </div>
 
-            {/* ACTION BUTTONS (FLAT CLEAN) */}
             <div className="flex items-center gap-2">
               <Button onClick={handleExportExcel} className="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border-0 font-sans">
                 <Download className="w-3.5 h-3.5 mr-1.5" /> Export Excel
@@ -190,15 +208,14 @@ export default function Laporan() {
                 </div>
               ) : (
                 laporan.dataLaporan.map((row, idx) => {
-                  const nilaiAkhir = row.nilai_akhir || row.nilai_pg || 0;
+                  const nilaiAkhir = Number(row.nilai_akhir || row.nilai_pg || 0);
                   const isLulus = nilaiAkhir >= 75;
-                  const namaSiswa = row.nama || row.nama_lengkap || `Peserta #${row.user_id}`;
-                  const techId = row.tech_id || `DCC25-000${row.user_id}`;
+                  const namaSiswa = row.nama || row.nama_lengkap || `Peserta #${idx + 1}`;
+                  const techId = row.tech_id || `-`;
 
                   return (
                     <div key={idx} className="p-5 bg-[#0d1527]/60 border border-slate-800/50 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 font-sans">
                       <div className="flex items-center gap-4 flex-1 min-w-0">
-                        {/* PENOMORAN TANPA TANDA # */}
                         <span className="text-xs font-display font-bold text-cyan-400 bg-cyan-400/10 px-3 py-1.5 rounded-xl shrink-0">
                           {idx + 1}
                         </span>
@@ -210,9 +227,9 @@ export default function Laporan() {
                           </p>
                         </div>
 
-                        <div className="w-24 shrink-0 hidden sm:block">
-                          <Badge variant={isLulus ? 'primary' : 'secondary'} className="text-[10px] font-display font-bold px-2.5 py-1 rounded-md uppercase text-center w-full block">
-                            {isLulus ? 'LULUS' : 'REMIDI'}
+                        <div className="w-28 shrink-0 hidden sm:block">
+                          <Badge variant={isLulus ? 'primary' : 'secondary'} className={`text-[10px] font-display font-bold px-2.5 py-1 rounded-md uppercase text-center w-full block ${isLulus ? '' : 'bg-rose-500/20 text-rose-400 border-rose-500/40'}`}>
+                            {isLulus ? 'LULUS' : 'TIDAK LULUS'}
                           </Badge>
                         </div>
                       </div>
