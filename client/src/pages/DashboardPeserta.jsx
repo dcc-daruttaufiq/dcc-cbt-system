@@ -327,9 +327,9 @@ export default function DashboardPeserta() {
                 </div>
                 <div className="flex items-center gap-2">
                   {/* BADGE TIMER LAMA PENGERJAAN */}
-                  <div className="bg-slate-800/80 text-cyan-400 border border-cyan-400/30 text-xs px-3 py-1 rounded-lg font-mono flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" /> {completedExamInfo?.lamaPengerjaan}
-                  </div>
+                  <div className="bg-slate-800/80 text-cyan-400 border border-cyan-400/30 text-xs px-3 py-1 rounded-lg font-display font-bold tracking-wide flex items-center gap-1.5">
+  <Clock className="w-3.5 h-3.5" /> {completedExamInfo?.lamaPengerjaan}
+</div>
                   <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-xs px-3 py-1 font-display font-bold flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4" /> UJIAN SELESAI
                   </Badge>
