@@ -26,15 +26,15 @@ export default function Login() {
     const inputUser = username.trim();
     const inputPass = password.trim();
 
-    // 1. LOGIN SEBAGAI PANITIA / MASTER ADMIN
+    // 1. LOGIN SEBAGAI PENGAWAS / LEAD INSTRUCTOR DCC
     if (selectedRole === 'master_admin') {
       if ((inputUser.toLowerCase() === 'admin' && (inputPass === 'admin123' || inputPass === '123')) || inputPass === 'admin123') {
-        saveAndRedirect('master_admin', 'token-master-admin-real', 'Master Admin', 'ADMIN-001', 'all');
+        saveAndRedirect('master_admin', 'token-master-admin-real', 'Lead Instructor DCC', 'ADMIN-001', 'all');
         return;
       }
     } else if (selectedRole === 'panitia') {
-      if ((inputUser.toLowerCase() === 'panitia' || inputUser.toLowerCase() === 'admin') && (inputPass === 'panitia123' || inputPass === 'admin123' || inputPass === '123')) {
-        saveAndRedirect('panitia', 'token-panitia-real', 'Panitia Ujian', 'PANITIA-001', 'all');
+      if ((inputUser.toLowerCase() === 'panitia' || inputUser.toLowerCase() === 'admin' || inputUser.toLowerCase() === 'pengawas') && (inputPass === 'panitia123' || inputPass === 'admin123' || inputPass === '123')) {
+        saveAndRedirect('panitia', 'token-panitia-real', 'Pengawas Ujian', 'PANITIA-001', 'all');
         return;
       }
     }
@@ -52,12 +52,12 @@ export default function Login() {
         if (error) throw error;
 
         if (!Array.isArray(listPeserta) || listPeserta.length === 0) {
-          setErrorMsg('Data peserta belum diimpor oleh Panitia di Supabase Cloud. Silakan hubungi Panitia Ujian.');
+          setErrorMsg('Data peserta belum diimpor oleh Pengawas di Supabase Cloud. Silakan hubungi Pengawas Ujian.');
           setIsLoading(false);
           return;
         }
 
-        // Cari peserta berdasarkan TechID, Nama, atau Nama Lengkap persis seperti kode asli kamu
+        // Cari peserta berdasarkan TechID, Nama, atau Nama Lengkap
         const matchedPeserta = listPeserta.find(
           p => (p.tech_id && p.tech_id.toLowerCase().trim() === cleanInput) ||
                (p.nama && p.nama.toLowerCase().trim() === cleanInput) ||
@@ -65,7 +65,7 @@ export default function Login() {
         );
 
         if (!matchedPeserta) {
-          setErrorMsg(`TechID/Nama "${inputUser}" tidak ditemukan pada data hasil impor Panitia di Supabase Cloud. Periksa kembali penulisan, atau hubungi Panitia jika Anda merasa sudah terdaftar.`);
+          setErrorMsg(`Nama Lengkap/TechID "${inputUser}" tidak ditemukan pada data hasil impor Pengawas di Supabase Cloud. Periksa kembali penulisan, atau hubungi Pengawas jika Anda merasa sudah terdaftar.`);
           setIsLoading(false);
           return;
         }
@@ -73,7 +73,7 @@ export default function Login() {
         // Kategori WAJIB salah satu dari 5 kategori resmi
         const kategoriValid = normalizeKategori(matchedPeserta.kategori);
         if (!kategoriValid) {
-          setErrorMsg(`Kategori ujian pada data peserta ini tidak valid ("${matchedPeserta.kategori || '-'}"). Hubungi Panitia untuk memperbaiki data impor TechID ${matchedPeserta.tech_id}.`);
+          setErrorMsg(`Kategori ujian pada data peserta ini tidak valid ("${matchedPeserta.kategori || '-'}"). Hubungi Pengawas untuk memperbaiki data impor TechID ${matchedPeserta.tech_id}.`);
           setIsLoading(false);
           return;
         }
@@ -94,7 +94,7 @@ export default function Login() {
 
         const displayName = pesertaTerupdate.nama || pesertaTerupdate.nama_lengkap || 'Peserta Ujian';
 
-        // SIMPAN SESI LOGIN SECARA AKURAT (menyimpan seluruh row Supabase, termasuk `id`)
+        // SIMPAN SESI LOGIN SECARA AKURAT
         localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(pesertaTerupdate));
         localStorage.setItem(STORAGE_KEYS.USER_NAME, displayName);
         localStorage.setItem(STORAGE_KEYS.USER_TECH_ID, pesertaTerupdate.tech_id);
@@ -153,8 +153,9 @@ export default function Login() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-8 border-borderCustom bg-surface space-y-6">
 
+        {/* 2. SISTEM UJIAN DCC */}
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-display font-bold text-primary tracking-wider">PORTAL DCC-CBT</h1>
+          <h1 className="text-3xl font-display font-bold text-primary tracking-wider">SISTEM UJIAN DCC</h1>
           <p className="text-xs text-slate-400 font-sans">Pilih peran Anda untuk masuk ke dalam sistem</p>
         </div>
 
@@ -172,6 +173,7 @@ export default function Login() {
             <span>PESERTA</span>
           </button>
 
+          {/* 1. PENGAWAS */}
           <button
             type="button"
             onClick={() => { setSelectedRole('panitia'); setErrorMsg(''); }}
@@ -182,9 +184,10 @@ export default function Login() {
             }`}
           >
             <ShieldCheck className="w-4 h-4 mb-1" />
-            <span>PANITIA</span>
+            <span>PENGAWAS</span>
           </button>
 
+          {/* 3. LEAD INSTRUCTOR */}
           <button
             type="button"
             onClick={() => { setSelectedRole('master_admin'); setErrorMsg(''); }}
@@ -195,7 +198,7 @@ export default function Login() {
             }`}
           >
             <Crown className="w-4 h-4 mb-1" />
-            <span>MASTER</span>
+            <span>LEAD INSTRUCTOR</span>
           </button>
         </div>
 
@@ -207,12 +210,14 @@ export default function Login() {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
+            {/* 4. NAMA LENGKAP */}
             <label className="text-xs font-display font-semibold text-slate-300 mb-1 block uppercase">
-              {selectedRole === 'peserta' ? 'TechID / Nama Peserta' : 'Username Admin / Panitia'}
+              {selectedRole === 'peserta' ? 'Nama Lengkap' : 'Username Admin / Pengawas'}
             </label>
+            {/* 5. PLACEHOLDER: Masukkan Nama Lengkap */}
             <Input
               type="text"
-              placeholder={selectedRole === 'peserta' ? 'Masukkan TechID (contoh: DCC25-002)...' : 'Masukkan username...'}
+              placeholder={selectedRole === 'peserta' ? 'Masukkan Nama Lengkap...' : 'Masukkan username...'}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
@@ -245,18 +250,18 @@ export default function Login() {
           </div>
 
           <Button type="submit" variant="primary" size="lg" className="w-full mt-2" disabled={isLoading}>
-            {isLoading ? 'MEMVERIFIKASI...' : `MASUK SEBAGAI ${selectedRole.toUpperCase()}`}
+            {isLoading ? 'MEMVERIFIKASI...' : `MASUK SEBAGAI ${selectedRole === 'panitia' ? 'PENGAWAS' : selectedRole === 'master_admin' ? 'LEAD INSTRUCTOR' : 'PESERTA'}`}
           </Button>
         </form>
 
         <div className="text-center border-t border-borderCustom/40 pt-4 space-y-1">
           {selectedRole === 'peserta' ? (
             <p className="text-[11px] text-slate-400">
-              Siswa menggunakan <strong className="text-primary">TechID / Nama</strong> hasil impor Panitia dari file Excel.
+              Siswa menggunakan <strong className="text-primary">Nama Lengkap</strong> hasil impor Pengawas dari file Excel.
             </p>
           ) : (
             <p className="text-[10px] text-slate-500 font-mono">
-              Username Panitia: <code className="text-primary">panitia</code> | Master: <code className="text-primary">admin</code> (Pass: <code className="text-primary">123</code> / <code className="text-primary">admin123</code>)
+              Username Pengawas: <code className="text-primary">panitia</code> | Lead Instructor: <code className="text-primary">admin</code> (Pass: <code className="text-primary">123</code> / <code className="text-primary">admin123</code>)
             </p>
           )}
         </div>
