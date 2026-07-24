@@ -52,9 +52,11 @@ export default function DashboardPanitia() {
 
   const pesertaFileInputRef = useRef(null);
 
+  // Menu Sidebar dengan penambahan Pengaturan Ujian
   const menuPanitia = [
     { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
     { label: 'Bank Soal', path: '/bank-soal', icon: '📚' },
+    { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: '⚙️' },
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
@@ -471,7 +473,7 @@ export default function DashboardPanitia() {
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
-      <Sidebar links={menuPanitia} userRole="Panitia" />
+      <Sidebar links={menuPanitia} userRole="Pengawas" />
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* CLEAN NAVBAR (FLAT TANPA SHADOW) */}
