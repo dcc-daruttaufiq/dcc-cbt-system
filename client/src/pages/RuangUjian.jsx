@@ -22,8 +22,10 @@ export default function RuangUjian() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   
-  // Timer diinisialisasi dinamis (Default fallback 90 menit = 5400 detik)
-  const [timeLeft, setTimeLeft] = useState(5400);
+  // Timer dimulai dari 0 & dikunci dengan flag isTimerReady
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [isTimerReady, setIsTimerReady] = useState(false);
+
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [errorState, setErrorState] = useState('');
   const [examKategori, setExamKategori] = useState('');
@@ -88,7 +90,7 @@ export default function RuangUjian() {
 
       setExamKategori(storedExamId);
 
-      // 1. HITUNG & SET TIMER DARI CONFIG PENGAWAS
+      // 1. FETCH DURASI SEBELUM TIMER AKTIF
       const totalDetikKategori = await fetchDurasiUjianMenit(storedExamId);
 
       // Hitung selisih detik jika waktu mulai sudah tercatat
@@ -106,6 +108,9 @@ export default function RuangUjian() {
       } else {
         setTimeLeft(totalDetikKategori);
       }
+
+      // Tandai bahwa nilai waktu sudah siap
+      setIsTimerReady(true);
 
       // 2. AMBIL BANK SOAL DARI SUPABASE CLOUD
       let bankSoalImpor = [];
@@ -190,8 +195,9 @@ export default function RuangUjian() {
     initRuangUjian();
   }, []);
 
+  // INTERVAL TIMER JALAN HANYA SAAT isTimerReady = true
   useEffect(() => {
-    if (timeLeft > 0) {
+    if (isTimerReady && timeLeft > 0) {
       timerRef.current = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
@@ -203,7 +209,7 @@ export default function RuangUjian() {
       }, 1000);
     }
     return () => clearInterval(timerRef.current);
-  }, [timeLeft]);
+  }, [isTimerReady, timeLeft]);
 
   const formatTime = (seconds) => {
     const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
