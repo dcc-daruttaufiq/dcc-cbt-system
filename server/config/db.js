@@ -62,7 +62,7 @@ function initDB() {
         );
       `);
 
-      // 5. Tabel questions (Bank Soal)
+      // 5. Tabel questions (Repositori Soal)
       await db.exec(`
         CREATE TABLE IF NOT EXISTS questions (
           id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -38,7 +38,7 @@ function formatSoal(rows) {
 }
 
 // =========================================================
-// 🌐 BANK SOAL CRUD
+// 🌐 Repositori Soal CRUD
 // =========================================================
 const handleGetSoal = async (req, res) => {
   try {

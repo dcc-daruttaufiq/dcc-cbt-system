@@ -128,7 +128,7 @@ export default function RuangUjian() {
       // Tandai bahwa nilai waktu sudah siap
       setIsTimerReady(true);
 
-      // 2. AMBIL BANK SOAL DARI SUPABASE CLOUD
+      // 2. AMBIL Repositori Soal DARI SUPABASE CLOUD
       let bankSoalImpor = [];
       try {
         const { data, error } = await supabase.from(TABLES.BANK_SOAL).select('*');
@@ -136,7 +136,7 @@ export default function RuangUjian() {
         bankSoalImpor = Array.isArray(data) ? data : [];
         localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(bankSoalImpor));
       } catch (err) {
-        console.warn('Gagal memuat Bank Soal dari Supabase Cloud, menggunakan cache lokal terakhir.', err);
+        console.warn('Gagal memuat Repositori Soal dari Supabase Cloud, menggunakan cache lokal terakhir.', err);
         try {
           bankSoalImpor = JSON.parse(localStorage.getItem(STORAGE_KEYS.BANK_SOAL) || '[]');
         } catch (e) {
@@ -416,11 +416,11 @@ export default function RuangUjian() {
     let pesan = errorState;
 
     if (errorState === 'EMPTY_BANK_SOAL') {
-      judul = 'Bank Soal Masih Kosong';
-      pesan = 'Pengawas belum mengimpor Bank Soal sama sekali ke Supabase Cloud.';
+      judul = 'Repositori Soal Masih Kosong';
+      pesan = 'Pengawas belum mengimpor Repositori Soal sama sekali ke Supabase Cloud.';
     } else if (errorState === 'EMPTY_KATEGORI') {
       judul = 'Soal Untuk Kategori Anda Belum Tersedia';
-      pesan = `Belum ada soal untuk kategori "${getLabelKategori(examKategori)}" di Bank Soal.`;
+      pesan = `Belum ada soal untuk kategori "${getLabelKategori(examKategori)}" di Repositori Soal.`;
     }
 
     return (

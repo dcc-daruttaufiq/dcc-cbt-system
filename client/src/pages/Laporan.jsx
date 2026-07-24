@@ -16,7 +16,7 @@ export default function Laporan() {
 
   const menuPengawas = [
     { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
-    { label: 'Bank Soal', path: '/bank-soal', icon: '📚' },
+    { label: 'Repositori Soal', path: '/bank-soal', icon: '📚' },
     { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: '⚙️' },
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];

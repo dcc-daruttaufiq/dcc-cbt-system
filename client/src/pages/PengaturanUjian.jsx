@@ -28,7 +28,7 @@ export default function PengaturanUjian() {
 
   const menuPengawas = [
     { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
-    { label: 'Bank Soal', path: '/bank-soal', icon: '📚' },
+    { label: 'Repositori Soal', path: '/bank-soal', icon: '📚' },
     { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: '⚙️' },
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
@@ -165,7 +165,7 @@ export default function PengaturanUjian() {
             <Sliders className="text-cyan-400 w-6 h-6" />
             <div>
               <h1 className="text-base font-display font-bold text-white tracking-wide">PENGATURAN UJIAN</h1>
-              <p className="text-xs text-slate-400 font-sans">Kelola Master Mata Ujian & Alokasi Durasi Waktu</p>
+              <p className="text-xs text-slate-400 font-sans">Kelola Mata Ujian & Alokasi Durasi Waktu</p>
             </div>
           </div>
         </Navbar>

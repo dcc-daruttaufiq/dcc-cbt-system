@@ -4,7 +4,7 @@ echo   AUTOMATIC GIT PUSH DCC-CBT
 echo ===================================
 git add .
 set /p commit_msg="Masukkan pesan commit (bebas/langsung enter): "
-if "%commit_msg%"=="" set commit_msg="update: sync bank soal & peserta real"
+if "%commit_msg%"=="" set commit_msg="update: sync Repositori Soal & peserta real"
 git commit -m "%commit_msg%"
 git push origin main
 echo ===================================

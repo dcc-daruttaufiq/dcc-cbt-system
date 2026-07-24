@@ -10,7 +10,7 @@ export default function Sidebar({ userRole = 'Pengawas' }) {
   // Icon Lucide Modern & Elegan (Termasuk Pengaturan Ujian)
   const links = [
     { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: CheckSquare },
-    { label: 'Bank Soal', path: '/bank-soal', icon: Database },
+    { label: 'Repositori Soal', path: '/bank-soal', icon: Database },
     { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: Sliders },
     { label: 'Laporan Nilai', path: '/laporan', icon: FileBarChart },
   ];

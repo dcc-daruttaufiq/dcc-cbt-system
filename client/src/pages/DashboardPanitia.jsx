@@ -55,7 +55,7 @@ export default function DashboardPanitia() {
   // Menu Sidebar dengan penambahan Pengaturan Ujian
   const menuPanitia = [
     { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
-    { label: 'Bank Soal', path: '/bank-soal', icon: '📚' },
+    { label: 'Repositori Soal', path: '/bank-soal', icon: '📚' },
     { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: '⚙️' },
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
@@ -91,7 +91,7 @@ export default function DashboardPanitia() {
       setBankSoalAll(rows);
       localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(rows));
     } catch (err) {
-      console.warn('Gagal memuat Bank Soal dari Supabase Cloud, menggunakan cache lokal.', err);
+      console.warn('Gagal memuat Repositori Soal dari Supabase Cloud, menggunakan cache lokal.', err);
       const cached = localStorage.getItem(STORAGE_KEYS.BANK_SOAL);
       if (cached) {
         try { setBankSoalAll(JSON.parse(cached)); } catch (e) { setBankSoalAll([]); }

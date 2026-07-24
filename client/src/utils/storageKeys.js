@@ -9,7 +9,7 @@
 export const STORAGE_KEYS = {
   // Data murni hasil impor Panitia (SATU-SATUNYA sumber data peserta)
   PESERTA: 'dcc_sesi_peserta',
-  // Data murni hasil impor Panitia (SATU-SATUNYA sumber bank soal)
+  // Data murni hasil impor Panitia (SATU-SATUNYA sumber Repositori Soal)
   BANK_SOAL: 'dcc_bank_soal',
 
   // Sesi login yang sedang aktif di browser ini

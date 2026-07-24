@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 export default function BankSoal() {
-  useDocumentTitle('Manajemen Bank Soal - DCC CBT');
+  useDocumentTitle('Manajemen Repositori Soal - DCC CBT');
 
   const [listSoal, setDataSoal] = useState([]);
   const [filterKategori, setFilterKategori] = useState('semua');
@@ -47,12 +47,12 @@ export default function BankSoal() {
 
   const menuPengawas = [
     { label: 'Koreksi Ujian', path: '/dashboard-panitia', icon: '📊' },
-    { label: 'Bank Soal', path: '/bank-soal', icon: '📚' },
+    { label: 'Repositori Soal', path: '/bank-soal', icon: '📚' },
     { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: '⚙️' },
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
-  // Fetch Bank Soal dari Supabase Cloud
+  // Fetch Repositori Soal dari Supabase Cloud
   const fetchSoal = async () => {
     setIsLoading(true);
     try {
@@ -204,7 +204,7 @@ export default function BankSoal() {
 
   // FITUR 3: HAPUS SEMUA SOAL (RESET ALL)
   const handleDeleteAll = async () => {
-    if (!confirm('PERINGATAN: Anda akan MENGHAPUS SELURUH BANK SOAL!')) return;
+    if (!confirm('PERINGATAN: Anda akan MENGHAPUS SELURUH Repositori Soal!')) return;
     if (!confirm(`Konfirmasi terakhir: ${listSoal.length} butir soal akan dihapus PERMANEN. Yakin lanjut?`)) return;
 
     try {
@@ -217,10 +217,10 @@ export default function BankSoal() {
       setDataSoal([]);
       setSelectedIds([]);
       localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify([]));
-      alert('Seluruh bank soal berhasil dikosongkan!');
+      alert('Seluruh Repositori Soal berhasil dikosongkan!');
     } catch (err) {
-      console.error('Gagal mereset bank soal:', err);
-      alert('Gagal mereset seluruh bank soal.');
+      console.error('Gagal mereset Repositori Soal:', err);
+      alert('Gagal mereset seluruh Repositori Soal.');
     }
   };
 
@@ -419,8 +419,8 @@ export default function BankSoal() {
             <div className="flex items-center gap-3">
               <Database className="text-cyan-400 w-5 h-5" />
               <div>
-                <h1 className="text-sm font-display font-bold text-white tracking-wide">BANK SOAL (LIVE DB)</h1>
-                <p className="text-[11px] text-slate-400 font-sans">Kelola & Import Bank Soal Spesialisasi</p>
+                <h1 className="text-sm font-display font-bold text-white tracking-wide">REPOSITORI SOAL</h1>
+                <p className="text-[11px] text-slate-400 font-sans">Kelola & Import Soal Ujian</p>
               </div>
               {isOffline && (
                 <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-1 rounded-lg font-sans">
@@ -507,7 +507,7 @@ export default function BankSoal() {
             <div className="space-y-3">
               {isLoading ? (
                 <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs font-sans">
-                  Memuat Bank Soal dari Supabase Cloud...
+                  Memuat Repositori Soal dari Supabase Cloud...
                 </div>
               ) : filteredSoalList.length === 0 ? (
                 <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs font-sans">
