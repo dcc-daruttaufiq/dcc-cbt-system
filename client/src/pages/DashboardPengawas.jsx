@@ -30,6 +30,7 @@ import {
 export default function DashboardPengawas() {
   const [peserta, setPeserta] = useState([]);
   const [bankSoalAll, setBankSoalAll] = useState([]);
+  const [katalogMapel, setKatalogMapel] = useState([]);
   const [selectedSiswa, setSelectedSiswa] = useState(null);
   const [soalPraktikList, setSoalPraktikList] = useState([]);
   const [checklistPraktik, setChecklistPraktik] = useState({});
@@ -52,13 +53,40 @@ export default function DashboardPengawas() {
 
   const pesertaFileInputRef = useRef(null);
 
-  // Menu Sidebar dengan penambahan Pengaturan Ujian
+  // Menu Sidebar
   const menuPengawas = [
     { label: 'Koreksi Ujian', path: '/dashboard-Pengawas', icon: '📊' },
     { label: 'Repositori Soal', path: '/bank-soal', icon: '📚' },
     { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: '⚙️' },
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
+
+  // Load Katalog Mata Ujian (Untuk membaca Bobot PG & Praktik)
+  const loadKatalogPengaturan = async () => {
+    try {
+      const { data } = await supabase
+        .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
+        .select('*')
+        .eq('key', 'katalog_mata_ujian')
+        .maybeSingle();
+
+      if (data && data.value) {
+        const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+        if (Array.isArray(parsed)) {
+          setKatalogMapel(parsed);
+          localStorage.setItem('dcc_katalog_mapel', JSON.stringify(parsed));
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Gagal memuat katalog pengaturan dari cloud...', e);
+    }
+
+    const localKatalog = localStorage.getItem('dcc_katalog_mapel');
+    if (localKatalog) {
+      try { setKatalogMapel(JSON.parse(localKatalog)); } catch (e) {}
+    }
+  };
 
   const loadPeserta = async () => {
     try {
@@ -102,6 +130,8 @@ export default function DashboardPengawas() {
   useEffect(() => {
     loadPeserta();
     loadBankSoal();
+    loadKatalogPengaturan();
+
     const interval = setInterval(() => {
       loadPeserta();
     }, 4000);
@@ -263,9 +293,6 @@ export default function DashboardPengawas() {
     }
   };
 
-  // =========================================================================
-  // FIX UTAMA: PERIKSA JAWABAN PESERTA REALTIME & ISOLASI TECH_ID PRESISI
-  // =========================================================================
   const handlePeriksa = async (pesertaId) => {
     setSelectedSiswa(pesertaId);
     setIsSaved(false);
@@ -281,7 +308,6 @@ export default function DashboardPengawas() {
     let detailJawaban = [];
 
     try {
-      // Fetch data spesifik milik peserta berdasarkan tech_id
       const { data: jawabanRows, error } = await supabase
         .from(TABLES.JAWABAN_PESERTA)
         .select('*')
@@ -323,7 +349,6 @@ export default function DashboardPengawas() {
       console.warn('Gagal fetch dari Cloud, membaca fallback LocalStorage...', err);
     }
 
-    // FALLBACK LOCALSTORAGE
     if (detailJawaban.length === 0) {
       const savedJawabanStr = localStorage.getItem(jawabanLocalKey(cleanTechId)) ||
                               localStorage.getItem(STORAGE_KEYS.JAWABAN_LOCAL_LEGACY);
@@ -384,11 +409,35 @@ export default function DashboardPengawas() {
     return Math.round((dicentang / keys.length) * 100);
   };
 
+  // ⚡⚡ PERHITUNGAN NILAI AKHIR DENGAN BOBOT DINAMIS & FALLBACK SOAL PG SAJA
   const submitSimpanNilaiPraktik = async () => {
-    const skorPraktikTotal = hitungSkorPraktikLokal();
     const targetUser = peserta.find(p => p.id === selectedSiswa);
-    const pg = targetUser?.nilai_pg || 0;
-    const nilaiAkhirBaru = Math.round((pg + skorPraktikTotal) / 2);
+    if (!targetUser) return;
+
+    const katId = normalizeKategori(targetUser.kategori);
+    const matchedKat = katalogMapel.find(m => m.id === katId);
+
+    // Cek apakah ada soal praktik di bank soal untuk kategori ini
+    const adaSoalPraktikInBank = bankSoalAll.some(s => {
+      const sKat = normalizeKategori(s.kategori);
+      const sTipe = (s.tipe || '').toLowerCase();
+      return sKat === katId && (sTipe.includes('prak') || sTipe.includes('essay'));
+    });
+
+    let bobotPG = matchedKat?.bobot_pg !== undefined ? Number(matchedKat.bobot_pg) : 50;
+    let bobotPraktik = matchedKat?.bobot_praktik !== undefined ? Number(matchedKat.bobot_praktik) : 50;
+
+    // JIKA TIDAK ADA SOAL PRAKTIK -> OTOMATIS BOBOT PG = 100%
+    if (!adaSoalPraktikInBank) {
+      bobotPG = 100;
+      bobotPraktik = 0;
+    }
+
+    const skorPraktikTotal = hitungSkorPraktikLokal();
+    const pg = targetUser?.nilai_pg !== undefined && targetUser?.nilai_pg !== null ? Number(targetUser.nilai_pg) : 0;
+
+    // RUMUS PENILAIAN SESUAI PERSENTASE BOBOT
+    const nilaiAkhirBaru = Math.round((pg * (bobotPG / 100)) + (skorPraktikTotal * (bobotPraktik / 100)));
 
     try {
       const { error } = await supabase
@@ -413,9 +462,9 @@ export default function DashboardPengawas() {
       setPeserta(updatedPeserta);
       localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updatedPeserta));
       setIsSaved(true);
-      alert(`Nilai Praktik (${skorPraktikTotal}) Berhasil Disimpan!`);
+      alert(`Nilai Berhasil Disimpan!\n\nPG (${bobotPG}%): ${pg}\nPraktik (${bobotPraktik}%): ${skorPraktikTotal}\nNilai Akhir Total: ${nilaiAkhirBaru}`);
     } catch (err) {
-      alert('Gagal menyimpan nilai praktik.');
+      alert('Gagal menyimpan nilai.');
     }
   };
 
@@ -476,7 +525,6 @@ export default function DashboardPengawas() {
       <Sidebar links={menuPengawas} userRole="Pengawas" />
 
       <div className="flex-1 flex flex-col min-w-0">
-        {/* CLEAN NAVBAR (FLAT TANPA SHADOW) */}
         <Navbar>
           <div className="flex justify-between items-center w-full">
             <div className="flex items-center gap-3">
@@ -629,7 +677,7 @@ export default function DashboardPengawas() {
                 </div>
               </div>
 
-              {/* DAFTAR CARD PESERTA (FLAT CLEAN TANPA SHADOW) */}
+              {/* DAFTAR CARD PESERTA */}
               {filteredPeserta.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
                   Tidak ada peserta pada status ini.
@@ -640,7 +688,9 @@ export default function DashboardPengawas() {
                     const statusInfo = getBadgeStatus(p);
                     const isSelected = selectedSiswa === p.id;
                     const isChecked = selectedIds.includes(p.id);
-                    const nilaiDisplay = p.nilai_akhir || p.nilai_praktik || p.nilai_pg || '-';
+                    const nilaiDisplay = p.nilai_akhir !== undefined && p.nilai_akhir !== null 
+                      ? p.nilai_akhir 
+                      : (p.nilai_praktik || p.nilai_pg || '-');
 
                     return (
                       <div
@@ -817,7 +867,6 @@ export default function DashboardPengawas() {
 
                           <p className="text-sm text-slate-200 font-medium leading-relaxed">{j.pertanyaan}</p>
 
-                          {/* CONTAINER UTAMA PENAMPIL TEKS & LINK LAMPIRAN */}
                           <div className="p-4 bg-[#030712]/80 border border-slate-800 rounded-xl text-sm space-y-3">
                             <p className="text-xs text-slate-400 font-display font-bold uppercase tracking-wider">Jawaban Peserta:</p>
 
@@ -882,7 +931,7 @@ export default function DashboardPengawas() {
                     </div>
 
                     <Button variant="primary" size="md" onClick={submitSimpanNilaiPraktik} className="w-full sm:w-auto bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold border-0">
-                      <CheckCircle2 className="w-4 h-4 mr-1.5" /> {isSaved ? 'Tersimpan!' : 'Simpan Nilai Praktik'}
+                      <CheckCircle2 className="w-4 h-4 mr-1.5" /> {isSaved ? 'Tersimpan!' : 'Simpan Nilai Ujian'}
                     </Button>
                   </div>
                 </div>

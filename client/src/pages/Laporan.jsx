@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, TABLES } from '../utils/supabaseClient';
+import { normalizeKategori, getLabelKategori } from '../utils/examCategories';
 import { STORAGE_KEYS } from '../utils/storageKeys';
 import Sidebar from '../components/ui/Sidebar';
 import Navbar from '../components/ui/Navbar';
@@ -13,6 +14,7 @@ export default function Laporan() {
     statistik: { totalSiswa: 0, rataRata: 0, tertinggi: 0, terendah: 0 },
     dataLaporan: []
   });
+  const [katalogMapel, setKatalogMapel] = useState([]);
 
   const menuPengawas = [
     { label: 'Koreksi Ujian', path: '/dashboard-Pengawas', icon: '📊' },
@@ -21,10 +23,61 @@ export default function Laporan() {
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
+  // Helper Hitung Nilai Akhir Sesuai Bobot Katalog
+  const calculateNilaiAkhirSmart = (pesertaItem, katalogList) => {
+    const katId = normalizeKategori(pesertaItem.kategori);
+    const matchedKat = katalogList.find(m => m.id === katId);
+
+    const nilaiPG = pesertaItem.nilai_pg !== undefined && pesertaItem.nilai_pg !== null ? Number(pesertaItem.nilai_pg) : 0;
+    const nilaiPraktik = pesertaItem.nilai_praktik !== undefined && pesertaItem.nilai_praktik !== null ? Number(pesertaItem.nilai_praktik) : null;
+
+    // Jika nilai_akhir sudah tersimpan dari proses koreksi, prioritaskan nilai tersebut
+    if (pesertaItem.nilai_akhir !== undefined && pesertaItem.nilai_akhir !== null && Number(pesertaItem.nilai_akhir) > 0) {
+      return Number(pesertaItem.nilai_akhir);
+    }
+
+    // Jika belum dikoreksi praktiknya, gunakan 100% Nilai PG sebagai nilai sementara
+    if (nilaiPraktik === null) {
+      return nilaiPG;
+    }
+
+    // Hitung berdasarkan bobot katalog jika ada nilai praktik
+    const bobotPG = matchedKat?.bobot_pg !== undefined ? Number(matchedKat.bobot_pg) : 50;
+    const bobotPraktik = matchedKat?.bobot_praktik !== undefined ? Number(matchedKat.bobot_praktik) : 50;
+
+    return Math.round((nilaiPG * (bobotPG / 100)) + (nilaiPraktik * (bobotPraktik / 100)));
+  };
+
   const fetchLaporan = async () => {
     let dataReal = [];
-    
-    // 1. Ambil data langsung dari Supabase Cloud
+    let currentKatalog = [];
+
+    // 1. Fetch Katalog Pengaturan Bobot
+    try {
+      const { data: dataKat } = await supabase
+        .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
+        .select('*')
+        .eq('key', 'katalog_mata_ujian')
+        .maybeSingle();
+
+      if (dataKat && dataKat.value) {
+        const parsed = typeof dataKat.value === 'string' ? JSON.parse(dataKat.value) : dataKat.value;
+        if (Array.isArray(parsed)) {
+          currentKatalog = parsed;
+          setKatalogMapel(parsed);
+        }
+      }
+    } catch (e) {
+      const localKatalog = localStorage.getItem('dcc_katalog_mapel');
+      if (localKatalog) {
+        try {
+          currentKatalog = JSON.parse(localKatalog);
+          setKatalogMapel(currentKatalog);
+        } catch (err) {}
+      }
+    }
+
+    // 2. Fetch Data Peserta
     try {
       const { data, error } = await supabase
         .from(TABLES.PESERTA)
@@ -37,7 +90,6 @@ export default function Laporan() {
       console.warn('Gagal fetch dari Supabase Cloud, membaca storage lokal...');
     }
 
-    // 2. Fallback ke LocalStorage jika data dari Cloud kosong
     if (dataReal.length === 0) {
       const localSesi = localStorage.getItem(STORAGE_KEYS.PESERTA) || localStorage.getItem('dcc_sesi_peserta');
       if (localSesi) {
@@ -50,17 +102,17 @@ export default function Laporan() {
       }
     }
 
-    // Urutkan berdasarkan nilai tertinggi ke terendah secara otomatis
+    // Urutkan berdasarkan Nilai Akhir tertinggi ke terendah
     dataReal.sort((a, b) => {
-      const skorA = Number(a.nilai_akhir || a.nilai_pg || 0);
-      const skorB = Number(b.nilai_akhir || b.nilai_pg || 0);
+      const skorA = calculateNilaiAkhirSmart(a, currentKatalog);
+      const skorB = calculateNilaiAkhirSmart(b, currentKatalog);
       return skorB - skorA;
     });
 
     const totalSiswa = dataReal.length;
-    const totalNilai = dataReal.reduce((acc, curr) => acc + Number(curr.nilai_akhir || curr.nilai_pg || 0), 0);
+    const totalNilai = dataReal.reduce((acc, curr) => acc + calculateNilaiAkhirSmart(curr, currentKatalog), 0);
     const rataRata = totalSiswa > 0 ? Math.round(totalNilai / totalSiswa) : 0;
-    const nilaiList = dataReal.map(d => Number(d.nilai_akhir || d.nilai_pg || 0));
+    const nilaiList = dataReal.map(d => calculateNilaiAkhirSmart(d, currentKatalog));
 
     setLaporan({
       statistik: {
@@ -80,15 +132,19 @@ export default function Laporan() {
   const handleExportExcel = () => {
     if (laporan.dataLaporan.length === 0) return alert('Belum ada data nilai peserta untuk diexport!');
 
-    const dataExcel = laporan.dataLaporan.map((item, index) => ({
-      'Ranking': index + 1,
-      'TechID': item.tech_id || `DCC25-000${item.user_id || index}`,
-      'Nama Lengkap': item.nama || item.nama_lengkap || `Peserta #${index + 1}`,
-      'Nilai PG': item.nilai_pg || 0,
-      'Nilai Praktik': item.nilai_praktik || 0,
-      'Nilai Akhir': item.nilai_akhir || item.nilai_pg || 0,
-      'Status': (Number(item.nilai_akhir || item.nilai_pg || 0)) >= 75 ? 'LULUS' : 'TIDAK LULUS'
-    }));
+    const dataExcel = laporan.dataLaporan.map((item, index) => {
+      const finalScore = calculateNilaiAkhirSmart(item, katalogMapel);
+      return {
+        'Ranking': index + 1,
+        'TechID': item.tech_id || `DCC25-000${item.user_id || index}`,
+        'Nama Lengkap': item.nama || item.nama_lengkap || `Peserta #${index + 1}`,
+        'Mata Ujian': getLabelKategori(item.kategori),
+        'Nilai PG': item.nilai_pg || 0,
+        'Nilai Praktik': item.nilai_praktik !== null && item.nilai_praktik !== undefined ? item.nilai_praktik : 'Belum Dikoreksi',
+        'Nilai Akhir': finalScore,
+        'Status': finalScore >= 75 ? 'LULUS' : 'TIDAK LULUS'
+      };
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(dataExcel);
     const workbook = XLSX.utils.book_new();
@@ -130,6 +186,7 @@ export default function Laporan() {
                 <th>Rank</th>
                 <th>TechID</th>
                 <th>Nama Lengkap</th>
+                <th>Mata Ujian</th>
                 <th>Nilai PG</th>
                 <th>Nilai Praktik</th>
                 <th>Nilai Akhir</th>
@@ -140,15 +197,16 @@ export default function Laporan() {
     `;
 
     laporan.dataLaporan.forEach((item, index) => {
-      const skorAkhir = Number(item.nilai_akhir || item.nilai_pg || 0);
+      const skorAkhir = calculateNilaiAkhirSmart(item, katalogMapel);
       const isLulus = skorAkhir >= 75;
       htmlContent += `
         <tr>
           <td>${index + 1}</td>
           <td>${item.tech_id || '-'}</td>
           <td>${item.nama || item.nama_lengkap || 'Peserta'}</td>
+          <td>${getLabelKategori(item.kategori)}</td>
           <td>${item.nilai_pg || 0}</td>
-          <td>${item.nilai_praktik || 0}</td>
+          <td>${item.nilai_praktik !== null && item.nilai_praktik !== undefined ? item.nilai_praktik : '-'}</td>
           <td><b>${skorAkhir}</b></td>
           <td class="${isLulus ? 'status-lulus' : 'status-tidaklulus'}">${isLulus ? 'LULUS' : 'TIDAK LULUS'}</td>
         </tr>
@@ -247,7 +305,7 @@ export default function Laporan() {
                 </div>
               ) : (
                 laporan.dataLaporan.map((row, idx) => {
-                  const nilaiAkhir = Number(row.nilai_akhir || row.nilai_pg || 0);
+                  const nilaiAkhir = calculateNilaiAkhirSmart(row, katalogMapel);
                   const isLulus = nilaiAkhir >= 75;
                   const namaSiswa = row.nama || row.nama_lengkap || `Peserta #${idx + 1}`;
                   const techId = row.tech_id || `-`;
@@ -286,7 +344,9 @@ export default function Laporan() {
 
                           <div className="text-right">
                             <p className="text-[10px] text-slate-400 font-display uppercase">Nilai Praktik</p>
-                            <p className="text-xs font-display font-bold text-slate-200">{row.nilai_praktik || 0}</p>
+                            <p className="text-xs font-display font-bold text-slate-200">
+                              {row.nilai_praktik !== null && row.nilai_praktik !== undefined ? row.nilai_praktik : '-'}
+                            </p>
                           </div>
 
                           <div className="text-right pl-4 border-l border-slate-800/60">
