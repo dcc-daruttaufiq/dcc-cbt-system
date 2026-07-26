@@ -17,13 +17,12 @@ const DEFAULT_KATALOG = [
 
 export default function PengaturanUjian() {
   const [katalogMapel, setKatalogMapel] = useState(DEFAULT_KATALOG);
-  const [statusSesi, setStatusSesi] = useState('DITUTUP'); // 'DIBUKA' | 'DITUTUP'
+  const [statusSesi, setStatusSesi] = useState('DITUTUP');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  // State Modal Form Tambah/Edit
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formMapel, setFormMapel] = useState({ 
@@ -43,7 +42,6 @@ export default function PengaturanUjian() {
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
-  // Load Pengaturan dari Supabase Cloud
   const loadPengaturan = async () => {
     setIsLoading(true);
     try {
@@ -245,9 +243,9 @@ export default function PengaturanUjian() {
         </Navbar>
 
         <main className="p-6 md:p-8 flex-1 overflow-y-auto">
-          <div className="max-w-5xl mx-auto space-y-6">
+          <div className="max-w-6xl mx-auto space-y-6">
 
-            {/* KONTROL SESI UJIAN GLOBAL */}
+            {/* PANEL KONTROL SESI UJIAN GLOBAL */}
             <div className="p-6 bg-[#0d1527]/80 border border-slate-800 rounded-2xl shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-6">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2.5">
@@ -291,7 +289,7 @@ export default function PengaturanUjian() {
               </Button>
             </div>
 
-            {/* MASTER MATA UJIAN, DURASI, KKM & BOBOT */}
+            {/* MASTER MATA UJIAN - TABLE GRID TEGAK LURUS */}
             <div className="p-6 bg-[#0d1527]/60 border border-slate-800 rounded-2xl space-y-6 shadow-xl">
               <div className="border-b border-slate-800/80 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -326,65 +324,65 @@ export default function PengaturanUjian() {
                 <div className="p-8 text-center text-xs text-slate-500 font-sans">Memuat data pengaturan...</div>
               ) : (
                 <form onSubmit={handleSimpan} className="space-y-4">
-                  <div className="grid grid-cols-1 gap-3">
+                  
+                  {/* LAYOUT PAKSA TEGAK LURUS PAKAI CSS GRID FIXED WIDTH */}
+                  <div className="space-y-3">
                     {katalogMapel.map((kat) => (
                       <div 
                         key={kat.id} 
-                        className="p-4 rounded-xl bg-[#030712]/90 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:border-slate-700"
+                        className="p-4 rounded-xl bg-[#030712]/90 border border-slate-800 flex items-center justify-between gap-3 transition-all hover:border-slate-700 font-sans"
                       >
-                        {/* KIRI: NAMA, ID, KKM, BOBOT (Flexbox Terkontrol) */}
-                        <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 flex-1 min-w-0">
-                          
-                          {/* Nama & Deskripsi (Lebar Minimal Terjaga) */}
-                          <div className="w-full md:w-52 shrink-0 space-y-0.5">
-                            <h3 className="font-display font-bold text-sm text-white truncate" title={kat.nama}>{kat.nama}</h3>
-                            <p className="text-[11px] text-slate-400 font-sans truncate" title={kat.desc}>{kat.desc}</p>
-                          </div>
+                        {/* 1. NAMA & DESKRIPSI (Lebar fleksibel) */}
+                        <div className="flex-1 min-w-[180px] max-w-[260px] space-y-0.5 pr-2">
+                          <h3 className="font-display font-bold text-sm text-white truncate" title={kat.nama}>{kat.nama}</h3>
+                          <p className="text-[11px] text-slate-400 font-sans truncate" title={kat.desc}>{kat.desc}</p>
+                        </div>
 
-                          {/* ID Badge */}
-                          <div className="shrink-0 w-32">
-                            <span className="inline-block text-[10px] text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-2.5 py-1 rounded font-display font-bold uppercase tracking-wider truncate w-full text-center">
+                        {/* 2. KELOMPOK BADGE TERKUNCI (FIXED WIDTH MATRIX) */}
+                        <div className="flex items-center gap-3 shrink-0">
+                          {/* ID BADGE (Kunci Lebar 140px) */}
+                          <div className="w-[140px] shrink-0 text-center">
+                            <span className="block text-[10px] text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-2 py-1 rounded font-display font-bold uppercase tracking-wider truncate">
                               ID: {kat.id}
                             </span>
                           </div>
 
-                          {/* KKM Badge */}
-                          <div className="shrink-0 w-20">
-                            <span className="inline-block text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-1 rounded font-display font-bold w-full text-center">
+                          {/* KKM BADGE (Kunci Lebar 75px) */}
+                          <div className="w-[75px] shrink-0 text-center">
+                            <span className="block text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-1 rounded font-display font-bold">
                               KKM: {kat.kkm ?? 75}
                             </span>
                           </div>
 
-                          {/* Bobot Badge */}
-                          <div className="shrink-0 w-44">
-                            <span className="inline-block text-[10px] text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2.5 py-1 rounded font-display font-bold w-full text-center">
+                          {/* BOBOT BADGE (Kunci Lebar 170px) */}
+                          <div className="w-[170px] shrink-0 text-center">
+                            <span className="block text-[10px] text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded font-display font-bold">
                               Bobot: PG {kat.bobot_pg ?? 50}% | Prak {kat.bobot_praktik ?? 50}%
                             </span>
                           </div>
                         </div>
 
-                        {/* KANAN: DURASI & AKSI (Fixed Right Alignment) */}
-                        <div className="flex items-center gap-3 shrink-0 justify-between md:justify-end border-t md:border-t-0 border-slate-800/60 pt-2 md:pt-0">
-                          
-                          {/* Input Durasi dengan Lebar Pas (Lebar min 90px & padding lega) */}
-                          <div className="flex items-center gap-1.5 bg-[#0d1527] border border-cyan-400/30 px-2 py-1 rounded-xl">
+                        {/* 3. DURASI & AKSI (Kunci Lebar 150px Rata Kanan) */}
+                        <div className="w-[150px] shrink-0 flex items-center justify-end gap-3 pl-2">
+                          {/* Box Input Durasi */}
+                          <div className="flex items-center gap-1.5 bg-[#0d1527] border border-cyan-400/30 px-2.5 py-1 rounded-xl">
                             <input
                               type="number"
                               min="5"
                               max="360"
                               value={kat.durasi || 90}
                               onChange={(e) => handleDurasiChange(kat.id, parseInt(e.target.value) || 0)}
-                              className="w-12 text-center font-display font-black text-cyan-400 bg-transparent text-sm focus:outline-none"
+                              className="w-8 text-center font-display font-black text-cyan-400 bg-transparent text-sm focus:outline-none"
                             />
-                            <span className="text-[11px] text-slate-400 font-sans font-bold pr-1">Mnt</span>
+                            <span className="text-[11px] text-slate-400 font-sans font-bold">Mnt</span>
                           </div>
 
-                          {/* Tombol Action */}
+                          {/* Tombol Aksi */}
                           <div className="flex items-center gap-1 border-l border-slate-800 pl-2">
                             <button
                               type="button"
                               onClick={() => openEditModal(kat)}
-                              className="p-2 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition"
                               title="Edit Mata Ujian"
                             >
                               <Edit3 className="w-4 h-4" />
@@ -392,7 +390,7 @@ export default function PengaturanUjian() {
                             <button
                               type="button"
                               onClick={() => handleDeleteMapel(kat.id, kat.nama)}
-                              className="p-2 rounded-lg text-rose-400 hover:bg-rose-500/10 transition"
+                              className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 transition"
                               title="Hapus Mata Ujian"
                             >
                               <Trash2 className="w-4 h-4" />
