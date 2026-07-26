@@ -174,15 +174,12 @@ export default function DashboardPeserta() {
       const isFinished = activeUser?.status === 'selesai' || activeUser?.status_koreksi === 'SELESAI' || localStorage.getItem(STORAGE_KEYS.IS_EXAM_FINISHED) === 'true';
 
       if (isFinished) {
-        setIsExamCompleted(true);
         const activeExam = activeCatalog.find(u => u.id === initialKat);
 
-        // HITUNG JUMLAH TERJAWAB V.S. TOTAL SOAL KATEGORI
         let totalSoalKategori = 0;
         let totalSoalTerjawab = 0;
 
         try {
-          // 1. Fetch Total Soal untuk Kategori Ujian
           const { data: dataSoal } = await supabase
             .from(TABLES.BANK_SOAL || 'bank_soal')
             .select('id, kategori');
@@ -192,7 +189,6 @@ export default function DashboardPeserta() {
             totalSoalKategori = filteredSoal.length;
           }
 
-          // 2. Fetch Jawaban Terhitung
           const { data: dataJawaban } = await supabase
             .from(TABLES.JAWABAN_PESERTA || 'jawaban_peserta')
             .select('jawaban')
@@ -250,6 +246,9 @@ export default function DashboardPeserta() {
             ? (nilaiPraktik !== null ? `${nilaiPraktik}` : 'Selesai Dikoreksi') 
             : 'Dalam Koreksi Pengawas'
         });
+
+        // KITA SET TRUE HANYA SETELAH DATA INFO LENGKAP SIAP!
+        setIsExamCompleted(true);
       }
     };
 
@@ -277,7 +276,6 @@ export default function DashboardPeserta() {
 
     setIsLoading(true);
 
-    // === VERIFIKASI STATUS SESI UJIAN GLOBAL ===
     try {
       const { data: dataStatus } = await supabase
         .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
@@ -295,7 +293,6 @@ export default function DashboardPeserta() {
     } catch (err) {
       console.warn('Gagal mengecek status sesi ujian, menggunakan fallback...', err);
     }
-    // ============================================
 
     const inputUpper = tokenInput.trim().toUpperCase();
 
@@ -376,7 +373,6 @@ export default function DashboardPeserta() {
               <span className="text-cyan-400 font-display font-bold text-lg">DCC</span>
             )}
             <div>
-              {/* BRAND TEXT UPDATED TO DCC SISTEM */}
               <h1 className="text-sm font-display font-bold text-white tracking-wide">DCC SISTEM</h1>
               <p className="text-[10px] text-slate-400 font-sans">Dashboard Peserta</p>
             </div>
@@ -416,7 +412,7 @@ export default function DashboardPeserta() {
           </div>
 
           {/* TAMPILAN LEMBAR HASIL JIKA SUDAH SELESAI UJIAN */}
-          {isExamCompleted ? (
+          {isExamCompleted && completedExamInfo ? (
             <div className="p-6 md:p-8 bg-[#0d1527]/60 backdrop-blur-md rounded-2xl border border-emerald-500/40 space-y-6 shadow-2xl font-sans">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/60 pb-5">
                 <div className="flex items-center gap-3">
@@ -429,10 +425,10 @@ export default function DashboardPeserta() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {/* BADGE PROGRES TERJAWAB DITAMBAHKAN DI SINI */}
-                  {completedExamInfo?.totalSoal > 0 && (
+                  {/* BADGE PROGRES TERJAWAB DENGAN SAFE OPTIONAL CHAINING */}
+                  {(completedExamInfo?.totalSoal ?? 0) > 0 && (
                     <div className="bg-cyan-400/10 text-cyan-400 border border-cyan-400/30 text-xs px-3 py-1 rounded-lg font-display font-bold tracking-wide flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Berhasil menjawab {completedExamInfo.totalTerjawab} dari {completedExamInfo.totalSoal} soal
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Berhasil menjawab {completedExamInfo?.totalTerjawab ?? 0} dari {completedExamInfo?.totalSoal ?? 0} soal
                     </div>
                   )}
                   <div className="bg-slate-800/80 text-cyan-400 border border-cyan-400/30 text-xs px-3 py-1 rounded-lg font-display font-bold tracking-wide flex items-center gap-1.5">
@@ -449,7 +445,7 @@ export default function DashboardPeserta() {
                 <div className="p-5 rounded-xl bg-[#030712]/80 border border-slate-800/80 space-y-2">
                   <p className="text-[11px] font-display font-bold text-slate-400 uppercase tracking-wider">NILAI PILIHAN GANDA</p>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-display font-bold text-cyan-400">{completedExamInfo?.nilaiPG}</span>
+                    <span className="text-3xl font-display font-bold text-cyan-400">{completedExamInfo?.nilaiPG ?? 0}</span>
                     <span className="text-xs text-slate-500 font-sans">/ 100</span>
                   </div>
                 </div>
@@ -458,10 +454,10 @@ export default function DashboardPeserta() {
                 <div className="p-5 rounded-xl bg-[#030712]/80 border border-slate-800/80 space-y-2">
                   <p className="text-[11px] font-display font-bold text-slate-400 uppercase tracking-wider">NILAI PRAKTIK</p>
                   <p className="text-sm font-display font-bold text-amber-400 pt-1">
-                    {completedExamInfo?.nilaiPraktik !== null ? (
+                    {completedExamInfo?.nilaiPraktik !== null && completedExamInfo?.nilaiPraktik !== undefined ? (
                       <span className="text-3xl font-display font-bold text-amber-400">{completedExamInfo.nilaiPraktik}</span>
                     ) : (
-                      <span className="text-xs font-sans text-amber-400/90">{completedExamInfo?.statusPraktikText}</span>
+                      <span className="text-xs font-sans text-amber-400/90">{completedExamInfo?.statusPraktikText ?? 'Dalam Koreksi Pengawas'}</span>
                     )}
                   </p>
                 </div>
@@ -471,7 +467,7 @@ export default function DashboardPeserta() {
                   <p className="text-[11px] font-display font-bold text-emerald-400 uppercase tracking-wider">NILAI AKHIR TOTAL</p>
                   <div className="flex items-baseline gap-2">
                     <span className="text-3xl font-display font-bold text-emerald-400">
-                      {completedExamInfo?.totalNilai !== null ? completedExamInfo.totalNilai : completedExamInfo?.nilaiPG}
+                      {completedExamInfo?.totalNilai !== null && completedExamInfo?.totalNilai !== undefined ? completedExamInfo.totalNilai : (completedExamInfo?.nilaiPG ?? 0)}
                     </span>
                   </div>
                 </div>
