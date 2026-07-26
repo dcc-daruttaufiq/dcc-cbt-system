@@ -334,23 +334,20 @@ export default function DashboardPeserta() {
 
     const inputUpper = tokenInput.trim().toUpperCase();
 
-    // VALIDASI LOGIK DUAL-MODE TOKEN
+    // ⚡ VALIDASI LOGIK DUAL-MODE TOKEN YANG DIPERKETAT
     let isTokenValid = false;
 
     if (modeToken === 'siswa') {
-      // Validation Mode Per Siswa Unik
+      // JIKA MODE SISWA: MUTLAK HARUS PAKAI TOKEN UNIK MILIKNYA SENDIRI
       const validIndividuToken = userTokenIndividu ? userTokenIndividu.toUpperCase().trim() : '';
-      if (
-        (validIndividuToken && inputUpper === validIndividuToken) ||
-        inputUpper === activeExamDetail.tokenDefault ||
-        inputUpper === 'DCC2026' || inputUpper === '12345' || inputUpper === '1234'
-      ) {
+      if (validIndividuToken && inputUpper === validIndividuToken) {
         isTokenValid = true;
       }
     } else {
-      // Validation Mode Per Mata Ujian Global
+      // JIKA MODE MAPEL: PAKAI TOKEN MAPEL AKTIF ATAU EMERGENCY
+      const tokenMapelAktif = activeExamDetail.tokenDefault ? activeExamDetail.tokenDefault.toUpperCase().trim() : '';
       if (
-        inputUpper === activeExamDetail.tokenDefault ||
+        (tokenMapelAktif && inputUpper === tokenMapelAktif) ||
         inputUpper === 'WORD2026' || inputUpper === 'DCC2026' || inputUpper === '12345' || inputUpper === '1234'
       ) {
         isTokenValid = true;

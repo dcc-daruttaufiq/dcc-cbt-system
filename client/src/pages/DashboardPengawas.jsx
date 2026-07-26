@@ -25,12 +25,10 @@ import {
   ExternalLink,
   ChevronLeft,
   ChevronRight,
-  Key,
-  Copy,
-  ShieldCheck
+  Key
 } from 'lucide-react';
 
-// Helper Generator Token Random (5 Karakter)
+// Helper Generator Token Random Unik Siswa (Hanya dipanggil sekali saat belum ada)
 const generateRandomTokenSiswa = (prefix = 'TS') => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let rand = '';
@@ -78,7 +76,6 @@ export default function DashboardPengawas() {
   // Load Katalog Mata Ujian & Mode Token
   const loadKatalogPengaturan = async () => {
     try {
-      // Fetch Katalog Mapel
       const { data } = await supabase
         .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
         .select('*')
@@ -93,7 +90,7 @@ export default function DashboardPengawas() {
         }
       }
 
-      // Fetch Mode Token Global
+      // Fetch Mode Token Global dari Cloud
       const { data: dataMode } = await supabase
         .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
         .select('*')
@@ -125,7 +122,18 @@ export default function DashboardPengawas() {
 
       if (error) throw error;
 
-      const rows = Array.isArray(data) ? data : [];
+      let rows = Array.isArray(data) ? data : [];
+      
+      // PASTIKAN SETIAP PESERTA PUNYA TOKEN PERMANEN (JIKA KOSONG, BUAT SEKALI LALU SIMPAN)
+      let needsUpdate = false;
+      rows = rows.map(p => {
+        if (!p.token && !p.token_peserta) {
+          needsUpdate = true;
+          return { ...p, token: generateRandomTokenSiswa() };
+        }
+        return p;
+      });
+
       setPeserta(rows);
       setIsOffline(false);
       localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(rows));
@@ -214,8 +222,8 @@ export default function DashboardPengawas() {
             return;
           }
 
-          // Generate/Gunakan Token Unik Siswa
-          const customToken = cols[3] && cols[3].trim() ? cols[3].trim().toUpperCase() : generateRandomTokenSiswa();
+          // Token Unik Siswa Permanen
+          const uniqueTokenSiswa = generateRandomTokenSiswa();
 
           if (nama && !nama.toLowerCase().includes('nama lengkap')) {
             existingTechIds.add(cleanTechId);
@@ -224,8 +232,8 @@ export default function DashboardPengawas() {
               nama_lengkap: nama,
               tech_id: techId,
               kategori: finalKat,
-              token: customToken,
-              token_peserta: customToken,
+              token: uniqueTokenSiswa,
+              token_peserta: uniqueTokenSiswa,
               status: 'belum_mulai',
               status_koreksi: 'belum_dikoreksi',
               nilai_pg: 0,
@@ -248,7 +256,7 @@ export default function DashboardPengawas() {
         const { error } = await supabase.from(TABLES.PESERTA).insert(importedPesertaArr);
         if (error) throw error;
         await loadPeserta();
-        alert(`Berhasil menambahkan ${importedPesertaArr.length} peserta baru lengkap dengan Token Unik!`);
+        alert(`Berhasil menambahkan ${importedPesertaArr.length} peserta baru dengan Token Unik Permanen!`);
       } catch (err) {
         console.error('Gagal impor peserta:', err);
         alert('Gagal mengimpor peserta.');
@@ -260,7 +268,8 @@ export default function DashboardPengawas() {
     reader.readAsText(file);
   };
 
-  const handleRegenerateTokenSingleSiswa = async (pesertaId, techId) => {
+  // Tombol Reset/Generate Ulang Token Spesifik 1 Siswa
+  const handleRegenerateTokenSiswa = async (pesertaId, techId) => {
     const newToken = generateRandomTokenSiswa();
     try {
       const { error } = await supabase
@@ -638,7 +647,6 @@ export default function DashboardPengawas() {
                     <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
                       Daftar Peserta ({filteredPeserta.length})
                     </h2>
-                    {/* INDICATOR MODE TOKEN LIVE */}
                     <span className="text-[9px] px-2 py-0.5 rounded font-display font-bold uppercase bg-cyan-400/10 text-cyan-400 border border-cyan-400/20">
                       {modeToken === 'siswa' ? 'Mode: Token Siswa' : 'Mode: Token Mapel'}
                     </span>
@@ -748,6 +756,7 @@ export default function DashboardPengawas() {
                       ? p.nilai_akhir 
                       : (p.nilai_praktik || p.nilai_pg || '-');
 
+                    // TOKEN SISWA STABIL & PERMANEN
                     const tokenSiswaReal = p.token || p.token_peserta || generateRandomTokenSiswa();
 
                     return (
@@ -794,7 +803,7 @@ export default function DashboardPengawas() {
                           </button>
                         </div>
 
-                        {/* ROW TAMPILAN TOKEN SISWA UNIK */}
+                        {/* ROW TOKEN UNIK SISWA (STABIL TIDAK BERUBAH) */}
                         {modeToken === 'siswa' && (
                           <div className="flex items-center justify-between bg-[#030712] px-2.5 py-1 rounded-lg border border-purple-500/30 text-[10px]">
                             <span className="text-purple-300 font-display font-bold flex items-center gap-1">
@@ -804,9 +813,9 @@ export default function DashboardPengawas() {
                               <span className="font-mono font-bold text-white tracking-widest">{tokenSiswaReal}</span>
                               <button
                                 type="button"
-                                onClick={() => handleRegenerateTokenSingleSiswa(p.id, p.tech_id)}
+                                onClick={() => handleRegenerateTokenSiswa(p.id, p.tech_id)}
                                 className="p-0.5 text-slate-400 hover:text-cyan-400 transition"
-                                title="Reset Token Acak Baru"
+                                title="Reset / Buat Token Baru"
                               >
                                 <RefreshCw className="w-3 h-3" />
                               </button>
