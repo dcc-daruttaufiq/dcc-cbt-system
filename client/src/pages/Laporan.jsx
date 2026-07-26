@@ -23,6 +23,13 @@ export default function Laporan() {
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
+  // Helper Ambil KKM Dinamis per Mata Ujian (Fallback Default: 75)
+  const getKkmMataUjian = (katId, katalogList) => {
+    const cleanKat = normalizeKategori(katId);
+    const matchedKat = katalogList.find(m => m.id === cleanKat);
+    return matchedKat?.kkm !== undefined && matchedKat?.kkm !== null ? Number(matchedKat.kkm) : 75;
+  };
+
   // Helper Hitung Nilai Akhir Sesuai Bobot Katalog
   const calculateNilaiAkhirSmart = (pesertaItem, katalogList) => {
     const katId = normalizeKategori(pesertaItem.kategori);
@@ -52,7 +59,7 @@ export default function Laporan() {
     let dataReal = [];
     let currentKatalog = [];
 
-    // 1. Fetch Katalog Pengaturan Bobot
+    // 1. Fetch Katalog Pengaturan Bobot & KKM
     try {
       const { data: dataKat } = await supabase
         .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
@@ -134,15 +141,17 @@ export default function Laporan() {
 
     const dataExcel = laporan.dataLaporan.map((item, index) => {
       const finalScore = calculateNilaiAkhirSmart(item, katalogMapel);
+      const kkmReal = getKkmMataUjian(item.kategori, katalogMapel);
       return {
         'Ranking': index + 1,
         'TechID': item.tech_id || `DCC25-000${item.user_id || index}`,
         'Nama Lengkap': item.nama || item.nama_lengkap || `Peserta #${index + 1}`,
         'Mata Ujian': getLabelKategori(item.kategori),
+        'KKM': kkmReal,
         'Nilai PG': item.nilai_pg || 0,
         'Nilai Praktik': item.nilai_praktik !== null && item.nilai_praktik !== undefined ? item.nilai_praktik : 'Belum Dikoreksi',
         'Nilai Akhir': finalScore,
-        'Status': finalScore >= 75 ? 'LULUS' : 'TIDAK LULUS'
+        'Status': finalScore >= kkmReal ? 'LULUS' : 'TIDAK LULUS'
       };
     });
 
@@ -187,6 +196,7 @@ export default function Laporan() {
                 <th>TechID</th>
                 <th>Nama Lengkap</th>
                 <th>Mata Ujian</th>
+                <th>KKM</th>
                 <th>Nilai PG</th>
                 <th>Nilai Praktik</th>
                 <th>Nilai Akhir</th>
@@ -198,13 +208,16 @@ export default function Laporan() {
 
     laporan.dataLaporan.forEach((item, index) => {
       const skorAkhir = calculateNilaiAkhirSmart(item, katalogMapel);
-      const isLulus = skorAkhir >= 75;
+      const kkmReal = getKkmMataUjian(item.kategori, katalogMapel);
+      const isLulus = skorAkhir >= kkmReal;
+
       htmlContent += `
         <tr>
           <td>${index + 1}</td>
           <td>${item.tech_id || '-'}</td>
           <td>${item.nama || item.nama_lengkap || 'Peserta'}</td>
           <td>${getLabelKategori(item.kategori)}</td>
+          <td>${kkmReal}</td>
           <td>${item.nilai_pg || 0}</td>
           <td>${item.nilai_praktik !== null && item.nilai_praktik !== undefined ? item.nilai_praktik : '-'}</td>
           <td><b>${skorAkhir}</b></td>
@@ -306,7 +319,9 @@ export default function Laporan() {
               ) : (
                 laporan.dataLaporan.map((row, idx) => {
                   const nilaiAkhir = calculateNilaiAkhirSmart(row, katalogMapel);
-                  const isLulus = nilaiAkhir >= 75;
+                  const kkmReal = getKkmMataUjian(row.kategori, katalogMapel);
+                  const isLulus = nilaiAkhir >= kkmReal;
+
                   const namaSiswa = row.nama || row.nama_lengkap || `Peserta #${idx + 1}`;
                   const techId = row.tech_id || `-`;
 
@@ -337,6 +352,11 @@ export default function Laporan() {
 
                       <div className="flex items-center justify-between md:justify-end gap-6 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-800/40">
                         <div className="flex items-center gap-6">
+                          <div className="text-right">
+                            <p className="text-[10px] text-amber-400 font-display uppercase font-bold">KKM</p>
+                            <p className="text-xs font-display font-bold text-amber-400">{kkmReal}</p>
+                          </div>
+
                           <div className="text-right">
                             <p className="text-[10px] text-slate-400 font-display uppercase">Nilai PG</p>
                             <p className="text-xs font-display font-bold text-slate-200">{row.nilai_pg || 0}</p>

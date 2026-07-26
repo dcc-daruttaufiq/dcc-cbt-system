@@ -4,15 +4,15 @@ import Sidebar from '../components/ui/Sidebar';
 import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { Sliders, Clock, Save, CheckCircle2, AlertCircle, Plus, Trash2, Edit3, X, BookOpen, Percent, Lock, Unlock, Power } from 'lucide-react';
+import { Sliders, Clock, Save, CheckCircle2, AlertCircle, Plus, Trash2, Edit3, X, BookOpen, Percent, Lock, Unlock, Power, Award } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const DEFAULT_KATALOG = [
-  { id: 'word', nama: 'Microsoft Word', desc: 'Pengolahan Dokumen & Surat', durasi: 90, bobot_pg: 50, bobot_praktik: 50 },
-  { id: 'excel', nama: 'Microsoft Excel', desc: 'Pengolahan Data & Formula', durasi: 90, bobot_pg: 50, bobot_praktik: 50 },
-  { id: 'powerpoint', nama: 'Microsoft PowerPoint', desc: 'Desain Presentasi Interaktif', durasi: 90, bobot_pg: 50, bobot_praktik: 50 },
-  { id: 'desain', nama: 'Desain Grafis', desc: 'Canva & Visual Typography', durasi: 90, bobot_pg: 40, bobot_praktik: 60 },
-  { id: 'pemrograman', nama: 'Pemrograman Web', desc: 'HTML, CSS, & JavaScript', durasi: 120, bobot_pg: 40, bobot_praktik: 60 }
+  { id: 'word', nama: 'Microsoft Word', desc: 'Pengolahan Dokumen & Surat', durasi: 90, bobot_pg: 50, bobot_praktik: 50, kkm: 75 },
+  { id: 'excel', nama: 'Microsoft Excel', desc: 'Pengolahan Data & Formula', durasi: 90, bobot_pg: 50, bobot_praktik: 50, kkm: 75 },
+  { id: 'powerpoint', nama: 'Microsoft PowerPoint', desc: 'Desain Presentasi Interaktif', durasi: 90, bobot_pg: 50, bobot_praktik: 50, kkm: 75 },
+  { id: 'desain', nama: 'Desain Grafis', desc: 'Canva & Visual Typography', durasi: 90, bobot_pg: 40, bobot_praktik: 60, kkm: 75 },
+  { id: 'pemrograman', nama: 'Pemrograman Web', desc: 'HTML, CSS, & JavaScript', durasi: 120, bobot_pg: 40, bobot_praktik: 60, kkm: 75 }
 ];
 
 export default function PengaturanUjian() {
@@ -32,7 +32,8 @@ export default function PengaturanUjian() {
     desc: '', 
     durasi: 90, 
     bobot_pg: 50, 
-    bobot_praktik: 50 
+    bobot_praktik: 50,
+    kkm: 75
   });
 
   const menuPengawas = [
@@ -59,7 +60,8 @@ export default function PengaturanUjian() {
           const normalized = parsed.map(m => ({
             ...m,
             bobot_pg: m.bobot_pg !== undefined ? m.bobot_pg : 50,
-            bobot_praktik: m.bobot_praktik !== undefined ? m.bobot_praktik : 50
+            bobot_praktik: m.bobot_praktik !== undefined ? m.bobot_praktik : 50,
+            kkm: m.kkm !== undefined && m.kkm !== null ? m.kkm : 75
           }));
           setKatalogMapel(normalized);
           localStorage.setItem('dcc_katalog_mapel', JSON.stringify(normalized));
@@ -121,7 +123,7 @@ export default function PengaturanUjian() {
       });
     } catch (err) {
       console.error('Gagal memperbarui status sesi:', err);
-      setStatusSesi(nextStatus); // tetapkan secara lokal jika offline
+      setStatusSesi(nextStatus);
       setMessage({ type: 'warning', text: 'Status sesi berubah di lokal. Pastikan Supabase terhubung.' });
     } finally {
       setIsTogglingStatus(false);
@@ -146,7 +148,7 @@ export default function PengaturanUjian() {
 
       if (error) throw error;
 
-      setMessage({ type: 'success', text: 'Katalog mata ujian & bobot berhasil disimpan!' });
+      setMessage({ type: 'success', text: 'Katalog mata ujian, KKM & bobot berhasil disimpan!' });
     } catch (err) {
       console.error('Gagal menyimpan ke Cloud:', err);
       setMessage({ type: 'warning', text: 'Tersimpan di Lokal. Pastikan Supabase terhubung.' });
@@ -167,7 +169,7 @@ export default function PengaturanUjian() {
 
   const openAddModal = () => {
     setEditingId(null);
-    setFormMapel({ id: '', nama: '', desc: '', durasi: 90, bobot_pg: 50, bobot_praktik: 50 });
+    setFormMapel({ id: '', nama: '', desc: '', durasi: 90, bobot_pg: 50, bobot_praktik: 50, kkm: 75 });
     setIsModalOpen(true);
   };
 
@@ -176,7 +178,8 @@ export default function PengaturanUjian() {
     setFormMapel({ 
       ...item, 
       bobot_pg: item.bobot_pg ?? 50, 
-      bobot_praktik: item.bobot_praktik ?? 50 
+      bobot_praktik: item.bobot_praktik ?? 50,
+      kkm: item.kkm ?? 75
     });
     setIsModalOpen(true);
   };
@@ -214,7 +217,8 @@ export default function PengaturanUjian() {
       id: editingId ? editingId : generatedId,
       durasi: Number(formMapel.durasi),
       bobot_pg: Number(formMapel.bobot_pg),
-      bobot_praktik: Number(formMapel.bobot_praktik)
+      bobot_praktik: Number(formMapel.bobot_praktik),
+      kkm: Number(formMapel.kkm)
     };
 
     let updatedList = [];
@@ -239,7 +243,7 @@ export default function PengaturanUjian() {
             <Sliders className="text-cyan-400 w-6 h-6" />
             <div>
               <h1 className="text-base font-display font-bold text-white tracking-wide">PENGATURAN UJIAN</h1>
-              <p className="text-xs text-slate-400 font-sans">Kontrol Akses Sesi, Mata Ujian & Bobot Nilai</p>
+              <p className="text-xs text-slate-400 font-sans">Kontrol Akses Sesi, Mata Ujian, KKM & Bobot Nilai</p>
             </div>
           </div>
         </Navbar>
@@ -291,15 +295,15 @@ export default function PengaturanUjian() {
               </Button>
             </div>
 
-            {/* PANEL KONTROL 2: MASTER MATA UJIAN, DURASI & BOBOT */}
+            {/* PANEL KONTROL 2: MASTER MATA UJIAN, DURASI, KKM & BOBOT */}
             <div className="p-6 bg-[#0d1527]/60 border border-slate-800 rounded-2xl space-y-6 shadow-xl">
               <div className="border-b border-slate-800/80 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-sm font-display font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
-                    <Clock className="w-4 h-4" /> MASTER MATA UJIAN, DURASI & BOBOT
+                    <Clock className="w-4 h-4" /> MASTER MATA UJIAN, DURASI, KKM & BOBOT
                   </h2>
                   <p className="text-xs text-slate-400 mt-1 font-sans">
-                    Atur durasi pengerjaan serta persentase bobot nilai Pilihan Ganda & Praktik per mata ujian.
+                    Atur durasi pengerjaan, KKM, serta persentase bobot nilai Pilihan Ganda & Praktik per mata ujian.
                   </p>
                 </div>
 
@@ -330,21 +334,27 @@ export default function PengaturanUjian() {
                     {katalogMapel.map((kat) => (
                       <div key={kat.id} className="p-4 rounded-xl bg-[#030712]/90 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
                         
-                        <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-6 flex-1 min-w-0">
-                          <div className="w-full md:w-52 shrink-0 space-y-0.5">
+                        <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 flex-1 min-w-0 flex-wrap">
+                          <div className="w-full md:w-48 shrink-0 space-y-0.5">
                             <h3 className="font-display font-bold text-sm text-white truncate">{kat.nama}</h3>
                             <p className="text-[11px] text-slate-400 font-sans truncate">{kat.desc}</p>
                           </div>
 
-                          <div className="w-32 shrink-0">
+                          <div className="shrink-0">
                             <span className="inline-block text-[10px] text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-2 py-1 rounded font-display font-bold uppercase tracking-wider">
                               ID: {kat.id}
                             </span>
                           </div>
 
-                          <div className="w-48 shrink-0">
-                            <span className="inline-block text-[10px] text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded font-display font-bold">
-                              Bobot: PG {kat.bobot_pg ?? 50}% | Praktik {kat.bobot_praktik ?? 50}%
+                          <div className="shrink-0">
+                            <span className="inline-block text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2.5 py-1 rounded font-display font-bold">
+                              KKM: {kat.kkm ?? 75}
+                            </span>
+                          </div>
+
+                          <div className="shrink-0">
+                            <span className="inline-block text-[10px] text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2.5 py-1 rounded font-display font-bold">
+                              Bobot: PG {kat.bobot_pg ?? 50}% | Prak {kat.bobot_praktik ?? 50}%
                             </span>
                           </div>
                         </div>
@@ -370,7 +380,7 @@ export default function PengaturanUjian() {
                               type="button"
                               onClick={() => openEditModal(kat)}
                               className="p-2 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition"
-                              title="Edit Mata Ujian & Bobot"
+                              title="Edit Mata Ujian, KKM & Bobot"
                             >
                               <Edit3 className="w-4 h-4" />
                             </button>
@@ -415,7 +425,7 @@ export default function PengaturanUjian() {
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-[#0d1527] border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-5 text-white">
               <div className="flex items-center justify-between pb-3 border-b border-slate-800/60">
                 <h3 className="font-display text-base font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-2">
-                  <BookOpen className="w-4 h-4" /> {editingId ? 'EDIT MATA UJIAN & BOBOT' : 'TAMBAH MATA UJIAN & BOBOT'}
+                  <BookOpen className="w-4 h-4" /> {editingId ? 'EDIT MATA UJIAN' : 'TAMBAH MATA UJIAN'}
                 </h3>
                 <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
               </div>
@@ -442,17 +452,35 @@ export default function PengaturanUjian() {
                   />
                 </div>
 
-                <div>
-                  <label className="text-xs font-display font-bold text-slate-300 mb-1.5 block uppercase">Durasi Ujian (Menit)</label>
-                  <Input
-                    type="number"
-                    min="5"
-                    max="360"
-                    value={formMapel.durasi}
-                    onChange={(e) => setFormMapel({ ...formMapel, durasi: parseInt(e.target.value) || 0 })}
-                    required
-                    className="bg-[#030712]/60 border-slate-800 text-sm rounded-xl font-sans"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-display font-bold text-slate-300 mb-1.5 block uppercase">Durasi (Menit)</label>
+                    <Input
+                      type="number"
+                      min="5"
+                      max="360"
+                      value={formMapel.durasi}
+                      onChange={(e) => setFormMapel({ ...formMapel, durasi: parseInt(e.target.value) || 0 })}
+                      required
+                      className="bg-[#030712]/60 border-slate-800 text-sm rounded-xl font-sans text-center font-bold"
+                    />
+                  </div>
+
+                  {/* INPUT KKM DINAMIS BARU */}
+                  <div>
+                    <label className="text-xs font-display font-bold text-amber-400 mb-1.5 block uppercase flex items-center gap-1">
+                      <Award className="w-3.5 h-3.5" /> Nilai KKM
+                    </label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={formMapel.kkm}
+                      onChange={(e) => setFormMapel({ ...formMapel, kkm: parseInt(e.target.value) || 0 })}
+                      required
+                      className="bg-[#030712]/60 border-slate-800 text-sm rounded-xl font-sans text-center font-bold text-amber-400"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800/60">

@@ -10,15 +10,15 @@ import Input from '../components/ui/Input';
 import Badge from '../components/ui/Badge';
 import {
   CreditCard, Key, Play, LogOut, User,
-  AlertCircle, Sparkles, Award, CheckCircle2, Clock
+  AlertCircle, Sparkles, Award, CheckCircle2, Clock, XCircle
 } from 'lucide-react';
 
 const DEFAULT_KATALOG = [
-  { id: 'word', nama: 'Microsoft Word', subNama: 'Pengolahan Dokumen & Surat', kategori: 'Spesialisasi', durasi: '90 Menit', tokenDefault: 'WORD2026' },
-  { id: 'excel', nama: 'Microsoft Excel', subNama: 'Pengolahan Data & Formula', kategori: 'Spesialisasi', durasi: '90 Menit', tokenDefault: 'EXCEL2026' },
-  { id: 'powerpoint', nama: 'Microsoft PowerPoint', subNama: 'Desain Presentasi Interaktif', kategori: 'Spesialisasi', durasi: '90 Menit', tokenDefault: 'PPT2026' },
-  { id: 'desain', nama: 'Desain Grafis', subNama: 'Canva & Visual Typography', kategori: 'Spesialisasi', durasi: '90 Menit', tokenDefault: 'DESAIN2026' },
-  { id: 'pemrograman', nama: 'Pemrograman Web', subNama: 'HTML, CSS, & Logic JavaScript', kategori: 'Spesialisasi', durasi: '120 Menit', tokenDefault: 'CODING2026' }
+  { id: 'word', nama: 'Microsoft Word', subNama: 'Pengolahan Dokumen & Surat', kategori: 'Spesialisasi', durasi: '90 Menit', tokenDefault: 'WORD2026', bobot_pg: 50, bobot_praktik: 50, kkm: 75 },
+  { id: 'excel', nama: 'Microsoft Excel', subNama: 'Pengolahan Data & Formula', kategori: 'Spesialisasi', durasi: '90 Menit', tokenDefault: 'EXCEL2026', bobot_pg: 50, bobot_praktik: 50, kkm: 75 },
+  { id: 'powerpoint', nama: 'Microsoft PowerPoint', subNama: 'Desain Presentasi Interaktif', kategori: 'Spesialisasi', durasi: '90 Menit', tokenDefault: 'PPT2026', bobot_pg: 50, bobot_praktik: 50, kkm: 75 },
+  { id: 'desain', nama: 'Desain Grafis', subNama: 'Canva & Visual Typography', kategori: 'Spesialisasi', durasi: '90 Menit', tokenDefault: 'DESAIN2026', bobot_pg: 40, bobot_praktik: 60, kkm: 75 },
+  { id: 'pemrograman', nama: 'Pemrograman Web', subNama: 'HTML, CSS, & Logic JavaScript', kategori: 'Spesialisasi', durasi: '120 Menit', tokenDefault: 'CODING2026', bobot_pg: 40, bobot_praktik: 60, kkm: 75 }
 ];
 
 export default function DashboardPeserta() {
@@ -94,7 +94,10 @@ export default function DashboardPeserta() {
               subNama: item.desc || 'Ujian Sertifikasi Kompetensi',
               kategori: 'Spesialisasi',
               durasi: `${item.durasi || 90} Menit`,
-              tokenDefault: `${item.id.toUpperCase()}2026`
+              tokenDefault: `${item.id.toUpperCase()}2026`,
+              bobot_pg: item.bobot_pg !== undefined ? Number(item.bobot_pg) : 50,
+              bobot_praktik: item.bobot_praktik !== undefined ? Number(item.bobot_praktik) : 50,
+              kkm: item.kkm !== undefined && item.kkm !== null ? Number(item.kkm) : 75
             }));
           }
         }
@@ -111,7 +114,10 @@ export default function DashboardPeserta() {
                 subNama: item.desc || 'Ujian Sertifikasi Kompetensi',
                 kategori: 'Spesialisasi',
                 durasi: `${item.durasi || 90} Menit`,
-                tokenDefault: `${item.id.toUpperCase()}2026`
+                tokenDefault: `${item.id.toUpperCase()}2026`,
+                bobot_pg: item.bobot_pg !== undefined ? Number(item.bobot_pg) : 50,
+                bobot_praktik: item.bobot_praktik !== undefined ? Number(item.bobot_praktik) : 50,
+                kkm: item.kkm !== undefined && item.kkm !== null ? Number(item.kkm) : 75
               }));
             }
           } catch (e) {}
@@ -175,6 +181,7 @@ export default function DashboardPeserta() {
 
       if (isFinished) {
         const activeExam = activeCatalog.find(u => u.id === initialKat);
+        const kkmReal = activeExam?.kkm ?? 75;
 
         let totalSoalKategori = 0;
         let totalSoalTerjawab = 0;
@@ -213,11 +220,16 @@ export default function DashboardPeserta() {
         const nilaiPG = activeUser?.nilai_pg !== undefined && activeUser?.nilai_pg !== null ? Number(activeUser.nilai_pg) : 0;
         const nilaiPraktik = activeUser?.nilai_praktik !== undefined && activeUser?.nilai_praktik !== null ? Number(activeUser.nilai_praktik) : null;
         
-        let totalNilai = activeUser?.nilai !== undefined && activeUser?.nilai !== null ? Number(activeUser.nilai) : null;
+        let totalNilai = activeUser?.nilai_akhir !== undefined && activeUser?.nilai_akhir !== null ? Number(activeUser.nilai_akhir) : null;
+        
         if (totalNilai === null && nilaiPraktik !== null) {
-          totalNilai = nilaiPG + nilaiPraktik;
+          const bPG = activeExam?.bobot_pg ?? 50;
+          const bPrak = activeExam?.bobot_praktik ?? 50;
+          totalNilai = Math.round((nilaiPG * (bPG / 100)) + (nilaiPraktik * (bPrak / 100)));
         }
 
+        const finalCalculatedScore = totalNilai !== null ? totalNilai : nilaiPG;
+        const isLulus = finalCalculatedScore >= kkmReal;
         const isFullyCorrected = activeUser?.status_koreksi === 'SELESAI' || activeUser?.status_koreksi === 'dikoreksi' || nilaiPraktik !== null;
 
         const wMulai = activeUser?.waktu_mulai 
@@ -238,7 +250,9 @@ export default function DashboardPeserta() {
           namaUjian: activeExam ? activeExam.nama : getLabelKategori(initialKat),
           nilaiPG: nilaiPG,
           nilaiPraktik: nilaiPraktik,
-          totalNilai: totalNilai,
+          totalNilai: finalCalculatedScore,
+          kkm: kkmReal,
+          isLulus: isLulus,
           lamaPengerjaan: lamaKerja,
           totalTerjawab: totalSoalTerjawab,
           totalSoal: totalSoalKategori || 0,
@@ -247,7 +261,6 @@ export default function DashboardPeserta() {
             : 'Dalam Koreksi Pengawas'
         });
 
-        // KITA SET TRUE HANYA SETELAH DATA INFO LENGKAP SIAP!
         setIsExamCompleted(true);
       }
     };
@@ -424,19 +437,28 @@ export default function DashboardPeserta() {
                     <h3 className="text-lg font-display font-bold text-white">{completedExamInfo?.namaUjian}</h3>
                   </div>
                 </div>
+
                 <div className="flex items-center gap-2 flex-wrap">
-                  {/* BADGE PROGRES TERJAWAB DENGAN SAFE OPTIONAL CHAINING */}
                   {(completedExamInfo?.totalSoal ?? 0) > 0 && (
                     <div className="bg-cyan-400/10 text-cyan-400 border border-cyan-400/30 text-xs px-3 py-1 rounded-lg font-display font-bold tracking-wide flex items-center gap-1.5">
                       <CheckCircle2 className="w-3.5 h-3.5" /> Berhasil menjawab {completedExamInfo?.totalTerjawab ?? 0} dari {completedExamInfo?.totalSoal ?? 0} soal
                     </div>
                   )}
+
                   <div className="bg-slate-800/80 text-cyan-400 border border-cyan-400/30 text-xs px-3 py-1 rounded-lg font-display font-bold tracking-wide flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5" /> {completedExamInfo?.lamaPengerjaan}
                   </div>
-                  <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-xs px-3 py-1 font-display font-bold flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4" /> UJIAN SELESAI
-                  </Badge>
+
+                  {/* BADGE STATUS KELULUSAN KKM DINAMIS */}
+                  {completedExamInfo?.isLulus ? (
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-xs px-3 py-1 font-display font-bold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4" /> LULUS (KKM: {completedExamInfo?.kkm})
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-rose-500/20 text-rose-400 border-rose-500/40 text-xs px-3 py-1 font-display font-bold flex items-center gap-1.5">
+                      <XCircle className="w-4 h-4" /> BELUM LULUS (KKM: {completedExamInfo?.kkm})
+                    </Badge>
+                  )}
                 </div>
               </div>
 
@@ -462,13 +484,16 @@ export default function DashboardPeserta() {
                   </p>
                 </div>
 
-                {/* NILAI AKHIR TOTAL */}
-                <div className="p-5 rounded-xl bg-[#030712]/80 border border-emerald-500/30 space-y-2">
-                  <p className="text-[11px] font-display font-bold text-emerald-400 uppercase tracking-wider">NILAI AKHIR TOTAL</p>
+                {/* NILAI AKHIR TOTAL & ATURAN KKM */}
+                <div className={`p-5 rounded-xl bg-[#030712]/80 border space-y-2 ${completedExamInfo?.isLulus ? 'border-emerald-500/30' : 'border-rose-500/30'}`}>
+                  <p className={`text-[11px] font-display font-bold uppercase tracking-wider ${completedExamInfo?.isLulus ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    NILAI AKHIR TOTAL
+                  </p>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-display font-bold text-emerald-400">
-                      {completedExamInfo?.totalNilai !== null && completedExamInfo?.totalNilai !== undefined ? completedExamInfo.totalNilai : (completedExamInfo?.nilaiPG ?? 0)}
+                    <span className={`text-3xl font-display font-bold ${completedExamInfo?.isLulus ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {completedExamInfo?.totalNilai ?? 0}
                     </span>
+                    <span className="text-xs text-slate-500 font-sans">(Batas KKM: {completedExamInfo?.kkm})</span>
                   </div>
                 </div>
               </div>
@@ -489,7 +514,10 @@ export default function DashboardPeserta() {
                         <span className="text-[10px] font-display font-bold uppercase px-2.5 py-0.5 rounded-md bg-cyan-400 text-slate-950">
                           {activeExamDetail.kategori}
                         </span>
-                        <span className="text-xs font-display font-bold text-cyan-400">Durasi: {activeExamDetail.durasi}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-display font-bold text-amber-400">KKM: {activeExamDetail.kkm ?? 75}</span>
+                          <span className="text-xs font-display font-bold text-cyan-400">Durasi: {activeExamDetail.durasi}</span>
+                        </div>
                       </div>
                       <h4 className="text-base font-display font-bold text-white tracking-wide">{activeExamDetail.nama}</h4>
                       <p className="text-xs text-slate-400 font-sans">{activeExamDetail.subNama}</p>
