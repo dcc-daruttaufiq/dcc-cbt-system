@@ -4,20 +4,34 @@ import Sidebar from '../components/ui/Sidebar';
 import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { Sliders, Clock, Save, CheckCircle2, AlertCircle, Plus, Trash2, Edit3, X, BookOpen, Percent, Lock, Unlock, Power, Award } from 'lucide-react';
+import { 
+  Sliders, Clock, Save, CheckCircle2, AlertCircle, Plus, Trash2, Edit3, X, 
+  BookOpen, Percent, Lock, Unlock, Power, Award, Key, RefreshCw, Users, ShieldCheck 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const DEFAULT_KATALOG = [
-  { id: 'word', nama: 'Microsoft Word', desc: 'Pengolahan Dokumen & Surat', durasi: 90, bobot_pg: 50, bobot_praktik: 50, kkm: 75 },
-  { id: 'excel', nama: 'Microsoft Excel', desc: 'Pengolahan Data & Formula', durasi: 90, bobot_pg: 50, bobot_praktik: 50, kkm: 75 },
-  { id: 'powerpoint', nama: 'Microsoft PowerPoint', desc: 'Desain Presentasi Interaktif', durasi: 90, bobot_pg: 50, bobot_praktik: 50, kkm: 75 },
-  { id: 'desain', nama: 'Desain Grafis', desc: 'Canva & Visual Typography', durasi: 90, bobot_pg: 40, bobot_praktik: 60, kkm: 75 },
-  { id: 'pemrograman', nama: 'Pemrograman Web', desc: 'HTML, CSS, & JavaScript', durasi: 120, bobot_pg: 40, bobot_praktik: 60, kkm: 75 }
+  { id: 'word', nama: 'Microsoft Word', desc: 'Pengolahan Dokumen & Surat', durasi: 90, bobot_pg: 50, bobot_praktik: 50, kkm: 75, token: 'WORD2026' },
+  { id: 'excel', nama: 'Microsoft Excel', desc: 'Pengolahan Data & Formula', durasi: 90, bobot_pg: 50, bobot_praktik: 50, kkm: 75, token: 'EXCEL2026' },
+  { id: 'powerpoint', nama: 'Microsoft PowerPoint', desc: 'Desain Presentasi Interaktif', durasi: 90, bobot_pg: 50, bobot_praktik: 50, kkm: 75, token: 'PPT2026' },
+  { id: 'desain', nama: 'Desain Grafis', desc: 'Canva & Visual Typography', durasi: 90, bobot_pg: 40, bobot_praktik: 60, kkm: 75, token: 'DESAIN2026' },
+  { id: 'pemrograman', nama: 'Pemrograman Web', desc: 'HTML, CSS, & JavaScript', durasi: 120, bobot_pg: 40, bobot_praktik: 60, kkm: 75, token: 'CODING2026' }
 ];
+
+// Helper Generator Token Random (6 Karakter Kapital)
+const generateRandomToken = (prefix = '') => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let rand = '';
+  for (let i = 0; i < 5; i++) {
+    rand += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return prefix ? `${prefix.toUpperCase()}-${rand}` : rand;
+};
 
 export default function PengaturanUjian() {
   const [katalogMapel, setKatalogMapel] = useState(DEFAULT_KATALOG);
   const [statusSesi, setStatusSesi] = useState('DITUTUP');
+  const [modeToken, setModeToken] = useState('mapel'); // 'mapel' | 'siswa'
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
@@ -32,7 +46,8 @@ export default function PengaturanUjian() {
     durasi: 90, 
     bobot_pg: 50, 
     bobot_praktik: 50,
-    kkm: 75
+    kkm: 75,
+    token: ''
   });
 
   const menuPengawas = [
@@ -45,6 +60,7 @@ export default function PengaturanUjian() {
   const loadPengaturan = async () => {
     setIsLoading(true);
     try {
+      // 1. Fetch Katalog Mata Ujian
       const { data: dataKatalog } = await supabase
         .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
         .select('*')
@@ -58,13 +74,15 @@ export default function PengaturanUjian() {
             ...m,
             bobot_pg: m.bobot_pg !== undefined ? m.bobot_pg : 50,
             bobot_praktik: m.bobot_praktik !== undefined ? m.bobot_praktik : 50,
-            kkm: m.kkm !== undefined && m.kkm !== null ? m.kkm : 75
+            kkm: m.kkm !== undefined && m.kkm !== null ? m.kkm : 75,
+            token: m.token || `${m.id.toUpperCase()}2026`
           }));
           setKatalogMapel(normalized);
           localStorage.setItem('dcc_katalog_mapel', JSON.stringify(normalized));
         }
       }
 
+      // 2. Fetch Status Sesi Ujian Global
       const { data: dataStatus } = await supabase
         .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
         .select('*')
@@ -76,6 +94,19 @@ export default function PengaturanUjian() {
         setStatusSesi(st.status || 'DITUTUP');
         localStorage.setItem('dcc_status_sesi', st.status || 'DITUTUP');
       }
+
+      // 3. Fetch Mode Token (Mapel / Siswa)
+      const { data: dataModeToken } = await supabase
+        .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
+        .select('*')
+        .eq('key', 'mode_token_ujian')
+        .maybeSingle();
+
+      if (dataModeToken && dataModeToken.value) {
+        const mt = typeof dataModeToken.value === 'string' ? JSON.parse(dataModeToken.value) : dataModeToken.value;
+        setModeToken(mt.mode || 'mapel');
+        localStorage.setItem('dcc_mode_token', mt.mode || 'mapel');
+      }
     } catch (err) {
       console.warn('Membaca pengaturan dari cache lokal...', err);
       const localKatalog = localStorage.getItem('dcc_katalog_mapel');
@@ -84,6 +115,9 @@ export default function PengaturanUjian() {
       }
       const localStatus = localStorage.getItem('dcc_status_sesi');
       if (localStatus) setStatusSesi(localStatus);
+
+      const localModeToken = localStorage.getItem('dcc_mode_token');
+      if (localModeToken) setModeToken(localModeToken);
     } finally {
       setIsLoading(false);
     }
@@ -125,6 +159,29 @@ export default function PengaturanUjian() {
     }
   };
 
+  // Toggle Mode Token (Per Mapel <-> Per Siswa)
+  const handleToggleModeToken = async (newMode) => {
+    setModeToken(newMode);
+    localStorage.setItem('dcc_mode_token', newMode);
+
+    try {
+      await supabase
+        .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
+        .upsert({
+          key: 'mode_token_ujian',
+          value: JSON.stringify({ mode: newMode, updated_at: new Date().toISOString() }),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'key' });
+
+      setMessage({
+        type: 'success',
+        text: `Mode Token berhasil diubah ke: ${newMode === 'mapel' ? 'TOKEN PER MATA UJIAN (GLOBAL)' : 'TOKEN UNIK PER SISWA (INDIVIDU)'}`
+      });
+    } catch (e) {
+      setMessage({ type: 'warning', text: 'Mode Token tersimpan di Lokal.' });
+    }
+  };
+
   const saveToSupabase = async (updatedList) => {
     setIsSaving(true);
     setMessage({ type: '', text: '' });
@@ -142,7 +199,7 @@ export default function PengaturanUjian() {
 
       if (error) throw error;
 
-      setMessage({ type: 'success', text: 'Katalog mata ujian, KKM & bobot berhasil disimpan!' });
+      setMessage({ type: 'success', text: 'Katalog mata ujian, KKM, Token & Bobot berhasil disimpan!' });
     } catch (err) {
       console.error('Gagal menyimpan ke Cloud:', err);
       setMessage({ type: 'warning', text: 'Tersimpan di Lokal. Pastikan Supabase terhubung.' });
@@ -161,9 +218,17 @@ export default function PengaturanUjian() {
     setKatalogMapel(updated);
   };
 
+  // Generate Token Acak untuk Satu Mapel
+  const handleGenerateTokenMapel = (id) => {
+    const newToken = generateRandomToken(id.substring(0, 4));
+    const updated = katalogMapel.map(m => m.id === id ? { ...m, token: newToken } : m);
+    setKatalogMapel(updated);
+    saveToSupabase(updated);
+  };
+
   const openAddModal = () => {
     setEditingId(null);
-    setFormMapel({ id: '', nama: '', desc: '', durasi: 90, bobot_pg: 50, bobot_praktik: 50, kkm: 75 });
+    setFormMapel({ id: '', nama: '', desc: '', durasi: 90, bobot_pg: 50, bobot_praktik: 50, kkm: 75, token: '' });
     setIsModalOpen(true);
   };
 
@@ -173,7 +238,8 @@ export default function PengaturanUjian() {
       ...item, 
       bobot_pg: item.bobot_pg ?? 50, 
       bobot_praktik: item.bobot_praktik ?? 50,
-      kkm: item.kkm ?? 75
+      kkm: item.kkm ?? 75,
+      token: item.token || `${item.id.toUpperCase()}2026`
     });
     setIsModalOpen(true);
   };
@@ -206,13 +272,18 @@ export default function PengaturanUjian() {
       return alert('ID / Kode Mata Ujian ini sudah digunakan! Gunakan nama yang berbeda.');
     }
 
+    const finalToken = formMapel.token.trim() 
+      ? formMapel.token.trim().toUpperCase() 
+      : generateRandomToken(generatedId.substring(0, 4));
+
     const payloadItem = {
       ...formMapel,
       id: editingId ? editingId : generatedId,
       durasi: Number(formMapel.durasi),
       bobot_pg: Number(formMapel.bobot_pg),
       bobot_praktik: Number(formMapel.bobot_praktik),
-      kkm: Number(formMapel.kkm)
+      kkm: Number(formMapel.kkm),
+      token: finalToken
     };
 
     let updatedList = [];
@@ -237,7 +308,7 @@ export default function PengaturanUjian() {
             <Sliders className="text-cyan-400 w-6 h-6" />
             <div>
               <h1 className="text-base font-display font-bold text-white tracking-wide">PENGATURAN UJIAN</h1>
-              <p className="text-xs text-slate-400 font-sans">Kontrol Akses Sesi, Mata Ujian, KKM & Bobot Nilai</p>
+              <p className="text-xs text-slate-400 font-sans">Kontrol Akses Sesi, Mode Token, KKM & Bobot Nilai</p>
             </div>
           </div>
         </Navbar>
@@ -245,51 +316,97 @@ export default function PengaturanUjian() {
         <main className="p-6 md:p-8 flex-1 overflow-y-auto">
           <div className="max-w-6xl mx-auto space-y-6">
 
-            {/* PANEL KONTROL SESI UJIAN GLOBAL */}
-            <div className="p-6 bg-[#0d1527]/80 border border-slate-800 rounded-2xl shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2.5">
-                  <Power className={`w-5 h-5 ${statusSesi === 'DIBUKA' ? 'text-emerald-400' : 'text-rose-400'}`} />
-                  <h2 className="text-sm font-display font-bold text-white uppercase tracking-widest">
-                    KONTROL SESI UJIAN GLOBAL
-                  </h2>
-                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-display font-bold uppercase tracking-wider ${
-                    statusSesi === 'DIBUKA' 
-                      ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' 
-                      : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
-                  }`}>
-                    {statusSesi === 'DIBUKA' ? '● SESI AKTIF' : '○ SESI DITUTUP'}
-                  </span>
+            {/* BARIS 1: DUA PANEL KONTROL (KONTROL SESI & MODE TOKEN) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* PANEL A: KONTROL SESI UJIAN GLOBAL */}
+              <div className="p-6 bg-[#0d1527]/80 border border-slate-800 rounded-2xl shadow-xl flex flex-col justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2.5">
+                    <Power className={`w-5 h-5 ${statusSesi === 'DIBUKA' ? 'text-emerald-400' : 'text-rose-400'}`} />
+                    <h2 className="text-sm font-display font-bold text-white uppercase tracking-widest">
+                      SESI UJIAN GLOBAL
+                    </h2>
+                    <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-display font-bold uppercase tracking-wider ${
+                      statusSesi === 'DIBUKA' 
+                        ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' 
+                        : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
+                    }`}>
+                      {statusSesi === 'DIBUKA' ? '● SESI AKTIF' : '○ SESI DITUTUP'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 font-sans leading-relaxed">
+                    {statusSesi === 'DIBUKA'
+                      ? 'Sesi Ujian sedang DIBUKA. Peserta yang terdaftar dapat meloloskan verifikasi.'
+                      : 'Sesi Ujian sedang DITUTUP. Akses pengerjaan dikunci rapat.'}
+                  </p>
                 </div>
-                <p className="text-xs text-slate-400 font-sans">
-                  {statusSesi === 'DIBUKA'
-                    ? 'Sesi Ujian sedang DIBUKA. Seluruh peserta yang terdaftar dapat masuk ke Ruang Ujian.'
-                    : 'Sesi Ujian sedang DITUTUP. Peserta tidak dapat masuk atau mengerjakan soal.'}
-                </p>
+
+                <Button
+                  onClick={handleToggleStatusSesi}
+                  disabled={isTogglingStatus}
+                  className={`w-full py-2.5 rounded-xl font-display font-bold text-xs flex items-center justify-center gap-2 border-0 shadow-lg transition-all ${
+                    statusSesi === 'DIBUKA'
+                      ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/20'
+                      : 'bg-emerald-400 hover:bg-emerald-300 text-slate-950 shadow-emerald-400/20'
+                  }`}
+                >
+                  {statusSesi === 'DIBUKA' ? (
+                    <><Lock className="w-4 h-4" /> KUNCI & TUTUP SESI</>
+                  ) : (
+                    <><Unlock className="w-4 h-4" /> BUKA SESI UJIAN</>
+                  )}
+                </Button>
               </div>
 
-              <Button
-                onClick={handleToggleStatusSesi}
-                disabled={isTogglingStatus}
-                className={`px-5 py-2.5 rounded-xl font-display font-bold text-xs flex items-center gap-2 border-0 shadow-lg transition-all ${
-                  statusSesi === 'DIBUKA'
-                    ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/20'
-                    : 'bg-emerald-400 hover:bg-emerald-300 text-slate-950 shadow-emerald-400/20'
-                }`}
-              >
-                {statusSesi === 'DIBUKA' ? (
-                  <>
-                    <Lock className="w-4 h-4" /> KUNCI & TUTUP SESI
-                  </>
-                ) : (
-                  <>
-                    <Unlock className="w-4 h-4" /> BUKA SESI UJIAN
-                  </>
-                )}
-              </Button>
+              {/* PANEL B: SAKLAR DUAL-MODE TOKEN UJIAN */}
+              <div className="p-6 bg-[#0d1527]/80 border border-slate-800 rounded-2xl shadow-xl flex flex-col justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2.5">
+                    <Key className="w-5 h-5 text-cyan-400" />
+                    <h2 className="text-sm font-display font-bold text-white uppercase tracking-widest">
+                      MODE VERIFIKASI TOKEN
+                    </h2>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-display font-bold uppercase tracking-wider bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+                      {modeToken === 'mapel' ? 'PER MATA UJIAN' : 'PER SISWA UNIK'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 font-sans leading-relaxed">
+                    Pilih apakah seluruh siswa menggunakan 1 Token Mapel yang sama atau tiap siswa punya Token unik tersendiri.
+                  </p>
+                </div>
+
+                {/* SWITCH BUTTONS */}
+                <div className="grid grid-cols-2 gap-2 bg-[#030712] p-1.5 rounded-xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleModeToken('mapel')}
+                    className={`py-2 px-3 rounded-lg text-xs font-display font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      modeToken === 'mapel'
+                        ? 'bg-cyan-400 text-slate-950 shadow-md shadow-cyan-400/20'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <BookOpen className="w-3.5 h-3.5" /> Per Mata Ujian
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleToggleModeToken('siswa')}
+                    className={`py-2 px-3 rounded-lg text-xs font-display font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      modeToken === 'siswa'
+                        ? 'bg-cyan-400 text-slate-950 shadow-md shadow-cyan-400/20'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Users className="w-3.5 h-3.5" /> Per Siswa Unik
+                  </button>
+                </div>
+              </div>
+
             </div>
 
-            {/* MASTER MATA UJIAN - TABLE GRID TEGAK LURUS */}
+            {/* MASTER MATA UJIAN - TABLE GRID TEGAK LURUS PERFEK */}
             <div className="p-6 bg-[#0d1527]/60 border border-slate-800 rounded-2xl space-y-6 shadow-xl">
               <div className="border-b border-slate-800/80 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -297,13 +414,13 @@ export default function PengaturanUjian() {
                     <Clock className="w-4 h-4" /> MASTER MATA UJIAN, DURASI, KKM & BOBOT
                   </h2>
                   <p className="text-xs text-slate-400 mt-1 font-sans">
-                    Atur durasi pengerjaan, KKM, serta persentase bobot nilai Pilihan Ganda & Praktik per mata ujian.
+                    Atur durasi pengerjaan, KKM, persentase bobot nilai, serta Token acak per mata ujian.
                   </p>
                 </div>
 
                 <Button
                   onClick={openAddModal}
-                  className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs px-4 py-2 border-0 rounded-xl flex items-center gap-1.5 w-fit"
+                  className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs px-4 py-2 border-0 rounded-xl flex items-center gap-1.5 w-fit shrink-0"
                 >
                   <Plus className="w-4 h-4" /> Tambah Mata Ujian
                 </Button>
@@ -325,47 +442,60 @@ export default function PengaturanUjian() {
               ) : (
                 <form onSubmit={handleSimpan} className="space-y-4">
                   
-                  {/* LAYOUT PAKSA TEGAK LURUS PAKAI CSS GRID FIXED WIDTH */}
                   <div className="space-y-3">
                     {katalogMapel.map((kat) => (
                       <div 
                         key={kat.id} 
                         className="p-4 rounded-xl bg-[#030712]/90 border border-slate-800 flex items-center justify-between gap-3 transition-all hover:border-slate-700 font-sans"
                       >
-                        {/* 1. NAMA & DESKRIPSI (Lebar fleksibel) */}
-                        <div className="flex-1 min-w-[180px] max-w-[260px] space-y-0.5 pr-2">
+                        {/* 1. NAMA & DESKRIPSI (Lebar terpaksa min 200px) */}
+                        <div className="w-[220px] shrink-0 space-y-0.5 pr-2">
                           <h3 className="font-display font-bold text-sm text-white truncate" title={kat.nama}>{kat.nama}</h3>
                           <p className="text-[11px] text-slate-400 font-sans truncate" title={kat.desc}>{kat.desc}</p>
                         </div>
 
-                        {/* 2. KELOMPOK BADGE TERKUNCI (FIXED WIDTH MATRIX) */}
-                        <div className="flex items-center gap-3 shrink-0">
-                          {/* ID BADGE (Kunci Lebar 140px) */}
-                          <div className="w-[140px] shrink-0 text-center">
+                        {/* 2. KELOMPOK BADGE MATRIKS (Kunci Lebar Tegak Lurus) */}
+                        <div className="flex items-center gap-2.5 shrink-0">
+                          {/* ID BADGE (120px) */}
+                          <div className="w-[120px] shrink-0 text-center">
                             <span className="block text-[10px] text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-2 py-1 rounded font-display font-bold uppercase tracking-wider truncate">
                               ID: {kat.id}
                             </span>
                           </div>
 
-                          {/* KKM BADGE (Kunci Lebar 75px) */}
-                          <div className="w-[75px] shrink-0 text-center">
-                            <span className="block text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-1 rounded font-display font-bold">
+                          {/* KKM BADGE (70px) */}
+                          <div className="w-[70px] shrink-0 text-center">
+                            <span className="block text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-1.5 py-1 rounded font-display font-bold">
                               KKM: {kat.kkm ?? 75}
                             </span>
                           </div>
 
-                          {/* BOBOT BADGE (Kunci Lebar 170px) */}
-                          <div className="w-[170px] shrink-0 text-center">
+                          {/* BOBOT BADGE (165px) */}
+                          <div className="w-[165px] shrink-0 text-center">
                             <span className="block text-[10px] text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded font-display font-bold">
                               Bobot: PG {kat.bobot_pg ?? 50}% | Prak {kat.bobot_praktik ?? 50}%
                             </span>
                           </div>
+
+                          {/* TOKEN BADGE & REFRESH (150px) */}
+                          <div className="w-[150px] shrink-0 flex items-center gap-1 bg-cyan-950/30 border border-cyan-500/30 px-2 py-0.5 rounded-lg justify-between">
+                            <span className="text-[10px] text-cyan-300 font-mono font-bold truncate">
+                              {kat.token || `${kat.id.toUpperCase()}2026`}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleGenerateTokenMapel(kat.id)}
+                              className="p-1 text-cyan-400 hover:text-white transition"
+                              title="Generate Token Acak Baru"
+                            >
+                              <RefreshCw className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
 
-                        {/* 3. DURASI & AKSI (Kunci Lebar 150px Rata Kanan) */}
-                        <div className="w-[150px] shrink-0 flex items-center justify-end gap-3 pl-2">
-                          {/* Box Input Durasi */}
-                          <div className="flex items-center gap-1.5 bg-[#0d1527] border border-cyan-400/30 px-2.5 py-1 rounded-xl">
+                        {/* 3. DURASI & AKSI (Kunci Lebar 140px Rata Kanan) */}
+                        <div className="w-[140px] shrink-0 flex items-center justify-end gap-2.5 pl-2">
+                          <div className="flex items-center gap-1 bg-[#0d1527] border border-cyan-400/30 px-2 py-1 rounded-xl">
                             <input
                               type="number"
                               min="5"
@@ -374,18 +504,17 @@ export default function PengaturanUjian() {
                               onChange={(e) => handleDurasiChange(kat.id, parseInt(e.target.value) || 0)}
                               className="w-8 text-center font-display font-black text-cyan-400 bg-transparent text-sm focus:outline-none"
                             />
-                            <span className="text-[11px] text-slate-400 font-sans font-bold">Mnt</span>
+                            <span className="text-[10px] text-slate-400 font-sans font-bold">Mnt</span>
                           </div>
 
-                          {/* Tombol Aksi */}
-                          <div className="flex items-center gap-1 border-l border-slate-800 pl-2">
+                          <div className="flex items-center gap-0.5 border-l border-slate-800 pl-1.5">
                             <button
                               type="button"
                               onClick={() => openEditModal(kat)}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition"
                               title="Edit Mata Ujian"
                             >
-                              <Edit3 className="w-4 h-4" />
+                              <Edit3 className="w-3.5 h-3.5" />
                             </button>
                             <button
                               type="button"
@@ -393,7 +522,7 @@ export default function PengaturanUjian() {
                               className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 transition"
                               title="Hapus Mata Ujian"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
@@ -408,7 +537,7 @@ export default function PengaturanUjian() {
                       disabled={isSaving}
                       className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs px-6 py-2.5 border-0 rounded-xl flex items-center gap-2 shadow-lg shadow-cyan-400/20"
                     >
-                      <Save className="w-4 h-4" /> {isSaving ? 'Menyimpan...' : 'Simpan Perubahan Durasi'}
+                      <Save className="w-4 h-4" /> {isSaving ? 'Menyimpan...' : 'Simpan Perubahan'}
                     </Button>
                   </div>
                 </form>
@@ -483,6 +612,18 @@ export default function PengaturanUjian() {
                       className="bg-[#030712]/60 border-slate-800 text-sm rounded-xl font-sans text-center font-bold text-amber-400"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-display font-bold text-cyan-400 mb-1.5 block uppercase flex items-center gap-1">
+                    <Key className="w-3 h-3" /> Token Khusus Mapel
+                  </label>
+                  <Input
+                    placeholder="Contoh: WORD2026 (Kosongkan jika auto)"
+                    value={formMapel.token}
+                    onChange={(e) => setFormMapel({ ...formMapel, token: e.target.value.toUpperCase() })}
+                    className="bg-[#030712]/60 border-slate-800 text-sm rounded-xl font-mono uppercase font-bold text-cyan-300"
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800/60">

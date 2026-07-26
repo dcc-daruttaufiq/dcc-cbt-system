@@ -10,7 +10,7 @@ import Input from '../components/ui/Input';
 import Badge from '../components/ui/Badge';
 import {
   CreditCard, Key, Play, LogOut, User,
-  AlertCircle, Sparkles, Award, CheckCircle2, Clock, XCircle
+  AlertCircle, Sparkles, Award, CheckCircle2, Clock, XCircle, ShieldCheck
 } from 'lucide-react';
 
 const DEFAULT_KATALOG = [
@@ -27,6 +27,7 @@ export default function DashboardPeserta() {
 
   const [userName, setUserName] = useState('');
   const [techId, setTechId] = useState('');
+  const [userTokenIndividu, setUserTokenIndividu] = useState('');
   const [selectedUjian, setSelectedUjian] = useState('word');
   const [tokenInput, setTokenInput] = useState('');
   const [tokenError, setTokenError] = useState('');
@@ -36,7 +37,8 @@ export default function DashboardPeserta() {
   const [completedExamInfo, setCompletedExamInfo] = useState(null);
   const [logoGagalDimuat, setLogoGagalDimuat] = useState(false);
 
-  // State Katalog Ujian Dinamis
+  // State Mode Token Global & Katalog
+  const [modeToken, setModeToken] = useState('mapel'); // 'mapel' | 'siswa'
   const [daftarUjianDinamis, setDaftarUjianDinamis] = useState(DEFAULT_KATALOG);
   const [dataError, setDataError] = useState('');
 
@@ -76,6 +78,26 @@ export default function DashboardPeserta() {
   };
 
   useEffect(() => {
+    const fetchModeToken = async () => {
+      try {
+        const { data } = await supabase
+          .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
+          .select('*')
+          .eq('key', 'mode_token_ujian')
+          .maybeSingle();
+
+        if (data && data.value) {
+          const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+          const currentMode = parsed.mode || 'mapel';
+          setModeToken(currentMode);
+          localStorage.setItem('dcc_mode_token', currentMode);
+        }
+      } catch (e) {
+        const localMode = localStorage.getItem('dcc_mode_token');
+        if (localMode) setModeToken(localMode);
+      }
+    };
+
     const loadKatalogDinamis = async () => {
       let catalogArr = DEFAULT_KATALOG;
       try {
@@ -94,7 +116,7 @@ export default function DashboardPeserta() {
               subNama: item.desc || 'Ujian Sertifikasi Kompetensi',
               kategori: 'Spesialisasi',
               durasi: `${item.durasi || 90} Menit`,
-              tokenDefault: `${item.id.toUpperCase()}2026`,
+              tokenDefault: item.token || `${item.id.toUpperCase()}2026`,
               bobot_pg: item.bobot_pg !== undefined ? Number(item.bobot_pg) : 50,
               bobot_praktik: item.bobot_praktik !== undefined ? Number(item.bobot_praktik) : 50,
               kkm: item.kkm !== undefined && item.kkm !== null ? Number(item.kkm) : 75
@@ -114,7 +136,7 @@ export default function DashboardPeserta() {
                 subNama: item.desc || 'Ujian Sertifikasi Kompetensi',
                 kategori: 'Spesialisasi',
                 durasi: `${item.durasi || 90} Menit`,
-                tokenDefault: `${item.id.toUpperCase()}2026`,
+                tokenDefault: item.token || `${item.id.toUpperCase()}2026`,
                 bobot_pg: item.bobot_pg !== undefined ? Number(item.bobot_pg) : 50,
                 bobot_praktik: item.bobot_praktik !== undefined ? Number(item.bobot_praktik) : 50,
                 kkm: item.kkm !== undefined && item.kkm !== null ? Number(item.kkm) : 75
@@ -128,6 +150,7 @@ export default function DashboardPeserta() {
     };
 
     const initDashboard = async () => {
+      await fetchModeToken();
       const activeCatalog = await loadKatalogDinamis();
       const savedUserStr = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
       let activeUser = savedUserStr ? JSON.parse(savedUserStr) : null;
@@ -162,9 +185,11 @@ export default function DashboardPeserta() {
 
       const nameToDisplay = activeUser?.nama || activeUser?.nama_lengkap || localStorage.getItem(STORAGE_KEYS.USER_NAME) || 'Peserta Ujian';
       const techIdToDisplay = activeUser?.tech_id || localStorage.getItem(STORAGE_KEYS.USER_TECH_ID) || '';
+      const tokenIndividuToDisplay = activeUser?.token || activeUser?.token_peserta || '';
 
       setUserName(nameToDisplay);
       setTechId(techIdToDisplay);
+      setUserTokenIndividu(tokenIndividuToDisplay);
 
       const rawKat = activeUser?.kategori || localStorage.getItem(STORAGE_KEYS.USER_KATEGORI) || '';
       const dynamicCategoryIds = activeCatalog.map(item => item.id);
@@ -309,13 +334,30 @@ export default function DashboardPeserta() {
 
     const inputUpper = tokenInput.trim().toUpperCase();
 
-    if (
-      inputUpper === activeExamDetail.tokenDefault ||
-      inputUpper === 'WORD2026' ||
-      inputUpper === 'DCC2026' ||
-      inputUpper === '12345' ||
-      inputUpper === '1234'
-    ) {
+    // VALIDASI LOGIK DUAL-MODE TOKEN
+    let isTokenValid = false;
+
+    if (modeToken === 'siswa') {
+      // Validation Mode Per Siswa Unik
+      const validIndividuToken = userTokenIndividu ? userTokenIndividu.toUpperCase().trim() : '';
+      if (
+        (validIndividuToken && inputUpper === validIndividuToken) ||
+        inputUpper === activeExamDetail.tokenDefault ||
+        inputUpper === 'DCC2026' || inputUpper === '12345' || inputUpper === '1234'
+      ) {
+        isTokenValid = true;
+      }
+    } else {
+      // Validation Mode Per Mata Ujian Global
+      if (
+        inputUpper === activeExamDetail.tokenDefault ||
+        inputUpper === 'WORD2026' || inputUpper === 'DCC2026' || inputUpper === '12345' || inputUpper === '1234'
+      ) {
+        isTokenValid = true;
+      }
+    }
+
+    if (isTokenValid) {
       const nowIso = new Date().toISOString();
       sessionStorage.setItem('examStarted', 'true');
       sessionStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, activeExamDetail.id);
@@ -352,8 +394,12 @@ export default function DashboardPeserta() {
 
       navigate('/ruang-ujian');
     } else {
-      setTokenError(`Token untuk ujian ${activeExamDetail.nama} tidak valid! Gunakan token resmi atau hubungi Pengawas.`);
       setIsLoading(false);
+      if (modeToken === 'siswa') {
+        setTokenError(`Token Unik Siswa untuk ${userName} tidak valid! Mintalah Token Rahasia milik Anda ke Pengawas.`);
+      } else {
+        setTokenError(`Token untuk ujian ${activeExamDetail.nama} tidak valid! Gunakan token resmi mapel atau hubungi Pengawas.`);
+      }
     }
   };
 
@@ -537,9 +583,17 @@ export default function DashboardPeserta() {
                       Mata Ujian Terpilih: <strong className="text-white font-bold">{activeExamDetail.nama}</strong>
                     </p>
                   </div>
-                  <span className="text-[11px] font-display font-bold text-cyan-400 bg-cyan-400/10 px-2.5 py-1 rounded-lg border border-cyan-400/20">
-                    Token: {activeExamDetail.tokenDefault}
-                  </span>
+
+                  {/* INDICATOR TIPE MODE TOKEN YANG SANGAT JELAS */}
+                  {modeToken === 'siswa' ? (
+                    <span className="text-[11px] font-display font-bold text-purple-300 bg-purple-500/10 px-2.5 py-1 rounded-lg border border-purple-500/20 flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-purple-400" /> Mode: Token Unik Siswa
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-display font-bold text-cyan-400 bg-cyan-400/10 px-2.5 py-1 rounded-lg border border-cyan-400/20">
+                      Token Mapel: {activeExamDetail.tokenDefault}
+                    </span>
+                  )}
                 </div>
 
                 <form onSubmit={handleMulaiUjian} className="space-y-4">
@@ -547,7 +601,7 @@ export default function DashboardPeserta() {
                     <div className="md:col-span-2">
                       <Input
                         type="text"
-                        placeholder={`Masukkan Token Ujian ${activeExamDetail.nama}...`}
+                        placeholder={modeToken === 'siswa' ? "Masukkan Token Unik Siswa Anda..." : `Masukkan Token Ujian ${activeExamDetail.nama}...`}
                         value={tokenInput}
                         onChange={(e) => setTokenInput(e.target.value.toUpperCase())}
                         className="w-full px-4 py-3 uppercase font-display font-bold tracking-widest text-sm bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-white rounded-xl font-sans"

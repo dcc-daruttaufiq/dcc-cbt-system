@@ -24,13 +24,27 @@ import {
   Search,
   ExternalLink,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Key,
+  Copy,
+  ShieldCheck
 } from 'lucide-react';
+
+// Helper Generator Token Random (5 Karakter)
+const generateRandomTokenSiswa = (prefix = 'TS') => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let rand = '';
+  for (let i = 0; i < 4; i++) {
+    rand += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `${prefix}-${rand}`;
+};
 
 export default function DashboardPengawas() {
   const [peserta, setPeserta] = useState([]);
   const [bankSoalAll, setBankSoalAll] = useState([]);
   const [katalogMapel, setKatalogMapel] = useState([]);
+  const [modeToken, setModeToken] = useState('mapel'); // 'mapel' | 'siswa'
   const [selectedSiswa, setSelectedSiswa] = useState(null);
   const [soalPraktikList, setSoalPraktikList] = useState([]);
   const [checklistPraktik, setChecklistPraktik] = useState({});
@@ -61,9 +75,10 @@ export default function DashboardPengawas() {
     { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
   ];
 
-  // Load Katalog Mata Ujian (Untuk membaca Bobot PG & Praktik)
+  // Load Katalog Mata Ujian & Mode Token
   const loadKatalogPengaturan = async () => {
     try {
+      // Fetch Katalog Mapel
       const { data } = await supabase
         .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
         .select('*')
@@ -75,16 +90,29 @@ export default function DashboardPengawas() {
         if (Array.isArray(parsed)) {
           setKatalogMapel(parsed);
           localStorage.setItem('dcc_katalog_mapel', JSON.stringify(parsed));
-          return;
         }
+      }
+
+      // Fetch Mode Token Global
+      const { data: dataMode } = await supabase
+        .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
+        .select('*')
+        .eq('key', 'mode_token_ujian')
+        .maybeSingle();
+
+      if (dataMode && dataMode.value) {
+        const mt = typeof dataMode.value === 'string' ? JSON.parse(dataMode.value) : dataMode.value;
+        setModeToken(mt.mode || 'mapel');
+        localStorage.setItem('dcc_mode_token', mt.mode || 'mapel');
       }
     } catch (e) {
       console.warn('Gagal memuat katalog pengaturan dari cloud...', e);
-    }
-
-    const localKatalog = localStorage.getItem('dcc_katalog_mapel');
-    if (localKatalog) {
-      try { setKatalogMapel(JSON.parse(localKatalog)); } catch (e) {}
+      const localKatalog = localStorage.getItem('dcc_katalog_mapel');
+      if (localKatalog) {
+        try { setKatalogMapel(JSON.parse(localKatalog)); } catch (e) {}
+      }
+      const localMode = localStorage.getItem('dcc_mode_token');
+      if (localMode) setModeToken(localMode);
     }
   };
 
@@ -186,6 +214,9 @@ export default function DashboardPengawas() {
             return;
           }
 
+          // Generate/Gunakan Token Unik Siswa
+          const customToken = cols[3] && cols[3].trim() ? cols[3].trim().toUpperCase() : generateRandomTokenSiswa();
+
           if (nama && !nama.toLowerCase().includes('nama lengkap')) {
             existingTechIds.add(cleanTechId);
             importedPesertaArr.push({
@@ -193,6 +224,8 @@ export default function DashboardPengawas() {
               nama_lengkap: nama,
               tech_id: techId,
               kategori: finalKat,
+              token: customToken,
+              token_peserta: customToken,
               status: 'belum_mulai',
               status_koreksi: 'belum_dikoreksi',
               nilai_pg: 0,
@@ -215,7 +248,7 @@ export default function DashboardPengawas() {
         const { error } = await supabase.from(TABLES.PESERTA).insert(importedPesertaArr);
         if (error) throw error;
         await loadPeserta();
-        alert(`Berhasil menambahkan ${importedPesertaArr.length} peserta baru!`);
+        alert(`Berhasil menambahkan ${importedPesertaArr.length} peserta baru lengkap dengan Token Unik!`);
       } catch (err) {
         console.error('Gagal impor peserta:', err);
         alert('Gagal mengimpor peserta.');
@@ -225,6 +258,25 @@ export default function DashboardPengawas() {
     };
 
     reader.readAsText(file);
+  };
+
+  const handleRegenerateTokenSingleSiswa = async (pesertaId, techId) => {
+    const newToken = generateRandomTokenSiswa();
+    try {
+      const { error } = await supabase
+        .from(TABLES.PESERTA)
+        .update({ token: newToken, token_peserta: newToken })
+        .eq('id', pesertaId);
+
+      if (error) throw error;
+
+      const updated = peserta.map(p => p.id === pesertaId ? { ...p, token: newToken, token_peserta: newToken } : p);
+      setPeserta(updated);
+      localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updated));
+      alert(`Token baru untuk TechID ${techId}: ${newToken}`);
+    } catch (e) {
+      alert('Gagal mereset token peserta.');
+    }
   };
 
   const handleDeleteSingle = async (pesertaId, nama) => {
@@ -409,7 +461,7 @@ export default function DashboardPengawas() {
     return Math.round((dicentang / keys.length) * 100);
   };
 
-  // ⚡⚡ PERHITUNGAN NILAI AKHIR DENGAN BOBOT DINAMIS & FALLBACK SOAL PG SAJA
+  // ⚡ PERHITUNGAN NILAI AKHIR DENGAN BOBOT DINAMIS & FALLBACK SOAL PG SAJA
   const submitSimpanNilaiPraktik = async () => {
     const targetUser = peserta.find(p => p.id === selectedSiswa);
     if (!targetUser) return;
@@ -417,7 +469,6 @@ export default function DashboardPengawas() {
     const katId = normalizeKategori(targetUser.kategori);
     const matchedKat = katalogMapel.find(m => m.id === katId);
 
-    // Cek apakah ada soal praktik di bank soal untuk kategori ini
     const adaSoalPraktikInBank = bankSoalAll.some(s => {
       const sKat = normalizeKategori(s.kategori);
       const sTipe = (s.tipe || '').toLowerCase();
@@ -427,7 +478,6 @@ export default function DashboardPengawas() {
     let bobotPG = matchedKat?.bobot_pg !== undefined ? Number(matchedKat.bobot_pg) : 50;
     let bobotPraktik = matchedKat?.bobot_praktik !== undefined ? Number(matchedKat.bobot_praktik) : 50;
 
-    // JIKA TIDAK ADA SOAL PRAKTIK -> OTOMATIS BOBOT PG = 100%
     if (!adaSoalPraktikInBank) {
       bobotPG = 100;
       bobotPraktik = 0;
@@ -436,7 +486,6 @@ export default function DashboardPengawas() {
     const skorPraktikTotal = hitungSkorPraktikLokal();
     const pg = targetUser?.nilai_pg !== undefined && targetUser?.nilai_pg !== null ? Number(targetUser.nilai_pg) : 0;
 
-    // RUMUS PENILAIAN SESUAI PERSENTASE BOBOT
     const nilaiAkhirBaru = Math.round((pg * (bobotPG / 100)) + (skorPraktikTotal * (bobotPraktik / 100)));
 
     try {
@@ -486,7 +535,8 @@ export default function DashboardPengawas() {
       const q = searchQuery.toLowerCase();
       const nama = (p.nama || p.nama_lengkap || '').toLowerCase();
       const techId = (p.tech_id || '').toLowerCase();
-      return nama.includes(q) || techId.includes(q);
+      const tokenVal = (p.token || p.token_peserta || '').toLowerCase();
+      return nama.includes(q) || techId.includes(q) || tokenVal.includes(q);
     }
 
     return true;
@@ -584,9 +634,15 @@ export default function DashboardPengawas() {
             <div className="lg:col-span-5 xl:col-span-4 space-y-4">
               <div className="flex flex-col gap-2 px-1">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
-                    Daftar Peserta ({filteredPeserta.length})
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
+                      Daftar Peserta ({filteredPeserta.length})
+                    </h2>
+                    {/* INDICATOR MODE TOKEN LIVE */}
+                    <span className="text-[9px] px-2 py-0.5 rounded font-display font-bold uppercase bg-cyan-400/10 text-cyan-400 border border-cyan-400/20">
+                      {modeToken === 'siswa' ? 'Mode: Token Siswa' : 'Mode: Token Mapel'}
+                    </span>
+                  </div>
 
                   {filteredPeserta.length > 0 && (
                     <div className="flex items-center gap-2">
@@ -614,7 +670,7 @@ export default function DashboardPengawas() {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Cari nama atau TechID..."
+                    placeholder="Cari nama, TechID, atau token..."
                     className="w-full bg-[#0d1527] border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-400"
                   />
                   <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -692,6 +748,8 @@ export default function DashboardPengawas() {
                       ? p.nilai_akhir 
                       : (p.nilai_praktik || p.nilai_pg || '-');
 
+                    const tokenSiswaReal = p.token || p.token_peserta || generateRandomTokenSiswa();
+
                     return (
                       <div
                         key={p.id || idx}
@@ -735,6 +793,26 @@ export default function DashboardPengawas() {
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
+
+                        {/* ROW TAMPILAN TOKEN SISWA UNIK */}
+                        {modeToken === 'siswa' && (
+                          <div className="flex items-center justify-between bg-[#030712] px-2.5 py-1 rounded-lg border border-purple-500/30 text-[10px]">
+                            <span className="text-purple-300 font-display font-bold flex items-center gap-1">
+                              <Key className="w-3 h-3 text-purple-400" /> TOKEN SISWA:
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-white tracking-widest">{tokenSiswaReal}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRegenerateTokenSingleSiswa(p.id, p.tech_id)}
+                                className="p-0.5 text-slate-400 hover:text-cyan-400 transition"
+                                title="Reset Token Acak Baru"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
                         <div className="flex items-center justify-between gap-2 pt-0.5">
                           <Badge variant={statusInfo.variant} className="text-[9px] px-2 py-0.5 rounded-md font-sans">
