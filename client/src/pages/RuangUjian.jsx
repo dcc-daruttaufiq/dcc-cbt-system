@@ -32,6 +32,7 @@ export default function RuangUjian() {
   
   const timerRef = useRef(null);
   const fileInputPraktikRef = useRef(null);
+  const debounceTimerRef = useRef(null);
 
   // Ref untuk menyimpan state jawaban terbaru agar bisa dibaca di handler Realtime secara akurat
   const jawabanRef = useRef(jawaban);
@@ -262,6 +263,7 @@ export default function RuangUjian() {
       timerRef.current = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
+            clearInterval(timerRef.current);
             handleAutoSubmit();
             return 0;
           }
@@ -270,7 +272,7 @@ export default function RuangUjian() {
       }, 1000);
     }
     return () => clearInterval(timerRef.current);
-  }, [isTimerReady, timeLeft]);
+  }, [isTimerReady]);
 
   const formatTime = (seconds) => {
     const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
@@ -321,7 +323,13 @@ export default function RuangUjian() {
     const dataBaru = { ...dataLama, teks: val };
     const updated = { ...jawaban, [soalAktif.id]: dataBaru };
     setJawaban(updated);
-    persistJawaban(soalAktif.id, dataBaru, raguRagu[soalAktif.id] || false);
+
+    const soalIdSaatIni = soalAktif.id;
+    const raguSaatIni = raguRagu[soalIdSaatIni] || false;
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      persistJawaban(soalIdSaatIni, dataBaru, raguSaatIni);
+    }, 1000);
   };
 
   const toggleRaguRagu = () => {

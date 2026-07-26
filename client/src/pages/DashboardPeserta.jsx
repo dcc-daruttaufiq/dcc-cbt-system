@@ -91,6 +91,9 @@ export default function DashboardPeserta() {
           const currentMode = parsed.mode || 'mapel';
           setModeToken(currentMode);
           localStorage.setItem('dcc_mode_token', currentMode);
+        } else {
+          const localMode = localStorage.getItem('dcc_mode_token');
+          if (localMode) setModeToken(localMode);
         }
       } catch (e) {
         const localMode = localStorage.getItem('dcc_mode_token');
