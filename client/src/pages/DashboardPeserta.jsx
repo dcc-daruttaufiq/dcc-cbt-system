@@ -22,7 +22,7 @@ const DEFAULT_KATALOG = [
 ];
 
 export default function DashboardPeserta() {
-  useDocumentTitle('Dashboard Peserta - DCC CBT');
+  useDocumentTitle('Dashboard Peserta - DCC SISTEM');
   const navigate = useNavigate();
 
   const [userName, setUserName] = useState('');
@@ -176,7 +176,44 @@ export default function DashboardPeserta() {
       if (isFinished) {
         setIsExamCompleted(true);
         const activeExam = activeCatalog.find(u => u.id === initialKat);
-        
+
+        // HITUNG JUMLAH TERJAWAB V.S. TOTAL SOAL KATEGORI
+        let totalSoalKategori = 0;
+        let totalSoalTerjawab = 0;
+
+        try {
+          // 1. Fetch Total Soal untuk Kategori Ujian
+          const { data: dataSoal } = await supabase
+            .from(TABLES.BANK_SOAL || 'bank_soal')
+            .select('id, kategori');
+          
+          if (dataSoal && Array.isArray(dataSoal)) {
+            const filteredSoal = dataSoal.filter(s => normalizeKategori(s.kategori) === initialKat);
+            totalSoalKategori = filteredSoal.length;
+          }
+
+          // 2. Fetch Jawaban Terhitung
+          const { data: dataJawaban } = await supabase
+            .from(TABLES.JAWABAN_PESERTA || 'jawaban_peserta')
+            .select('jawaban')
+            .eq('tech_id', techIdToDisplay);
+
+          if (dataJawaban && Array.isArray(dataJawaban)) {
+            totalSoalTerjawab = dataJawaban.filter(j => {
+              if (!j.jawaban) return false;
+              if (typeof j.jawaban === 'string' && j.jawaban.startsWith('{')) {
+                try {
+                  const p = JSON.parse(j.jawaban);
+                  return !!(p.teks || p.fileName);
+                } catch (e) { return true; }
+              }
+              return true;
+            }).length;
+          }
+        } catch (e) {
+          console.warn('Gagal menghitung statistik jawaban:', e);
+        }
+
         const nilaiPG = activeUser?.nilai_pg !== undefined && activeUser?.nilai_pg !== null ? Number(activeUser.nilai_pg) : 0;
         const nilaiPraktik = activeUser?.nilai_praktik !== undefined && activeUser?.nilai_praktik !== null ? Number(activeUser.nilai_praktik) : null;
         
@@ -207,6 +244,8 @@ export default function DashboardPeserta() {
           nilaiPraktik: nilaiPraktik,
           totalNilai: totalNilai,
           lamaPengerjaan: lamaKerja,
+          totalTerjawab: totalSoalTerjawab,
+          totalSoal: totalSoalKategori || 0,
           statusPraktikText: isFullyCorrected 
             ? (nilaiPraktik !== null ? `${nilaiPraktik}` : 'Selesai Dikoreksi') 
             : 'Dalam Koreksi Pengawas'
@@ -337,7 +376,8 @@ export default function DashboardPeserta() {
               <span className="text-cyan-400 font-display font-bold text-lg">DCC</span>
             )}
             <div>
-              <h1 className="text-sm font-display font-bold text-white tracking-wide">DCC CBT PORTAL</h1>
+              {/* BRAND TEXT UPDATED TO DCC SISTEM */}
+              <h1 className="text-sm font-display font-bold text-white tracking-wide">DCC SISTEM</h1>
               <p className="text-[10px] text-slate-400 font-sans">Dashboard Peserta</p>
             </div>
           </div>
@@ -388,7 +428,13 @@ export default function DashboardPeserta() {
                     <h3 className="text-lg font-display font-bold text-white">{completedExamInfo?.namaUjian}</h3>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* BADGE PROGRES TERJAWAB DITAMBAHKAN DI SINI */}
+                  {completedExamInfo?.totalSoal > 0 && (
+                    <div className="bg-cyan-400/10 text-cyan-400 border border-cyan-400/30 text-xs px-3 py-1 rounded-lg font-display font-bold tracking-wide flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Berhasil menjawab {completedExamInfo.totalTerjawab} dari {completedExamInfo.totalSoal} soal
+                    </div>
+                  )}
                   <div className="bg-slate-800/80 text-cyan-400 border border-cyan-400/30 text-xs px-3 py-1 rounded-lg font-display font-bold tracking-wide flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5" /> {completedExamInfo?.lamaPengerjaan}
                   </div>
@@ -399,6 +445,7 @@ export default function DashboardPeserta() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* NILAI PILIHAN GANDA */}
                 <div className="p-5 rounded-xl bg-[#030712]/80 border border-slate-800/80 space-y-2">
                   <p className="text-[11px] font-display font-bold text-slate-400 uppercase tracking-wider">NILAI PILIHAN GANDA</p>
                   <div className="flex items-baseline gap-2">
@@ -407,6 +454,7 @@ export default function DashboardPeserta() {
                   </div>
                 </div>
 
+                {/* NILAI PRAKTIK */}
                 <div className="p-5 rounded-xl bg-[#030712]/80 border border-slate-800/80 space-y-2">
                   <p className="text-[11px] font-display font-bold text-slate-400 uppercase tracking-wider">NILAI PRAKTIK</p>
                   <p className="text-sm font-display font-bold text-amber-400 pt-1">
@@ -418,6 +466,7 @@ export default function DashboardPeserta() {
                   </p>
                 </div>
 
+                {/* NILAI AKHIR TOTAL */}
                 <div className="p-5 rounded-xl bg-[#030712]/80 border border-emerald-500/30 space-y-2">
                   <p className="text-[11px] font-display font-bold text-emerald-400 uppercase tracking-wider">NILAI AKHIR TOTAL</p>
                   <div className="flex items-baseline gap-2">
