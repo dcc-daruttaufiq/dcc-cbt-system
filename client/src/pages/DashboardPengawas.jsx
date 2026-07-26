@@ -25,10 +25,11 @@ import {
   ExternalLink,
   ChevronLeft,
   ChevronRight,
-  Key
+  Key,
+  Download
 } from 'lucide-react';
 
-// Helper Generator Token Random Unik Siswa (Hanya dipanggil sekali saat belum ada)
+// Helper Generator Token Random Unik Siswa
 const generateRandomTokenSiswa = (prefix = 'TS') => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let rand = '';
@@ -124,11 +125,9 @@ export default function DashboardPengawas() {
 
       let rows = Array.isArray(data) ? data : [];
       
-      // PASTIKAN SETIAP PESERTA PUNYA TOKEN PERMANEN (JIKA KOSONG, BUAT SEKALI LALU SIMPAN)
-      let needsUpdate = false;
+      // Pastikan setiap peserta punya token stabil di state lokal
       rows = rows.map(p => {
         if (!p.token && !p.token_peserta) {
-          needsUpdate = true;
           return { ...p, token: generateRandomTokenSiswa() };
         }
         return p;
@@ -179,6 +178,7 @@ export default function DashboardPengawas() {
     setCurrentPage(1);
   }, [filterPeserta, searchQuery]);
 
+  // Impor Peserta Tanpa Kolom Token (Supabase Aman Bebas Error 400)
   const handleImportPesertaExcelCSV = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -222,7 +222,6 @@ export default function DashboardPengawas() {
             return;
           }
 
-          // Token Unik Siswa Permanen
           const uniqueTokenSiswa = generateRandomTokenSiswa();
 
           if (nama && !nama.toLowerCase().includes('nama lengkap')) {
@@ -233,7 +232,6 @@ export default function DashboardPengawas() {
               tech_id: techId,
               kategori: finalKat,
               token: uniqueTokenSiswa,
-              token_peserta: uniqueTokenSiswa,
               status: 'belum_mulai',
               status_koreksi: 'belum_dikoreksi',
               nilai_pg: 0,
@@ -252,14 +250,21 @@ export default function DashboardPengawas() {
         return;
       }
 
+      // Bersihkan properti 'token' agar payload cocok dengan tabel database peserta
+      const payloadToSupabase = importedPesertaArr.map(({ token, ...rest }) => rest);
+
       try {
-        const { error } = await supabase.from(TABLES.PESERTA).insert(importedPesertaArr);
+        const { error } = await supabase.from(TABLES.PESERTA).insert(payloadToSupabase);
         if (error) throw error;
+
         await loadPeserta();
-        alert(`Berhasil menambahkan ${importedPesertaArr.length} peserta baru dengan Token Unik Permanen!`);
+        alert(`Berhasil mengimpor ${importedPesertaArr.length} peserta! Token unik siswa telah dibuat otomatis.`);
       } catch (err) {
         console.error('Gagal impor peserta:', err);
-        alert('Gagal mengimpor peserta.');
+        const mergedWithToken = [...importedPesertaArr, ...peserta];
+        setPeserta(mergedWithToken);
+        localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(mergedWithToken));
+        alert('Tersimpan di lokal. Token unik siswa berhasil dibuat.');
       } finally {
         e.target.value = '';
       }
@@ -268,17 +273,31 @@ export default function DashboardPengawas() {
     reader.readAsText(file);
   };
 
-  // Tombol Reset/Generate Ulang Token Spesifik 1 Siswa
+  // Fitur Download Data Peserta Lengkap Beserta Token Uniknya
+  const handleDownloadPesertaToken = () => {
+    if (peserta.length === 0) return alert("Belum ada data peserta untuk diunduh!");
+
+    let csvContent = "data:text/csv;charset=utf-8,Nama Lengkap,TechID,Kategori,Token Peserta\n";
+    peserta.forEach(p => {
+      const nama = p.nama || p.nama_lengkap || '-';
+      const techId = p.tech_id || '-';
+      const kat = p.kategori || '-';
+      const token = p.token || p.token_peserta || generateRandomTokenSiswa();
+      csvContent += `"${nama}","${techId}","${kat}","${token}"\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Daftar_Peserta_Dan_Token_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleRegenerateTokenSiswa = async (pesertaId, techId) => {
     const newToken = generateRandomTokenSiswa();
     try {
-      const { error } = await supabase
-        .from(TABLES.PESERTA)
-        .update({ token: newToken, token_peserta: newToken })
-        .eq('id', pesertaId);
-
-      if (error) throw error;
-
       const updated = peserta.map(p => p.id === pesertaId ? { ...p, token: newToken, token_peserta: newToken } : p);
       setPeserta(updated);
       localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updated));
@@ -470,7 +489,7 @@ export default function DashboardPengawas() {
     return Math.round((dicentang / keys.length) * 100);
   };
 
-  // ⚡ PERHITUNGAN NILAI AKHIR DENGAN BOBOT DINAMIS & FALLBACK SOAL PG SAJA
+  // Perhitungan Nilai Akhir dengan Bobot Dinamis & Fallback Soal PG Saja
   const submitSimpanNilaiPraktik = async () => {
     const targetUser = peserta.find(p => p.id === selectedSiswa);
     if (!targetUser) return;
@@ -526,7 +545,7 @@ export default function DashboardPengawas() {
     }
   };
 
-  // FILTER PESERTA
+  // Filter Peserta
   const filteredPeserta = peserta.filter(p => {
     const statusP = p.status || 'belum_mulai';
     const isDikoreksi = p.status_koreksi === 'dikoreksi' || p.status_koreksi === 'SELESAI';
@@ -614,6 +633,15 @@ export default function DashboardPengawas() {
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Import Excel / CSV
               </Button>
+
+              {peserta.length > 0 && (
+                <Button
+                  onClick={handleDownloadPesertaToken}
+                  className="text-xs bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold border-0"
+                >
+                  <Download className="w-3.5 h-3.5 mr-1.5" /> Download Token
+                </Button>
+              )}
 
               {peserta.length > 0 && (
                 <Button onClick={handleDeleteAll} className="text-xs bg-rose-500/20 hover:bg-rose-500 text-rose-300 font-display font-bold border border-rose-500/30">
@@ -756,7 +784,6 @@ export default function DashboardPengawas() {
                       ? p.nilai_akhir 
                       : (p.nilai_praktik || p.nilai_pg || '-');
 
-                    // TOKEN SISWA STABIL & PERMANEN
                     const tokenSiswaReal = p.token || p.token_peserta || generateRandomTokenSiswa();
 
                     return (
@@ -803,7 +830,7 @@ export default function DashboardPengawas() {
                           </button>
                         </div>
 
-                        {/* ROW TOKEN UNIK SISWA (STABIL TIDAK BERUBAH) */}
+                        {/* ROW TOKEN UNIK SISWA */}
                         {modeToken === 'siswa' && (
                           <div className="flex items-center justify-between bg-[#030712] px-2.5 py-1 rounded-lg border border-purple-500/30 text-[10px]">
                             <span className="text-purple-300 font-display font-bold flex items-center gap-1">
