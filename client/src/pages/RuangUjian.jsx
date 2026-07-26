@@ -406,6 +406,7 @@ export default function RuangUjian() {
       if (jwbSiswa && jwbSiswa === kunci) benarCount++;
     });
 
+    const salahCount = soalPG.length - benarCount;
     const calculatedSkorPG = soalPG.length > 0 ? Math.round((benarCount / soalPG.length) * 100) : 0;
 
     try {
@@ -416,6 +417,8 @@ export default function RuangUjian() {
           status_koreksi: 'belum_dikoreksi',
           nilai_pg: calculatedSkorPG,
           nilai_akhir: calculatedSkorPG,
+          jumlah_benar: benarCount,
+          jumlah_salah: salahCount,
           waktu_selesai: nowIso,
         })
         .eq('tech_id', techId);

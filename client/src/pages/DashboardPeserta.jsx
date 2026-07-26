@@ -264,6 +264,8 @@ export default function DashboardPeserta() {
 
         const nilaiPG = activeUser?.nilai_pg !== undefined && activeUser?.nilai_pg !== null ? Number(activeUser.nilai_pg) : 0;
         const nilaiPraktik = activeUser?.nilai_praktik !== undefined && activeUser?.nilai_praktik !== null ? Number(activeUser.nilai_praktik) : null;
+        const jumlahBenar = activeUser?.jumlah_benar !== undefined && activeUser?.jumlah_benar !== null ? Number(activeUser.jumlah_benar) : null;
+        const jumlahSalah = activeUser?.jumlah_salah !== undefined && activeUser?.jumlah_salah !== null ? Number(activeUser.jumlah_salah) : null;
         
         let totalNilai = activeUser?.nilai_akhir !== undefined && activeUser?.nilai_akhir !== null ? Number(activeUser.nilai_akhir) : null;
         
@@ -301,6 +303,8 @@ export default function DashboardPeserta() {
           lamaPengerjaan: lamaKerja,
           totalTerjawab: totalSoalTerjawab,
           totalSoal: totalSoalKategori || 0,
+          jumlahBenar: jumlahBenar,
+          jumlahSalah: jumlahSalah,
           statusPraktikText: isFullyCorrected 
             ? (nilaiPraktik !== null ? `${nilaiPraktik}` : 'Selesai Dikoreksi') 
             : 'Dalam Koreksi Pengawas'
@@ -547,6 +551,13 @@ export default function DashboardPeserta() {
                     <span className="text-3xl font-display font-bold text-cyan-400">{completedExamInfo?.nilaiPG ?? 0}</span>
                     <span className="text-xs text-slate-500 font-sans">/ 100</span>
                   </div>
+                  {(completedExamInfo?.jumlahBenar !== null && completedExamInfo?.jumlahBenar !== undefined) && (
+                    <p className="text-[11px] font-sans font-bold">
+                      <span className="text-emerald-400">{completedExamInfo.jumlahBenar} jawaban benar</span>
+                      <span className="text-slate-500"> • </span>
+                      <span className="text-rose-400">{completedExamInfo.jumlahSalah ?? 0} jawaban salah</span>
+                    </p>
+                  )}
                 </div>
 
                 {/* NILAI PRAKTIK */}

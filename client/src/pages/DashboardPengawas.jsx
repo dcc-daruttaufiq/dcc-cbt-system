@@ -654,6 +654,8 @@ export default function DashboardPengawas() {
     return { text: 'Belum Ujian', variant: 'secondary' };
   };
 
+  const infoSiswaTerpilih = peserta.find(p => p.id === selectedSiswa);
+
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
       <Sidebar links={menuPengawas} userRole="Pengawas" />
@@ -912,6 +914,12 @@ export default function DashboardPengawas() {
                           </Badge>
 
                           <div className="flex items-center gap-2">
+                            {(p.jumlah_benar !== undefined && p.jumlah_benar !== null) && (
+                              <div className="flex items-center gap-1.5 bg-[#030712] px-2 py-0.5 rounded border border-slate-800 text-[9px] font-mono font-bold">
+                                <span className="text-emerald-400">✓{p.jumlah_benar}</span>
+                                <span className="text-rose-400">✗{p.jumlah_salah ?? 0}</span>
+                              </div>
+                            )}
                             <div className="flex items-center gap-1 bg-[#030712] px-2 py-0.5 rounded border border-slate-800">
                               <span className="text-[9px] text-slate-500 font-bold">SKOR:</span>
                               <span className="text-xs font-bold font-mono text-cyan-400">{nilaiDisplay}</span>
@@ -961,6 +969,11 @@ export default function DashboardPengawas() {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1 border-b border-slate-800/60 pb-3">
                     <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                       <FileCode className="text-cyan-400 w-4 h-4" /> LEMBAR JAWABAN PESERTA #{selectedSiswa}
+                      {(infoSiswaTerpilih?.jumlah_benar !== undefined && infoSiswaTerpilih?.jumlah_benar !== null) && (
+                        <span className="text-[10px] font-mono font-bold normal-case tracking-normal">
+                          (<span className="text-emerald-400">{infoSiswaTerpilih.jumlah_benar} benar</span> / <span className="text-rose-400">{infoSiswaTerpilih.jumlah_salah ?? 0} salah</span>)
+                        </span>
+                      )}
                     </h2>
 
                     <div className="flex gap-1.5 bg-[#0d1527] p-1.5 rounded-xl border border-slate-800 text-xs font-display font-bold">
