@@ -125,19 +125,36 @@ export default function DashboardPengawas() {
 
       let rows = Array.isArray(data) ? data : [];
       
-      // Pastikan setiap peserta punya token stabil di state lokal
+      // Ambil kamus token tersimpan di LocalStorage supaya token siswa tidak pernah berubah-ubah
+      let savedTokenMap = {};
+      try {
+        savedTokenMap = JSON.parse(localStorage.getItem('dcc_persistent_tokens') || '{}');
+      } catch (e) {}
+
+      let newMapUpdated = false;
       rows = rows.map(p => {
-        if (!p.token && !p.token_peserta) {
-          return { ...p, token: generateRandomTokenSiswa() };
+        const keyId = p.tech_id || String(p.id);
+        if (savedTokenMap[keyId]) {
+          // Gunakan token yang sudah terkunci di localStorage
+          return { ...p, token: savedTokenMap[keyId], token_peserta: savedTokenMap[keyId] };
+        } else {
+          // Buat token baru SEKALI SAJA, lalu simpan permanen ke mapping
+          const generated = generateRandomTokenSiswa();
+          savedTokenMap[keyId] = generated;
+          newMapUpdated = true;
+          return { ...p, token: generated, token_peserta: generated };
         }
-        return p;
       });
+
+      if (newMapUpdated) {
+        localStorage.setItem('dcc_persistent_tokens', JSON.stringify(savedTokenMap));
+      }
 
       setPeserta(rows);
       setIsOffline(false);
       localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(rows));
     } catch (err) {
-      console.warn('Gagal terhubung ke Supabase Cloud (peserta), menggunakan cache lokal.', err);
+      console.warn('Gagal terhubung ke Cloud (peserta), menggunakan cache lokal.', err);
       setIsOffline(true);
       const localSesi = localStorage.getItem(STORAGE_KEYS.PESERTA);
       if (localSesi) {
@@ -154,7 +171,7 @@ export default function DashboardPengawas() {
       setBankSoalAll(rows);
       localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(rows));
     } catch (err) {
-      console.warn('Gagal memuat Repositori Soal dari Supabase Cloud, menggunakan cache lokal.', err);
+      console.warn('Gagal memuat Repositori Soal dari Cloud, menggunakan cache lokal.', err);
       const cached = localStorage.getItem(STORAGE_KEYS.BANK_SOAL);
       if (cached) {
         try { setBankSoalAll(JSON.parse(cached)); } catch (e) { setBankSoalAll([]); }
@@ -194,6 +211,11 @@ export default function DashboardPengawas() {
       let duplicateCount = 0;
       let invalidKategoriCount = 0;
 
+      let savedTokenMap = {};
+      try {
+        savedTokenMap = JSON.parse(localStorage.getItem('dcc_persistent_tokens') || '{}');
+      } catch (e) {}
+
       lines.forEach((line, index) => {
         if (index === 0 && (line.toLowerCase().includes('nama') || line.toLowerCase().includes('techid'))) {
           return;
@@ -223,6 +245,7 @@ export default function DashboardPengawas() {
           }
 
           const uniqueTokenSiswa = generateRandomTokenSiswa();
+          savedTokenMap[techId] = uniqueTokenSiswa;
 
           if (nama && !nama.toLowerCase().includes('nama lengkap')) {
             existingTechIds.add(cleanTechId);
@@ -242,6 +265,8 @@ export default function DashboardPengawas() {
         }
       });
 
+      localStorage.setItem('dcc_persistent_tokens', JSON.stringify(savedTokenMap));
+
       if (importedPesertaArr.length === 0) {
         if (duplicateCount > 0) alert(`Semua data (${duplicateCount}) sudah terdaftar!`);
         else if (invalidKategoriCount > 0) alert(`Gagal impor. Kategori mata ujian tidak valid.`);
@@ -250,7 +275,7 @@ export default function DashboardPengawas() {
         return;
       }
 
-      // Bersihkan properti 'token' agar payload cocok dengan tabel database peserta
+      // Bersihkan properti 'token' agar payload cocok dengan tabel database peserta di Supabase
       const payloadToSupabase = importedPesertaArr.map(({ token, ...rest }) => rest);
 
       try {
@@ -258,7 +283,7 @@ export default function DashboardPengawas() {
         if (error) throw error;
 
         await loadPeserta();
-        alert(`Berhasil mengimpor ${importedPesertaArr.length} peserta! Token unik siswa telah dibuat otomatis.`);
+        alert(`Berhasil mengimpor ${importedPesertaArr.length} peserta! Token unik siswa telah dibuat permanen.`);
       } catch (err) {
         console.error('Gagal impor peserta:', err);
         const mergedWithToken = [...importedPesertaArr, ...peserta];
@@ -298,6 +323,14 @@ export default function DashboardPengawas() {
   const handleRegenerateTokenSiswa = async (pesertaId, techId) => {
     const newToken = generateRandomTokenSiswa();
     try {
+      let savedTokenMap = {};
+      try {
+        savedTokenMap = JSON.parse(localStorage.getItem('dcc_persistent_tokens') || '{}');
+      } catch (e) {}
+
+      savedTokenMap[techId] = newToken;
+      localStorage.setItem('dcc_persistent_tokens', JSON.stringify(savedTokenMap));
+
       const updated = peserta.map(p => p.id === pesertaId ? { ...p, token: newToken, token_peserta: newToken } : p);
       setPeserta(updated);
       localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updated));
@@ -352,6 +385,7 @@ export default function DashboardPengawas() {
       }
       setPeserta([]);
       localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify([]));
+      localStorage.removeItem('dcc_persistent_tokens');
       setSelectedSiswa(null);
       setSelectedIds([]);
     } catch (err) {
@@ -830,7 +864,7 @@ export default function DashboardPengawas() {
                           </button>
                         </div>
 
-                        {/* ROW TOKEN UNIK SISWA */}
+                        {/* ROW TOKEN UNIK SISWA (DIJAMIN STABIL PERMANEN) */}
                         {modeToken === 'siswa' && (
                           <div className="flex items-center justify-between bg-[#030712] px-2.5 py-1 rounded-lg border border-purple-500/30 text-[10px]">
                             <span className="text-purple-300 font-display font-bold flex items-center gap-1">
