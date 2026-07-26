@@ -183,9 +183,19 @@ export default function DashboardPeserta() {
         }
       }
 
+      // Sinkronisasi Token Unik Siswa dari Kamus Persistent LocalStorage Pengawas (jika ada)
+      let tokenIndividuToDisplay = activeUser?.token || activeUser?.token_peserta || '';
+      if (!tokenIndividuToDisplay && activeUser?.tech_id) {
+        try {
+          const savedTokenMap = JSON.parse(localStorage.getItem('dcc_persistent_tokens') || '{}');
+          if (savedTokenMap[activeUser.tech_id]) {
+            tokenIndividuToDisplay = savedTokenMap[activeUser.tech_id];
+          }
+        } catch (e) {}
+      }
+
       const nameToDisplay = activeUser?.nama || activeUser?.nama_lengkap || localStorage.getItem(STORAGE_KEYS.USER_NAME) || 'Peserta Ujian';
       const techIdToDisplay = activeUser?.tech_id || localStorage.getItem(STORAGE_KEYS.USER_TECH_ID) || '';
-      const tokenIndividuToDisplay = activeUser?.token || activeUser?.token_peserta || '';
 
       setUserName(nameToDisplay);
       setTechId(techIdToDisplay);
@@ -334,17 +344,28 @@ export default function DashboardPeserta() {
 
     const inputUpper = tokenInput.trim().toUpperCase();
 
-    // ⚡ VALIDASI LOGIK DUAL-MODE TOKEN YANG DIPERKETAT
+    // ⚡ VALIDASI LOGIK DUAL-MODE TOKEN YANG DIPERKETAT SECARA MUTLAK
     let isTokenValid = false;
 
     if (modeToken === 'siswa') {
-      // JIKA MODE SISWA: MUTLAK HARUS PAKAI TOKEN UNIK MILIKNYA SENDIRI
-      const validIndividuToken = userTokenIndividu ? userTokenIndividu.toUpperCase().trim() : '';
+      // 🛑 JIKA MODE SISWA: HANYA BOLEH PAKAI TOKEN UNIK MILIKNYA SENDIRI!
+      // Token mapel global atau token emergency TIDAK BERLAKU SAMA SEKALI.
+      let targetIndividuToken = userTokenIndividu;
+      if (!targetIndividuToken && techId) {
+        try {
+          const savedMap = JSON.parse(localStorage.getItem('dcc_persistent_tokens') || '{}');
+          if (savedMap[techId]) {
+            targetIndividuToken = savedMap[techId];
+          }
+        } catch (e) {}
+      }
+
+      const validIndividuToken = targetIndividuToken ? targetIndividuToken.toUpperCase().trim() : '';
       if (validIndividuToken && inputUpper === validIndividuToken) {
         isTokenValid = true;
       }
     } else {
-      // JIKA MODE MAPEL: PAKAI TOKEN MAPEL AKTIF ATAU EMERGENCY
+      // 🟢 JIKA MODE MAPEL: BOLEH PAKAI TOKEN MAPEL ATAU EMERGENCY
       const tokenMapelAktif = activeExamDetail.tokenDefault ? activeExamDetail.tokenDefault.toUpperCase().trim() : '';
       if (
         (tokenMapelAktif && inputUpper === tokenMapelAktif) ||
@@ -393,7 +414,7 @@ export default function DashboardPeserta() {
     } else {
       setIsLoading(false);
       if (modeToken === 'siswa') {
-        setTokenError(`Token Unik Siswa untuk ${userName} tidak valid! Mintalah Token Rahasia milik Anda ke Pengawas.`);
+        setTokenError(`Token Unik Siswa untuk ${userName} tidak valid! Masukkan Token Rahasia milik Anda yang benar.`);
       } else {
         setTokenError(`Token untuk ujian ${activeExamDetail.nama} tidak valid! Gunakan token resmi mapel atau hubungi Pengawas.`);
       }
