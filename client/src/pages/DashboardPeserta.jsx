@@ -40,7 +40,7 @@ export default function DashboardPeserta() {
   const [daftarUjianDinamis, setDaftarUjianDinamis] = useState(DEFAULT_KATALOG);
   const [dataError, setDataError] = useState('');
 
-  // Helper Format Durasi Waktu Pengerjaan (Kebal NaN & Lintas Browser)
+  // Helper Format Durasi Waktu Pengerjaan
   const formatLamaPengerjaan = (mulaiStr, selesaiStr) => {
     if (!mulaiStr) return null;
 
@@ -229,7 +229,7 @@ export default function DashboardPeserta() {
     navigate('/login');
   };
 
-  const handleMulaiUjian = (e) => {
+  const handleMulaiUjian = async (e) => {
     e.preventDefault();
     setTokenError('');
 
@@ -237,6 +237,26 @@ export default function DashboardPeserta() {
     if (!isAgreed) return setTokenError('Anda harus menyetujui tata tertib pengerjaan ujian!');
 
     setIsLoading(true);
+
+    // === VERIFIKASI STATUS SESI UJIAN GLOBAL ===
+    try {
+      const { data: dataStatus } = await supabase
+        .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
+        .select('*')
+        .eq('key', 'status_sesi_ujian')
+        .maybeSingle();
+
+      const st = dataStatus?.value ? (typeof dataStatus.value === 'string' ? JSON.parse(dataStatus.value) : dataStatus.value) : null;
+      const statusSesi = st?.status || localStorage.getItem('dcc_status_sesi') || 'DITUTUP';
+
+      if (statusSesi !== 'DIBUKA') {
+        setIsLoading(false);
+        return setTokenError('AKSES DITOLAK: Sesi ujian saat ini sedang DITUTUP oleh pengawas!');
+      }
+    } catch (err) {
+      console.warn('Gagal mengecek status sesi ujian, menggunakan fallback...', err);
+    }
+    // ============================================
 
     const inputUpper = tokenInput.trim().toUpperCase();
 
@@ -247,43 +267,41 @@ export default function DashboardPeserta() {
       inputUpper === '12345' ||
       inputUpper === '1234'
     ) {
-      (async () => {
-        const nowIso = new Date().toISOString();
-        sessionStorage.setItem('examStarted', 'true');
-        sessionStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, activeExamDetail.id);
-        localStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, activeExamDetail.id);
-        localStorage.setItem(STORAGE_KEYS.USER_KATEGORI, activeExamDetail.id);
-        localStorage.setItem(`startTime_${techId}`, nowIso);
-        sessionStorage.setItem(`startTime_${techId}`, nowIso);
+      const nowIso = new Date().toISOString();
+      sessionStorage.setItem('examStarted', 'true');
+      sessionStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, activeExamDetail.id);
+      localStorage.setItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY, activeExamDetail.id);
+      localStorage.setItem(STORAGE_KEYS.USER_KATEGORI, activeExamDetail.id);
+      localStorage.setItem(`startTime_${techId}`, nowIso);
+      sessionStorage.setItem(`startTime_${techId}`, nowIso);
 
+      try {
+        await supabase
+          .from(TABLES.PESERTA)
+          .update({ status: 'berjalan', kategori: activeExamDetail.id, waktu_mulai: nowIso })
+          .eq('tech_id', techId);
+      } catch (err) {
+        console.warn('Gagal memperbarui status ke Supabase Cloud.', err);
+      }
+
+      const localSesi = JSON.parse(localStorage.getItem(STORAGE_KEYS.PESERTA) || '[]');
+      const updatedSesi = localSesi.map(p => {
+        if (p.tech_id?.toLowerCase().trim() === techId.toLowerCase().trim()) {
+          return { ...p, status: 'berjalan', kategori: activeExamDetail.id, waktu_mulai: nowIso };
+        }
+        return p;
+      });
+      localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updatedSesi));
+
+      const currentUserStr = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+      if (currentUserStr) {
         try {
-          await supabase
-            .from(TABLES.PESERTA)
-            .update({ status: 'berjalan', kategori: activeExamDetail.id, waktu_mulai: nowIso })
-            .eq('tech_id', techId);
-        } catch (err) {
-          console.warn('Gagal memperbarui status ke Supabase Cloud.', err);
-        }
+          const cu = JSON.parse(currentUserStr);
+          localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify({ ...cu, status: 'berjalan', kategori: activeExamDetail.id, waktu_mulai: nowIso }));
+        } catch (e) {}
+      }
 
-        const localSesi = JSON.parse(localStorage.getItem(STORAGE_KEYS.PESERTA) || '[]');
-        const updatedSesi = localSesi.map(p => {
-          if (p.tech_id?.toLowerCase().trim() === techId.toLowerCase().trim()) {
-            return { ...p, status: 'berjalan', kategori: activeExamDetail.id, waktu_mulai: nowIso };
-          }
-          return p;
-        });
-        localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updatedSesi));
-
-        const currentUserStr = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-        if (currentUserStr) {
-          try {
-            const cu = JSON.parse(currentUserStr);
-            localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify({ ...cu, status: 'berjalan', kategori: activeExamDetail.id, waktu_mulai: nowIso }));
-          } catch (e) {}
-        }
-
-        navigate('/ruang-ujian');
-      })();
+      navigate('/ruang-ujian');
     } else {
       setTokenError(`Token untuk ujian ${activeExamDetail.nama} tidak valid! Gunakan token resmi atau hubungi Pengawas.`);
       setIsLoading(false);
@@ -381,7 +399,6 @@ export default function DashboardPeserta() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* NILAI PILIHAN GANDA */}
                 <div className="p-5 rounded-xl bg-[#030712]/80 border border-slate-800/80 space-y-2">
                   <p className="text-[11px] font-display font-bold text-slate-400 uppercase tracking-wider">NILAI PILIHAN GANDA</p>
                   <div className="flex items-baseline gap-2">
@@ -390,7 +407,6 @@ export default function DashboardPeserta() {
                   </div>
                 </div>
 
-                {/* NILAI PRAKTIK */}
                 <div className="p-5 rounded-xl bg-[#030712]/80 border border-slate-800/80 space-y-2">
                   <p className="text-[11px] font-display font-bold text-slate-400 uppercase tracking-wider">NILAI PRAKTIK</p>
                   <p className="text-sm font-display font-bold text-amber-400 pt-1">
@@ -402,7 +418,6 @@ export default function DashboardPeserta() {
                   </p>
                 </div>
 
-                {/* NILAI AKHIR TOTAL */}
                 <div className="p-5 rounded-xl bg-[#030712]/80 border border-emerald-500/30 space-y-2">
                   <p className="text-[11px] font-display font-bold text-emerald-400 uppercase tracking-wider">NILAI AKHIR TOTAL</p>
                   <div className="flex items-baseline gap-2">

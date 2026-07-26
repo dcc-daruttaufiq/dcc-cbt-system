@@ -91,6 +91,26 @@ export default function RuangUjian() {
         return;
       }
 
+      // === 🛡️ KUNCI TAMBAHAN: VERIFIKASI STATUS SESI UJIAN GLOBAL DARI PENGAWAS ===
+      try {
+        const { data: dataStatus } = await supabase
+          .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
+          .select('*')
+          .eq('key', 'status_sesi_ujian')
+          .maybeSingle();
+
+        const st = dataStatus?.value ? (typeof dataStatus.value === 'string' ? JSON.parse(dataStatus.value) : dataStatus.value) : null;
+        const statusSesi = st?.status || localStorage.getItem('dcc_status_sesi') || 'DITUTUP';
+
+        if (statusSesi !== 'DIBUKA') {
+          setErrorState('AKSES DITUTUP: Sesi ujian saat ini sedang DITUTUP/DIKUNCI oleh Pengawas.');
+          return;
+        }
+      } catch (err) {
+        console.warn('Gagal verifikasi status sesi ujian, melanjutkan dengan fallback...', err);
+      }
+      // =========================================================================
+
       const rawExamId =
         localStorage.getItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY) ||
         sessionStorage.getItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY) ||

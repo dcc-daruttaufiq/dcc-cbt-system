@@ -4,7 +4,7 @@ import Sidebar from '../components/ui/Sidebar';
 import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { Sliders, Clock, Save, CheckCircle2, AlertCircle, ShieldCheck, Plus, Trash2, Edit3, X, BookOpen, Percent } from 'lucide-react';
+import { Sliders, Clock, Save, CheckCircle2, AlertCircle, Plus, Trash2, Edit3, X, BookOpen, Percent, Lock, Unlock, Power } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const DEFAULT_KATALOG = [
@@ -17,8 +17,10 @@ const DEFAULT_KATALOG = [
 
 export default function PengaturanUjian() {
   const [katalogMapel, setKatalogMapel] = useState(DEFAULT_KATALOG);
+  const [statusSesi, setStatusSesi] = useState('DITUTUP'); // 'DIBUKA' | 'DITUTUP'
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isTogglingStatus, setIsTogglingStatus] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
   // State Modal Form Tambah/Edit
@@ -44,14 +46,15 @@ export default function PengaturanUjian() {
   const loadPengaturan = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      // 1. Fetch Katalog Mata Ujian
+      const { data: dataKatalog } = await supabase
         .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
         .select('*')
         .eq('key', 'katalog_mata_ujian')
         .maybeSingle();
 
-      if (!error && data && data.value) {
-        const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+      if (dataKatalog && dataKatalog.value) {
+        const parsed = typeof dataKatalog.value === 'string' ? JSON.parse(dataKatalog.value) : dataKatalog.value;
         if (Array.isArray(parsed) && parsed.length > 0) {
           const normalized = parsed.map(m => ({
             ...m,
@@ -62,12 +65,27 @@ export default function PengaturanUjian() {
           localStorage.setItem('dcc_katalog_mapel', JSON.stringify(normalized));
         }
       }
-    } catch (err) {
-      console.warn('Membaca katalog dari cache lokal...', err);
-      const local = localStorage.getItem('dcc_katalog_mapel');
-      if (local) {
-        try { setKatalogMapel(JSON.parse(local)); } catch (e) {}
+
+      // 2. Fetch Status Sesi Ujian Global
+      const { data: dataStatus } = await supabase
+        .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
+        .select('*')
+        .eq('key', 'status_sesi_ujian')
+        .maybeSingle();
+
+      if (dataStatus && dataStatus.value) {
+        const st = typeof dataStatus.value === 'string' ? JSON.parse(dataStatus.value) : dataStatus.value;
+        setStatusSesi(st.status || 'DITUTUP');
+        localStorage.setItem('dcc_status_sesi', st.status || 'DITUTUP');
       }
+    } catch (err) {
+      console.warn('Membaca pengaturan dari cache lokal...', err);
+      const localKatalog = localStorage.getItem('dcc_katalog_mapel');
+      if (localKatalog) {
+        try { setKatalogMapel(JSON.parse(localKatalog)); } catch (e) {}
+      }
+      const localStatus = localStorage.getItem('dcc_status_sesi');
+      if (localStatus) setStatusSesi(localStatus);
     } finally {
       setIsLoading(false);
     }
@@ -77,7 +95,40 @@ export default function PengaturanUjian() {
     loadPengaturan();
   }, []);
 
-  // Helper Auto-Save Ke Supabase Cloud
+  // Toggle Status Sesi (DIBUKA <-> DITUTUP)
+  const handleToggleStatusSesi = async () => {
+    const nextStatus = statusSesi === 'DIBUKA' ? 'DITUTUP' : 'DIBUKA';
+    setIsTogglingStatus(true);
+    setMessage({ type: '', text: '' });
+
+    try {
+      localStorage.setItem('dcc_status_sesi', nextStatus);
+
+      const { error } = await supabase
+        .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
+        .upsert({
+          key: 'status_sesi_ujian',
+          value: JSON.stringify({ status: nextStatus, updated_at: new Date().toISOString() }),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'key' });
+
+      if (error) throw error;
+
+      setStatusSesi(nextStatus);
+      setMessage({
+        type: 'success',
+        text: `Sesi Ujian berhasil ${nextStatus === 'DIBUKA' ? 'DIBUKA! Peserta dapat mengakses ujian.' : 'DITUTUP! Akses ujian dikunci.'}`
+      });
+    } catch (err) {
+      console.error('Gagal memperbarui status sesi:', err);
+      setStatusSesi(nextStatus); // tetapkan secara lokal jika offline
+      setMessage({ type: 'warning', text: 'Status sesi berubah di lokal. Pastikan Supabase terhubung.' });
+    } finally {
+      setIsTogglingStatus(false);
+    }
+  };
+
+  // Helper Auto-Save Katalog Ke Supabase Cloud
   const saveToSupabase = async (updatedList) => {
     setIsSaving(true);
     setMessage({ type: '', text: '' });
@@ -95,7 +146,7 @@ export default function PengaturanUjian() {
 
       if (error) throw error;
 
-      setMessage({ type: 'success', text: 'Katalog mata ujian & bobot berhasil disimpan permanen ke Cloud!' });
+      setMessage({ type: 'success', text: 'Katalog mata ujian & bobot berhasil disimpan!' });
     } catch (err) {
       console.error('Gagal menyimpan ke Cloud:', err);
       setMessage({ type: 'warning', text: 'Tersimpan di Lokal. Pastikan Supabase terhubung.' });
@@ -188,7 +239,7 @@ export default function PengaturanUjian() {
             <Sliders className="text-cyan-400 w-6 h-6" />
             <div>
               <h1 className="text-base font-display font-bold text-white tracking-wide">PENGATURAN UJIAN</h1>
-              <p className="text-xs text-slate-400 font-sans">Kelola Mata Ujian, Alokasi Durasi & Bobot Penilaian</p>
+              <p className="text-xs text-slate-400 font-sans">Kontrol Akses Sesi, Mata Ujian & Bobot Nilai</p>
             </div>
           </div>
         </Navbar>
@@ -196,6 +247,51 @@ export default function PengaturanUjian() {
         <main className="p-6 md:p-8 flex-1 overflow-y-auto">
           <div className="max-w-5xl mx-auto space-y-6">
 
+            {/* PANEL KONTROL 1: KONTROL STATUS SESI UJIAN GLOBAL */}
+            <div className="p-6 bg-[#0d1527]/80 border border-slate-800 rounded-2xl shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2.5">
+                  <Power className={`w-5 h-5 ${statusSesi === 'DIBUKA' ? 'text-emerald-400' : 'text-rose-400'}`} />
+                  <h2 className="text-sm font-display font-bold text-white uppercase tracking-widest">
+                    KONTROL SESI UJIAN GLOBAL
+                  </h2>
+                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-display font-bold uppercase tracking-wider ${
+                    statusSesi === 'DIBUKA' 
+                      ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' 
+                      : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
+                  }`}>
+                    {statusSesi === 'DIBUKA' ? '● SESI AKTIF' : '○ SESI DITUTUP'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 font-sans">
+                  {statusSesi === 'DIBUKA'
+                    ? 'Sesi Ujian sedang DIBUKA. Seluruh peserta yang terdaftar dapat masuk ke Ruang Ujian.'
+                    : 'Sesi Ujian sedang DITUTUP. Peserta tidak dapat masuk atau mengerjakan soal.'}
+                </p>
+              </div>
+
+              <Button
+                onClick={handleToggleStatusSesi}
+                disabled={isTogglingStatus}
+                className={`px-5 py-2.5 rounded-xl font-display font-bold text-xs flex items-center gap-2 border-0 shadow-lg transition-all ${
+                  statusSesi === 'DIBUKA'
+                    ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/20'
+                    : 'bg-emerald-400 hover:bg-emerald-300 text-slate-950 shadow-emerald-400/20'
+                }`}
+              >
+                {statusSesi === 'DIBUKA' ? (
+                  <>
+                    <Lock className="w-4 h-4" /> KUNCI & TUTUP SESI
+                  </>
+                ) : (
+                  <>
+                    <Unlock className="w-4 h-4" /> BUKA SESI UJIAN
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* PANEL KONTROL 2: MASTER MATA UJIAN, DURASI & BOBOT */}
             <div className="p-6 bg-[#0d1527]/60 border border-slate-800 rounded-2xl space-y-6 shadow-xl">
               <div className="border-b border-slate-800/80 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -227,39 +323,32 @@ export default function PengaturanUjian() {
               )}
 
               {isLoading ? (
-                <div className="p-8 text-center text-xs text-slate-500 font-sans">Memuat katalog mata ujian...</div>
+                <div className="p-8 text-center text-xs text-slate-500 font-sans">Memuat data pengaturan...</div>
               ) : (
                 <form onSubmit={handleSimpan} className="space-y-4">
                   <div className="grid grid-cols-1 gap-3">
                     {katalogMapel.map((kat) => (
                       <div key={kat.id} className="p-4 rounded-xl bg-[#030712]/90 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
                         
-                        {/* SISI KIRI: NAMA, ID & BOBOT (DISEJAJARIN RAPI PAKE FLEX & GRID) */}
                         <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-6 flex-1 min-w-0">
-                          
-                          {/* Nama & Deskripsi Mapel */}
                           <div className="w-full md:w-52 shrink-0 space-y-0.5">
                             <h3 className="font-display font-bold text-sm text-white truncate">{kat.nama}</h3>
                             <p className="text-[11px] text-slate-400 font-sans truncate">{kat.desc}</p>
                           </div>
 
-                          {/* ID Badge (Kolom Teratur) */}
                           <div className="w-32 shrink-0">
                             <span className="inline-block text-[10px] text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-2 py-1 rounded font-display font-bold uppercase tracking-wider">
                               ID: {kat.id}
                             </span>
                           </div>
 
-                          {/* Bobot Badge (Kolom Teratur) */}
                           <div className="w-48 shrink-0">
                             <span className="inline-block text-[10px] text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded font-display font-bold">
                               Bobot: PG {kat.bobot_pg ?? 50}% | Praktik {kat.bobot_praktik ?? 50}%
                             </span>
                           </div>
-
                         </div>
 
-                        {/* SISI KANAN: BAR DURASI (SOLID CYAN, TEKS BIRU TUA, TANPA BORDER LINE) & BUTTONS */}
                         <div className="flex items-center gap-4 shrink-0 self-end md:self-center">
                           <div className="flex items-center gap-2">
                             <Input
@@ -271,13 +360,7 @@ export default function PengaturanUjian() {
                                 const val = parseInt(e.target.value) || 0;
                                 handleDurasiChange(kat.id, val);
                               }}
-                              /* 
-                                Custom Bar Durasi:
-                                - bg-cyan-400: Latar Biru Cyan Solid
-                                - text-[#071426]: Warna Angka Biru Tua Kontras
-                                - border-0: Tanpa Garis Tepi/Outlined
-                              */
-                              className="w-20 text-center font-display font-black text-[#071426] text-sm py-1.5 bg-cyan-400 border-0 focus:outline-none focus:ring-2 focus:ring-cyan-300 rounded-xl transition-all shadow-md shadow-cyan-400/20"
+                              className="w-20 text-center font-display font-black text-[#071426] text-sm py-1.5 bg-cyan-400 border-0 rounded-xl"
                             />
                             <span className="text-xs text-slate-300 font-sans font-bold">Menit</span>
                           </div>
@@ -410,9 +493,6 @@ export default function PengaturanUjian() {
                     />
                   </div>
                 </div>
-                <p className="text-[10px] text-slate-400 italic">
-                  *Total bobot Pilihan Ganda dan Praktik wajib berjumlah 100%.
-                </p>
 
                 <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800/60">
                   <Button variant="outline" type="button" onClick={() => setIsModalOpen(false)} className="bg-slate-800 text-xs border-0 font-sans">Batal</Button>
