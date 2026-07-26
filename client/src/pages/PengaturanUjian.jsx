@@ -53,7 +53,6 @@ export default function PengaturanUjian() {
       if (!error && data && data.value) {
         const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Pastikan properti bobot aman (fallback ke default jika data lama belum ada)
           const normalized = parsed.map(m => ({
             ...m,
             bobot_pg: m.bobot_pg !== undefined ? m.bobot_pg : 50,
@@ -105,26 +104,22 @@ export default function PengaturanUjian() {
     }
   };
 
-  // Simpan Manual lewat tombol bawah
   const handleSimpan = (e) => {
     if (e) e.preventDefault();
     saveToSupabase(katalogMapel);
   };
 
-  // Handler Edit Durasi Angka
   const handleDurasiChange = (id, val) => {
     const updated = katalogMapel.map(m => m.id === id ? { ...m, durasi: val } : m);
     setKatalogMapel(updated);
   };
 
-  // Buka Modal Tambah
   const openAddModal = () => {
     setEditingId(null);
     setFormMapel({ id: '', nama: '', desc: '', durasi: 90, bobot_pg: 50, bobot_praktik: 50 });
     setIsModalOpen(true);
   };
 
-  // Buka Modal Edit
   const openEditModal = (item) => {
     setEditingId(item.id);
     setFormMapel({ 
@@ -135,7 +130,6 @@ export default function PengaturanUjian() {
     setIsModalOpen(true);
   };
 
-  // Hapus Mata Ujian (Auto-Save)
   const handleDeleteMapel = (id, nama) => {
     if (katalogMapel.length <= 1) {
       return alert('Sistem harus memiliki minimal 1 Mata Ujian!');
@@ -147,12 +141,10 @@ export default function PengaturanUjian() {
     saveToSupabase(updated);
   };
 
-  // Submit Modal Form (Tambah / Edit + Auto-Save)
   const handleSaveModal = (e) => {
     e.preventDefault();
     if (!formMapel.nama.trim()) return alert('Nama Mata Ujian wajib diisi!');
 
-    // Validasi total bobot wajib 100%
     const totalBobot = Number(formMapel.bobot_pg) + Number(formMapel.bobot_praktik);
     if (totalBobot !== 100) {
       return alert(`Total bobot penilaian harus 100%! Saat ini totalnya: ${totalBobot}% (PG: ${formMapel.bobot_pg}%, Praktik: ${formMapel.bobot_praktik}%)`);
@@ -182,7 +174,7 @@ export default function PengaturanUjian() {
     }
 
     setKatalogMapel(updatedList);
-    saveToSupabase(updatedList); // AUTO-SAVE LANGSUNG
+    saveToSupabase(updatedList);
     setIsModalOpen(false);
   };
 
@@ -202,7 +194,7 @@ export default function PengaturanUjian() {
         </Navbar>
 
         <main className="p-6 md:p-8 flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto space-y-6">
+          <div className="max-w-5xl mx-auto space-y-6">
 
             <div className="p-6 bg-[#0d1527]/60 border border-slate-800 rounded-2xl space-y-6 shadow-xl">
               <div className="border-b border-slate-800/80 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -241,20 +233,34 @@ export default function PengaturanUjian() {
                   <div className="grid grid-cols-1 gap-3">
                     {katalogMapel.map((kat) => (
                       <div key={kat.id} className="p-4 rounded-xl bg-[#030712]/90 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-display font-bold text-sm text-white">{kat.nama}</h3>
-                            <span className="text-[10px] text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-2 py-0.5 rounded font-display font-bold uppercase">
+                        
+                        {/* SISI KIRI: NAMA, ID & BOBOT (DISEJAJARIN RAPI PAKE FLEX & GRID) */}
+                        <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-6 flex-1 min-w-0">
+                          
+                          {/* Nama & Deskripsi Mapel */}
+                          <div className="w-full md:w-52 shrink-0 space-y-0.5">
+                            <h3 className="font-display font-bold text-sm text-white truncate">{kat.nama}</h3>
+                            <p className="text-[11px] text-slate-400 font-sans truncate">{kat.desc}</p>
+                          </div>
+
+                          {/* ID Badge (Kolom Teratur) */}
+                          <div className="w-32 shrink-0">
+                            <span className="inline-block text-[10px] text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-2 py-1 rounded font-display font-bold uppercase tracking-wider">
                               ID: {kat.id}
                             </span>
-                            <span className="text-[10px] text-purple-400 bg-purple-400/10 border border-purple-400/20 px-2 py-0.5 rounded font-display font-bold">
+                          </div>
+
+                          {/* Bobot Badge (Kolom Teratur) */}
+                          <div className="w-48 shrink-0">
+                            <span className="inline-block text-[10px] text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded font-display font-bold">
                               Bobot: PG {kat.bobot_pg ?? 50}% | Praktik {kat.bobot_praktik ?? 50}%
                             </span>
                           </div>
-                          <p className="text-[11px] text-slate-400 font-sans">{kat.desc}</p>
+
                         </div>
 
-                        <div className="flex items-center gap-3 self-end md:self-center flex-wrap">
+                        {/* SISI KANAN: BAR DURASI (SOLID CYAN, TEKS BIRU TUA, TANPA BORDER LINE) & BUTTONS */}
+                        <div className="flex items-center gap-4 shrink-0 self-end md:self-center">
                           <div className="flex items-center gap-2">
                             <Input
                               type="number"
@@ -265,7 +271,13 @@ export default function PengaturanUjian() {
                                 const val = parseInt(e.target.value) || 0;
                                 handleDurasiChange(kat.id, val);
                               }}
-                              className="w-20 text-center font-display font-extrabold text-slate-950 text-sm py-1.5 bg-cyan-400 border-2 border-cyan-300 focus:bg-cyan-300 focus:border-cyan-200 focus:outline-none shadow-[0_0_15px_rgba(34,211,238,0.4)] rounded-xl transition-all"
+                              /* 
+                                Custom Bar Durasi:
+                                - bg-cyan-400: Latar Biru Cyan Solid
+                                - text-[#071426]: Warna Angka Biru Tua Kontras
+                                - border-0: Tanpa Garis Tepi/Outlined
+                              */
+                              className="w-20 text-center font-display font-black text-[#071426] text-sm py-1.5 bg-cyan-400 border-0 focus:outline-none focus:ring-2 focus:ring-cyan-300 rounded-xl transition-all shadow-md shadow-cyan-400/20"
                             />
                             <span className="text-xs text-slate-300 font-sans font-bold">Menit</span>
                           </div>
@@ -289,6 +301,7 @@ export default function PengaturanUjian() {
                             </button>
                           </div>
                         </div>
+
                       </div>
                     ))}
                   </div>
@@ -359,7 +372,6 @@ export default function PengaturanUjian() {
                   />
                 </div>
 
-                {/* Grid Input Bobot PG & Praktik */}
                 <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800/60">
                   <div>
                     <label className="text-[11px] font-display font-bold text-cyan-400 mb-1 block uppercase flex items-center gap-1">
@@ -372,7 +384,6 @@ export default function PengaturanUjian() {
                       value={formMapel.bobot_pg}
                       onChange={(e) => {
                         const pgVal = parseInt(e.target.value) || 0;
-                        // Otomatis menyesuaikan sisa bobot praktik agar total 100%
                         const prakVal = Math.max(0, 100 - pgVal);
                         setFormMapel({ ...formMapel, bobot_pg: pgVal, bobot_praktik: prakVal });
                       }}
