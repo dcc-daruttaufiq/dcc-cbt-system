@@ -183,7 +183,7 @@ export default function DashboardPeserta() {
         }
       }
 
-      // Sinkronisasi Token Unik Siswa dari Kamus Persistent LocalStorage Pengawas (jika ada)
+      // Sinkronisasi Token Unik Siswa dari Kamus Persistent LocalStorage Pengawas
       let tokenIndividuToDisplay = activeUser?.token || activeUser?.token_peserta || '';
       if (!tokenIndividuToDisplay && activeUser?.tech_id) {
         try {
@@ -344,25 +344,29 @@ export default function DashboardPeserta() {
 
     const inputUpper = tokenInput.trim().toUpperCase();
 
-    // ⚡ VALIDASI LOGIK DUAL-MODE TOKEN YANG DIPERKETAT SECARA MUTLAK
+    // 🛑 VALIDASI MUTLAK 100% KETAT (ANTIBOCOR)
     let isTokenValid = false;
 
     if (modeToken === 'siswa') {
-      // 🛑 JIKA MODE SISWA: HANYA BOLEH PAKAI TOKEN UNIK MILIKNYA SENDIRI!
-      // Token mapel global atau token emergency TIDAK BERLAKU SAMA SEKALI.
-      let targetIndividuToken = userTokenIndividu;
-      if (!targetIndividuToken && techId) {
+      // JIKA MODE SISWA: AMBIL TOKEN UNIK DARI KAMUS LOCALSTORAGE ATAU STATE
+      let realSiswaToken = userTokenIndividu;
+      if (!realSiswaToken && techId) {
         try {
           const savedMap = JSON.parse(localStorage.getItem('dcc_persistent_tokens') || '{}');
           if (savedMap[techId]) {
-            targetIndividuToken = savedMap[techId];
+            realSiswaToken = savedMap[techId];
           }
         } catch (e) {}
       }
 
-      const validIndividuToken = targetIndividuToken ? targetIndividuToken.toUpperCase().trim() : '';
+      const validIndividuToken = realSiswaToken ? realSiswaToken.toUpperCase().trim() : '';
+
+      // HANYA BOLEH MASUK JIKA INPUT SAMA PERSIS DENGAN TOKEN UNIK SISWA TERSEBUT!
+      // Token mapel global atau token emergency DIHARAMKAN MASUK DI MODE INI.
       if (validIndividuToken && inputUpper === validIndividuToken) {
         isTokenValid = true;
+      } else {
+        isTokenValid = false;
       }
     } else {
       // 🟢 JIKA MODE MAPEL: BOLEH PAKAI TOKEN MAPEL ATAU EMERGENCY
@@ -414,7 +418,7 @@ export default function DashboardPeserta() {
     } else {
       setIsLoading(false);
       if (modeToken === 'siswa') {
-        setTokenError(`Token Unik Siswa untuk ${userName} tidak valid! Masukkan Token Rahasia milik Anda yang benar.`);
+        setTokenError(`Akses Ditolak! Mode Token Siswa aktif. Anda wajib memasukkan Token Unik Rahasia milik Anda sendiri.`);
       } else {
         setTokenError(`Token untuk ujian ${activeExamDetail.nama} tidak valid! Gunakan token resmi mapel atau hubungi Pengawas.`);
       }
