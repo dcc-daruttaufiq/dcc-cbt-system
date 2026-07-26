@@ -330,64 +330,69 @@ export default function PengaturanUjian() {
                 <div className="p-8 text-center text-xs text-slate-500 font-sans">Memuat data pengaturan...</div>
               ) : (
                 <form onSubmit={handleSimpan} className="space-y-4">
+                  
+                  {/* KATALOG MAPEL DENGAN GRID SYSTEM TERATUR (ANTI MLEYOT) */}
                   <div className="grid grid-cols-1 gap-3">
                     {katalogMapel.map((kat) => (
-                      <div key={kat.id} className="p-4 rounded-xl bg-[#030712]/90 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div 
+                        key={kat.id} 
+                        className="p-4 rounded-xl bg-[#030712]/90 border border-slate-800 grid grid-cols-1 md:grid-cols-12 items-center gap-3 transition-all hover:border-slate-700"
+                      >
                         
-                        <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 flex-1 min-w-0 flex-wrap">
-                          <div className="w-full md:w-48 shrink-0 space-y-0.5">
-                            <h3 className="font-display font-bold text-sm text-white truncate">{kat.nama}</h3>
-                            <p className="text-[11px] text-slate-400 font-sans truncate">{kat.desc}</p>
-                          </div>
-
-                          <div className="shrink-0">
-                            <span className="inline-block text-[10px] text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-2 py-1 rounded font-display font-bold uppercase tracking-wider">
-                              ID: {kat.id}
-                            </span>
-                          </div>
-
-                          <div className="shrink-0">
-                            <span className="inline-block text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2.5 py-1 rounded font-display font-bold">
-                              KKM: {kat.kkm ?? 75}
-                            </span>
-                          </div>
-
-                          <div className="shrink-0">
-                            <span className="inline-block text-[10px] text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2.5 py-1 rounded font-display font-bold">
-                              Bobot: PG {kat.bobot_pg ?? 50}% | Prak {kat.bobot_praktik ?? 50}%
-                            </span>
-                          </div>
+                        {/* 1. NAMA & DESKRIPSI (4 Kolom) */}
+                        <div className="md:col-span-4 min-w-0 space-y-0.5">
+                          <h3 className="font-display font-bold text-sm text-white truncate" title={kat.nama}>{kat.nama}</h3>
+                          <p className="text-[11px] text-slate-400 font-sans truncate" title={kat.desc}>{kat.desc}</p>
                         </div>
 
-                        <div className="flex items-center gap-4 shrink-0 self-end md:self-center">
-                          <div className="flex items-center gap-2">
+                        {/* 2. BADGE ID (2 Kolom) */}
+                        <div className="md:col-span-2">
+                          <span className="inline-block text-[10px] text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-2.5 py-1 rounded font-display font-bold uppercase tracking-wider truncate max-w-full">
+                            ID: {kat.id}
+                          </span>
+                        </div>
+
+                        {/* 3. BADGE KKM (2 Kolom) */}
+                        <div className="md:col-span-2">
+                          <span className="inline-block text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2.5 py-1 rounded font-display font-bold whitespace-nowrap">
+                            KKM: {kat.kkm ?? 75}
+                          </span>
+                        </div>
+
+                        {/* 4. BADGE BOBOT (2 Kolom) */}
+                        <div className="md:col-span-2">
+                          <span className="inline-block text-[10px] text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2.5 py-1 rounded font-display font-bold whitespace-nowrap">
+                            Bobot: PG {kat.bobot_pg ?? 50}% | Prak {kat.bobot_praktik ?? 50}%
+                          </span>
+                        </div>
+
+                        {/* 5. DURASI & TOMBOL AKSI (2 Kolom - Rata Kanan) */}
+                        <div className="md:col-span-2 flex items-center justify-end gap-2 shrink-0">
+                          <div className="flex items-center gap-1.5">
                             <Input
                               type="number"
                               min="5"
                               max="360"
                               value={kat.durasi || 90}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value) || 0;
-                                handleDurasiChange(kat.id, val);
-                              }}
-                              className="w-20 text-center font-display font-black text-[#071426] text-sm py-1.5 bg-cyan-400 border-0 rounded-xl"
+                              onChange={(e) => handleDurasiChange(kat.id, parseInt(e.target.value) || 0)}
+                              className="w-16 text-center font-display font-black text-cyan-400 bg-[#0d1527] border border-cyan-400/30 text-xs py-1 px-1 rounded-lg focus:border-cyan-400 font-sans"
                             />
-                            <span className="text-xs text-slate-300 font-sans font-bold">Menit</span>
+                            <span className="text-[11px] text-slate-400 font-sans font-bold">Mnt</span>
                           </div>
 
-                          <div className="flex items-center gap-1 border-l border-slate-800 pl-3">
+                          <div className="flex items-center gap-0.5 border-l border-slate-800 pl-2">
                             <button
                               type="button"
                               onClick={() => openEditModal(kat)}
-                              className="p-2 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition"
-                              title="Edit Mata Ujian, KKM & Bobot"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition"
+                              title="Edit Mata Ujian"
                             >
                               <Edit3 className="w-4 h-4" />
                             </button>
                             <button
                               type="button"
                               onClick={() => handleDeleteMapel(kat.id, kat.nama)}
-                              className="p-2 rounded-lg text-rose-400 hover:bg-rose-500/10 transition"
+                              className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 transition"
                               title="Hapus Mata Ujian"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -466,7 +471,6 @@ export default function PengaturanUjian() {
                     />
                   </div>
 
-                  {/* INPUT KKM DINAMIS BARU */}
                   <div>
                     <label className="text-xs font-display font-bold text-amber-400 mb-1.5 block uppercase flex items-center gap-1">
                       <Award className="w-3.5 h-3.5" /> Nilai KKM
