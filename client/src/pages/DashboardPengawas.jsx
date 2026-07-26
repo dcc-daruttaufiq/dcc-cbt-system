@@ -124,31 +124,21 @@ export default function DashboardPengawas() {
       if (error) throw error;
 
       let rows = Array.isArray(data) ? data : [];
-      
-      // Ambil kamus token tersimpan di LocalStorage supaya token siswa tidak pernah berubah-ubah
-      let savedTokenMap = {};
-      try {
-        savedTokenMap = JSON.parse(localStorage.getItem('dcc_persistent_tokens') || '{}');
-      } catch (e) {}
 
-      let newMapUpdated = false;
-      rows = rows.map(p => {
-        const keyId = p.tech_id || String(p.id);
-        if (savedTokenMap[keyId]) {
-          // Gunakan token yang sudah terkunci di localStorage
-          return { ...p, token: savedTokenMap[keyId], token_peserta: savedTokenMap[keyId] };
-        } else {
-          // Buat token baru SEKALI SAJA, lalu simpan permanen ke mapping
-          const generated = generateRandomTokenSiswa();
-          savedTokenMap[keyId] = generated;
-          newMapUpdated = true;
-          return { ...p, token: generated, token_peserta: generated };
+      // Kalau ada peserta yang belum punya token di Supabase, buatkan & simpan ke Supabase
+      // (WAJIB tersimpan di Supabase supaya laptop peserta manapun bisa membacanya)
+      const belumPunyaToken = rows.filter(p => !p.token);
+      for (const p of belumPunyaToken) {
+        const generated = generateRandomTokenSiswa();
+        p.token = generated;
+        try {
+          await supabase.from(TABLES.PESERTA).update({ token: generated }).eq('id', p.id);
+        } catch (e) {
+          console.warn('Gagal menyimpan token baru ke Cloud untuk', p.tech_id, e);
         }
-      });
-
-      if (newMapUpdated) {
-        localStorage.setItem('dcc_persistent_tokens', JSON.stringify(savedTokenMap));
       }
+
+      rows = rows.map(p => ({ ...p, token_peserta: p.token }));
 
       setPeserta(rows);
       setIsOffline(false);
@@ -275,8 +265,8 @@ export default function DashboardPengawas() {
         return;
       }
 
-      // Bersihkan properti 'token' agar payload cocok dengan tabel database peserta di Supabase
-      const payloadToSupabase = importedPesertaArr.map(({ token, ...rest }) => rest);
+      // Token ikut disimpan ke Supabase supaya bisa dibaca dari laptop peserta manapun
+      const payloadToSupabase = importedPesertaArr;
 
       try {
         const { error } = await supabase.from(TABLES.PESERTA).insert(payloadToSupabase);
@@ -323,6 +313,8 @@ export default function DashboardPengawas() {
   const handleRegenerateTokenSiswa = async (pesertaId, techId) => {
     const newToken = generateRandomTokenSiswa();
     try {
+      await supabase.from(TABLES.PESERTA).update({ token: newToken }).eq('id', pesertaId);
+
       let savedTokenMap = {};
       try {
         savedTokenMap = JSON.parse(localStorage.getItem('dcc_persistent_tokens') || '{}');
@@ -344,8 +336,17 @@ export default function DashboardPengawas() {
     if (!confirm(`Hapus data peserta "${nama}"?`)) return;
 
     try {
+      const targetPeserta = peserta.find(p => p.id === pesertaId);
       const { error } = await supabase.from(TABLES.PESERTA).delete().eq('id', pesertaId);
       if (error) throw error;
+
+      if (targetPeserta?.tech_id) {
+        try {
+          await supabase.from(TABLES.JAWABAN_PESERTA).delete().eq('tech_id', targetPeserta.tech_id);
+        } catch (e) {
+          console.warn('Gagal menghapus jawaban terkait peserta ini.', e);
+        }
+      }
 
       const updated = peserta.filter(p => p.id !== pesertaId);
       setPeserta(updated);
@@ -361,8 +362,17 @@ export default function DashboardPengawas() {
     if (!confirm(`Hapus ${selectedIds.length} peserta terpilih?`)) return;
 
     try {
+      const targetTechIds = peserta.filter(p => selectedIds.includes(p.id)).map(p => p.tech_id).filter(Boolean);
       const { error } = await supabase.from(TABLES.PESERTA).delete().in('id', selectedIds);
       if (error) throw error;
+
+      if (targetTechIds.length > 0) {
+        try {
+          await supabase.from(TABLES.JAWABAN_PESERTA).delete().in('tech_id', targetTechIds);
+        } catch (e) {
+          console.warn('Gagal menghapus jawaban terkait peserta terpilih.', e);
+        }
+      }
 
       const updated = peserta.filter(p => !selectedIds.includes(p.id));
       setPeserta(updated);
@@ -380,8 +390,16 @@ export default function DashboardPengawas() {
 
     try {
       const idsToDelete = peserta.map(p => p.id).filter(Boolean);
+      const techIdsToDelete = peserta.map(p => p.tech_id).filter(Boolean);
       if (idsToDelete.length > 0) {
         await supabase.from(TABLES.PESERTA).delete().in('id', idsToDelete);
+      }
+      if (techIdsToDelete.length > 0) {
+        try {
+          await supabase.from(TABLES.JAWABAN_PESERTA).delete().in('tech_id', techIdsToDelete);
+        } catch (e) {
+          console.warn('Gagal menghapus jawaban terkait semua peserta.', e);
+        }
       }
       setPeserta([]);
       localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify([]));
@@ -455,7 +473,7 @@ export default function DashboardPengawas() {
             pertanyaan: matchedSoal.pertanyaan || `Butir Soal #${row.soal_id}`,
             jawaban: parsedJwb,
             ragu_ragu: !!row.ragu_ragu,
-            checklist: matchedSoal.checklist || ['Instruksi pengerjaan terpenuhi', 'Format berkas valid'],
+           checklist: tipeFinal === 'praktik' ? (matchedSoal.checklist || ['Instruksi pengerjaan terpenuhi', 'Format berkas valid']) : null,
           };
         });
       }
@@ -476,13 +494,17 @@ export default function DashboardPengawas() {
             const isWrapped = entry && typeof entry === 'object' && 'jawaban' in entry;
             const actualJwb = isWrapped ? entry.jawaban : entry;
 
+            const rawTipeLokal = (matchedSoal.tipe || '').toLowerCase();
+            const isObjLokal = actualJwb && typeof actualJwb === 'object';
+            const tipeFinalLokal = (rawTipeLokal.includes('prak') || rawTipeLokal.includes('essay') || isObjLokal) ? 'praktik' : 'pg';
+
             return {
               soal_id: soalId,
-              tipe: 'praktik',
+              tipe: tipeFinalLokal,
               pertanyaan: matchedSoal.pertanyaan || `Butir Soal #${soalId}`,
               jawaban: actualJwb,
               ragu_ragu: isWrapped ? !!entry.ragu_ragu : false,
-              checklist: matchedSoal.checklist || ['Instruksi pengerjaan terpenuhi', 'Format berkas valid']
+              checklist: tipeFinalLokal === 'praktik' ? (matchedSoal.checklist || ['Instruksi pengerjaan terpenuhi', 'Format berkas valid']) : null
             };
           });
         } catch (e) { 

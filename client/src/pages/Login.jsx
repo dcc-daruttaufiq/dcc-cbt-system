@@ -28,7 +28,7 @@ export default function Login() {
 
     // 1. LOGIN SEBAGAI PENGAWAS / LEAD INSTRUCTOR DCC
     if (selectedRole === 'master_admin') {
-      if ((inputUser.toLowerCase() === 'admin' && (inputPass === 'admin123' || inputPass === '123')) || inputPass === 'admin123') {
+      if (inputUser.toLowerCase() === 'admin' && (inputPass === 'admin123' || inputPass === '123')) {
         saveAndRedirect('master_admin', 'token-master-admin-real', 'Lead Instructor DCC', 'ADMIN-001', 'all');
         return;
       }
@@ -142,7 +142,7 @@ export default function Login() {
     const formattedRole = role.toLowerCase();
     if (formattedRole === 'master_admin' || formattedRole === 'admin') {
       navigate('/dashboard-admin');
-    } else if (formattedRole === 'Pengawas') {
+    } else if (formattedRole === 'pengawas') {
       navigate('/dashboard-Pengawas');
     } else {
       navigate('/dashboard-peserta');
