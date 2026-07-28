@@ -26,22 +26,14 @@ export default function Home() {
   const navigate = useNavigate()
 
   return (
-    <div className="flex flex-1 flex-col">
-      {/* NAVBAR ATAS — penanda jelas ini halaman navigasi */}
-      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-white/10 bg-background/80 px-6 py-3.5 backdrop-blur-md">
-        <img src={LOGO_URL} alt="Logo DCC" className="h-8 w-auto object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
-        <div>
-          <p className="font-display text-sm font-bold text-text-primary tracking-wide">DCC CBT</p>
-          <p className="text-[11px] text-text-secondary">Daruttaufiq Computer Centre</p>
-        </div>
-      </header>
-
-      <div className="flex flex-1 flex-col items-center justify-center gap-10 px-6 py-16 text-center">
+    <div className="flex flex-1 flex-col items-center justify-center gap-10 px-6 py-20 text-center">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
+        className="flex flex-col items-center"
       >
+        <img src={LOGO_URL} alt="Logo DCC" className="mb-5 h-12 w-auto object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
         <p className="mb-3 font-display text-sm uppercase tracking-[0.3em] text-accent">
           Daruttaufiq Computer Centre
         </p>
@@ -71,12 +63,16 @@ export default function Home() {
               hidden: { opacity: 0, y: 12 },
               show: { opacity: 1, y: 0 },
             }}
-            className="card flex flex-col items-center gap-2 p-6 text-center transition-all hover:border-accent cursor-pointer"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-accent/30 bg-accent/5 p-6 text-center shadow-lg transition-all hover:border-accent hover:bg-accent/10 hover:shadow-accent/20 cursor-pointer"
           >
-            <Icon className="h-7 w-7 text-accent" strokeWidth={1.75} />
-            <span className="font-display font-semibold">{label}</span>
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/15 border border-accent/30 group-hover:bg-accent group-hover:text-background transition-colors">
+              <Icon className="h-6 w-6 text-accent group-hover:text-background transition-colors" strokeWidth={1.75} />
+            </div>
+            <span className="font-display text-base font-bold text-text-primary">{label}</span>
             <span className="text-caption">{desc}</span>
-            <span className="mt-2 flex items-center gap-1.5 font-display text-xs font-bold text-accent">
+            <span className="mt-1 flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 font-display text-xs font-bold text-background">
               Buka <ArrowRight className="h-3.5 w-3.5" />
             </span>
           </motion.button>
@@ -88,13 +84,12 @@ export default function Home() {
             hidden: { opacity: 0, y: 12 },
             show: { opacity: 1, y: 0 },
           }}
-          className="card flex flex-col items-center justify-center gap-2 p-6 text-center border-dashed opacity-50 sm:col-span-2"
+          className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-white/10 p-6 text-center opacity-50 sm:col-span-2"
         >
           <Plus className="h-6 w-6" strokeWidth={1.75} />
           <span className="text-caption">Sistem berikutnya akan muncul di sini</span>
         </motion.div>
       </motion.div>
-      </div>
     </div>
   )
 }
