@@ -771,39 +771,42 @@ export default function DashboardPengawas() {
                 onClick={() => pesertaFileInputRef.current.click()}
                 className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-display font-bold border-0"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Import Excel / CSV
+                <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Import Data Peserta
               </Button>
 
               {peserta.length > 0 && (
                 <Button
                   onClick={handleDownloadPesertaToken}
-                  className="text-xs bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold border-0"
+                  className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 border-0 p-2"
+                  title="Download Token"
                 >
-                  <Download className="w-3.5 h-3.5 mr-1.5" /> Download Token
+                  <Download className="w-4 h-4" />
                 </Button>
               )}
 
               {peserta.some(p => (p.jumlah_pindah_tab ?? 0) > 0) && (
                 <Button
                   onClick={() => setShowPindahTabModal(true)}
-                  className="text-xs bg-red-600 hover:bg-red-500 text-white font-display font-bold border-0"
+                  className="bg-red-600 hover:bg-red-500 text-white border-0 p-2"
+                  title="Aktivitas Pindah Tab"
                 >
-                  <Eye className="w-3.5 h-3.5 mr-1.5" /> Aktivitas Pindah Tab
+                  <Eye className="w-4 h-4" />
                 </Button>
               )}
 
               {bankSoalAll.length > 0 && (
                 <Button
                   onClick={handleAnalisisSoal}
-                  className="text-xs bg-amber-400 hover:bg-amber-300 text-slate-950 font-display font-bold border-0"
+                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 border-0 p-2"
+                  title="Analisis Soal"
                 >
-                  <BarChart3 className="w-3.5 h-3.5 mr-1.5" /> Analisis Soal
+                  <BarChart3 className="w-4 h-4" />
                 </Button>
               )}
 
               {peserta.length > 0 && (
-                <Button onClick={handleDeleteAll} className="text-xs bg-rose-500/20 hover:bg-rose-500 text-rose-300 font-display font-bold border border-rose-500/30">
-                  <Trash2 className="w-3.5 h-3.5 mr-1" /> Reset All
+                <Button onClick={handleDeleteAll} className="bg-rose-500/20 hover:bg-rose-500 text-rose-300 border border-rose-500/30 p-2" title="Reset All">
+                  <Trash2 className="w-4 h-4" />
                 </Button>
               )}
 
