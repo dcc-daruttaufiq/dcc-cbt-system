@@ -31,7 +31,11 @@ import {
   BarChart3,
   X,
   Activity,
-  CreditCard
+  CreditCard,
+  Home,
+  Database,
+  Sliders,
+  FileBarChart
 } from 'lucide-react';
 
 // Helper Generator Token Random Unik Siswa
@@ -81,11 +85,11 @@ export default function DashboardPengawas() {
 
   // Menu Sidebar
   const menuPengawas = [
-    { label: 'Menu Utama', path: '/', icon: '🏠' },
-    { label: 'Koreksi Ujian', path: '/dashboard-Pengawas', icon: '📊' },
-    { label: 'Repositori Soal', path: '/bank-soal', icon: '📚' },
-    { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: '⚙️' },
-    { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
+    { label: 'Menu Utama', path: '/', icon: Home },
+    { label: 'Koreksi Ujian', path: '/dashboard-Pengawas', icon: CheckSquare },
+    { label: 'Repositori Soal', path: '/bank-soal', icon: Database },
+    { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: Sliders },
+    { label: 'Laporan Nilai', path: '/laporan', icon: FileBarChart },
   ];
 
   // Load Katalog Mata Ujian & Mode Token

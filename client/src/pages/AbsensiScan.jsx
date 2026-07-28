@@ -3,7 +3,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { supabase, TABLES } from '../utils/supabaseClient';
 import Sidebar from '../components/ui/Sidebar';
 import Navbar from '../components/ui/Navbar';
-import { ScanLine, CheckCircle2, XCircle, AlertTriangle, Clock, Camera, User, ListChecks } from 'lucide-react';
+import { ScanLine, CheckCircle2, XCircle, AlertTriangle, Clock, Camera, User, ListChecks, Home, CalendarDays } from 'lucide-react';
 
 const PRESENSI_TABLE = 'presensi_harian';
 
@@ -264,9 +264,9 @@ export default function AbsensiScan() {
   }, [jamBatasMasuk]);
 
   const menuPresensi = [
-    { label: 'Menu Utama', path: '/', icon: '🏠' },
-    { label: 'Scan Presensi', path: '/absensi-scan', icon: '📷' },
-    { label: 'Rekap Presensi', path: '/rekap-absensi', icon: '🗓️' },
+    { label: 'Menu Utama', path: '/', icon: Home },
+    { label: 'Scan Presensi', path: '/absensi-scan', icon: ScanLine },
+    { label: 'Rekap Presensi', path: '/rekap-absensi', icon: CalendarDays },
   ];
 
   return (

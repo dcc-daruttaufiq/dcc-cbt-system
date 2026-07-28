@@ -4,7 +4,7 @@ import Sidebar from '../components/ui/Sidebar';
 import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import { CalendarDays, Users, CheckCircle2, XCircle, AlertTriangle, Search, Download, Clock, Save } from 'lucide-react';
+import { CalendarDays, Users, CheckCircle2, XCircle, AlertTriangle, Search, Download, Clock, Save, Home, ScanLine } from 'lucide-react';
 
 const ABSENSI_TABLE = 'absensi_harian';
 
@@ -29,9 +29,9 @@ export default function RekapAbsensi() {
   const [pesanSimpan, setPesanSimpan] = useState('');
 
   const menuPresensi = [
-    { label: 'Menu Utama', path: '/', icon: '🏠' },
-    { label: 'Scan Presensi', path: '/absensi-scan', icon: '📷' },
-    { label: 'Rekap Presensi', path: '/rekap-absensi', icon: '🗓️' },
+    { label: 'Menu Utama', path: '/', icon: Home },
+    { label: 'Scan Presensi', path: '/absensi-scan', icon: ScanLine },
+    { label: 'Rekap Presensi', path: '/rekap-absensi', icon: CalendarDays },
   ];
 
   const loadJamBatas = async () => {
