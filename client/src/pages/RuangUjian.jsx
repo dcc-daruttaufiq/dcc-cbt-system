@@ -7,7 +7,27 @@ import { STORAGE_KEYS, jawabanLocalKey } from '../utils/storageKeys';
 import { LOGO_URL } from '../config/brand';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import { Clock, ChevronLeft, ChevronRight, Save, Send, AlertTriangle, HelpCircle, Paperclip, FileCheck, CheckCircle } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, Save, Send, AlertTriangle, HelpCircle, Paperclip, FileCheck, CheckCircle, Eye } from 'lucide-react';
+
+// Pengacak Deterministik (Seeded Shuffle) — urutan tetap konsisten untuk TechID yang sama,
+// tapi berbeda-beda antar peserta. Jadi soal & opsi PG tidak berubah-ubah kalau di-refresh,
+// tapi peserta A dan peserta B melihat urutan yang berbeda (anti-nyontek visual).
+const seededShuffle = (array, seedStr) => {
+  let seed = 0;
+  for (let i = 0; i < seedStr.length; i++) {
+    seed = (seed * 31 + seedStr.charCodeAt(i)) >>> 0;
+  }
+  const rng = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+};
 
 export default function RuangUjian() {
   useDocumentTitle('Ruang Ujian Berjalan - DCC CBT');
@@ -24,15 +44,22 @@ export default function RuangUjian() {
   
   const [timeLeft, setTimeLeft] = useState(0);
   const [isTimerReady, setIsTimerReady] = useState(false);
+  const [showTimeWarning, setShowTimeWarning] = useState(false);
 
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [errorState, setErrorState] = useState('');
   const [examKategori, setExamKategori] = useState('');
   const [logoGagalDimuat, setLogoGagalDimuat] = useState(false);
+
+  // State & Modal Deteksi Pindah Tab / Aplikasi Lain
+  const [jumlahPindahTab, setJumlahPindahTab] = useState(0);
+  const [showTabWarning, setShowTabWarning] = useState(false);
   
   const timerRef = useRef(null);
   const fileInputPraktikRef = useRef(null);
   const debounceTimerRef = useRef(null);
+  const techIdRef = useRef('');
+  const timeWarningShownRef = useRef(false);
 
   // Ref untuk menyimpan state jawaban terbaru agar bisa dibaca di handler Realtime secara akurat
   const jawabanRef = useRef(jawaban);
@@ -96,6 +123,8 @@ export default function RuangUjian() {
 
       setUserName(realName);
       setTechId(realTechId);
+      techIdRef.current = realTechId;
+      setJumlahPindahTab(Number(currentUser.jumlah_pindah_tab) || 0);
 
       if (!realTechId) {
         setErrorState('Sesi login tidak valid (TechID tidak ditemukan). Silakan login ulang.');
@@ -182,7 +211,22 @@ export default function RuangUjian() {
         return;
       }
 
-      setListSoal(filteredSoal);
+      // 🔀 ACAK OPSI PG PER SISWA (menyimpan teks kunci jawaban asli sebelum diacak agar penilaian tetap akurat)
+      const soalDenganOpsiTeracak = filteredSoal.map(s => {
+        if (s.tipe === 'pg' && Array.isArray(s.opsi) && s.opsi.length > 0) {
+          const kunciHuruf = (s.jawaban_benar || s.jawabanBenar || 'A').toString().toUpperCase().trim();
+          const kunciIdx = kunciHuruf.charCodeAt(0) - 65;
+          const kunciTeksAsli = s.opsi[kunciIdx] !== undefined ? s.opsi[kunciIdx] : s.opsi[0];
+          const opsiTeracak = seededShuffle(s.opsi, `${realTechId}-opsi-${s.id}`);
+          return { ...s, opsi: opsiTeracak, _kunciTeksAsli: kunciTeksAsli };
+        }
+        return s;
+      });
+
+      // 🔀 ACAK URUTAN SOAL PER SISWA (konsisten selama sesi ujian yang sama, tidak berubah kalau di-refresh)
+      const soalUrutanFinal = seededShuffle(soalDenganOpsiTeracak, `${realTechId}-soal`);
+
+      setListSoal(soalUrutanFinal);
 
       // RESTORE JAWABAN
       try {
@@ -257,6 +301,28 @@ export default function RuangUjian() {
     };
   }, [techId]);
 
+  // 🕵️ DETEKSI PINDAH TAB / MINIMIZE / APLIKASI LAIN (Anti-Kecurangan)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && techIdRef.current) {
+        setJumlahPindahTab(prev => {
+          const next = prev + 1;
+          supabase
+            .from(TABLES.PESERTA)
+            .update({ jumlah_pindah_tab: next })
+            .eq('tech_id', techIdRef.current)
+            .then(() => {})
+            .catch(() => {});
+          return next;
+        });
+        setShowTabWarning(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
   // TIMER
   useEffect(() => {
     if (isTimerReady && timeLeft > 0) {
@@ -273,6 +339,26 @@ export default function RuangUjian() {
     }
     return () => clearInterval(timerRef.current);
   }, [isTimerReady]);
+
+  // ⏰ PERINGATAN SISA WAKTU 5 MENIT
+  useEffect(() => {
+    if (timeLeft === 300 && !timeWarningShownRef.current) {
+      timeWarningShownRef.current = true;
+      setShowTimeWarning(true);
+    }
+  }, [timeLeft]);
+
+  // 📡 LAPOR PROGRESS SOAL SAAT INI KE SUPABASE (untuk Live Monitoring Pengawas)
+  useEffect(() => {
+    if (techIdRef.current && listSoal.length > 0) {
+      supabase
+        .from(TABLES.PESERTA)
+        .update({ soal_terakhir: currentIdx + 1, total_soal_ujian: listSoal.length })
+        .eq('tech_id', techIdRef.current)
+        .then(() => {})
+        .catch(() => {});
+    }
+  }, [currentIdx, listSoal.length]);
 
   const formatTime = (seconds) => {
     const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
@@ -308,11 +394,12 @@ export default function RuangUjian() {
     setTimeout(() => setIsSaving(false), 300);
   };
 
-  const handleSelectPG = (opsiTeks, labelHuruf) => {
-    const nilaiSimpan = labelHuruf || opsiTeks;
-    const updated = { ...jawaban, [soalAktif.id]: nilaiSimpan };
+  // Jawaban PG disimpan sebagai TEKS opsi (bukan huruf A/B/C/D), karena urutan opsi
+  // sudah diacak per-siswa sehingga posisi huruf bisa berbeda antar peserta.
+  const handleSelectPG = (opsiTeks) => {
+    const updated = { ...jawaban, [soalAktif.id]: opsiTeks };
     setJawaban(updated);
-    persistJawaban(soalAktif.id, nilaiSimpan, raguRagu[soalAktif.id] || false);
+    persistJawaban(soalAktif.id, opsiTeks, raguRagu[soalAktif.id] || false);
   };
 
   const handleTextareaPraktik = (val) => {
@@ -401,9 +488,10 @@ export default function RuangUjian() {
     let benarCount = 0;
 
     soalPG.forEach(s => {
-      const jwbSiswa = (currentJawaban[s.id] || '').toString().toUpperCase().trim();
-      const kunci = (s.jawaban_benar || s.jawabanBenar || 'A').toString().toUpperCase().trim();
-      if (jwbSiswa && jwbSiswa === kunci) benarCount++;
+      const jwbSiswa = (currentJawaban[s.id] || '').toString().trim().toLowerCase();
+      // Kunci jawaban dicocokkan berdasarkan TEKS opsi asli (bukan huruf), karena opsi sudah diacak per-siswa
+      const kunciTeks = (s._kunciTeksAsli !== undefined ? s._kunciTeksAsli : (s.jawaban_benar || s.jawabanBenar || 'A')).toString().trim().toLowerCase();
+      if (jwbSiswa && jwbSiswa === kunciTeks) benarCount++;
     });
 
     const salahCount = soalPG.length - benarCount;
@@ -512,9 +600,17 @@ export default function RuangUjian() {
             </div>
           </div>
 
-          <div className="p-2 px-4 rounded-xl bg-[#030712] border border-slate-800 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-cyan-400 animate-pulse" />
-            <span className="font-bold text-sm tracking-wider text-emerald-400 font-display">{formatTime(timeLeft)}</span>
+          <div className="flex items-center gap-2">
+            {jumlahPindahTab > 0 && (
+              <div className="p-2 px-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-1.5">
+                <Eye className="w-3.5 h-3.5 text-amber-400" />
+                <span className="font-bold text-[11px] text-amber-400">Pindah Tab: {jumlahPindahTab}x</span>
+              </div>
+            )}
+            <div className="p-2 px-4 rounded-xl bg-[#030712] border border-slate-800 flex items-center gap-2">
+              <Clock className={`w-4 h-4 animate-pulse ${timeLeft <= 300 ? 'text-rose-400' : 'text-cyan-400'}`} />
+              <span className={`font-bold text-sm tracking-wider font-display ${timeLeft <= 300 ? 'text-rose-400' : 'text-emerald-400'}`}>{formatTime(timeLeft)}</span>
+            </div>
           </div>
         </div>
       </header>
@@ -550,12 +646,12 @@ export default function RuangUjian() {
                 <div className="grid grid-cols-1 gap-3 pt-2">
                   {soalAktif?.opsi && soalAktif.opsi.map((opsiTeks, idx) => {
                     const labelHuruf = String.fromCharCode(65 + idx);
-                    const isSelected = jawaban[soalAktif.id] === labelHuruf;
+                    const isSelected = jawaban[soalAktif.id] === opsiTeks;
 
                     return (
                       <div
                         key={idx}
-                        onClick={() => handleSelectPG(opsiTeks, labelHuruf)}
+                        onClick={() => handleSelectPG(opsiTeks)}
                         className={`p-4 rounded-xl border cursor-pointer flex items-start gap-4 ${
                           isSelected ? 'bg-[#0d1527] border-cyan-400 text-white shadow-md' : 'bg-[#030712]/60 border-slate-800 text-slate-300 hover:bg-[#0d1527]/60'
                         }`}
@@ -692,6 +788,30 @@ export default function RuangUjian() {
               <Button onClick={() => setShowSubmitModal(false)} className="flex-1 bg-slate-800 text-xs border-0">Batal</Button>
               <Button onClick={handleAutoSubmit} className="flex-1 bg-cyan-400 text-slate-950 font-bold text-xs border-0">Ya, Submit</Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PERINGATAN SISA WAKTU 5 MENIT */}
+      {showTimeWarning && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0d1527] border border-rose-500/40 rounded-2xl max-w-sm w-full p-6 space-y-4 text-center">
+            <Clock className="w-10 h-10 text-rose-400 mx-auto animate-pulse" />
+            <h3 className="text-sm font-bold text-white">Waktu Tersisa 5 Menit!</h3>
+            <p className="text-xs text-slate-300">Segera selesaikan dan periksa kembali jawaban Anda sebelum waktu habis.</p>
+            <Button onClick={() => setShowTimeWarning(false)} className="w-full bg-rose-500 hover:bg-rose-400 text-white font-bold text-xs border-0">Mengerti</Button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PERINGATAN PINDAH TAB */}
+      {showTabWarning && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0d1527] border border-amber-500/40 rounded-2xl max-w-sm w-full p-6 space-y-4 text-center">
+            <Eye className="w-10 h-10 text-amber-400 mx-auto" />
+            <h3 className="text-sm font-bold text-white">Perpindahan Tab Terdeteksi</h3>
+            <p className="text-xs text-slate-300">Aktivitas berpindah tab/aplikasi lain telah tercatat dan akan terlihat oleh Pengawas.</p>
+            <Button onClick={() => setShowTabWarning(false)} className="w-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs border-0">Kembali Mengerjakan</Button>
           </div>
         </div>
       )}

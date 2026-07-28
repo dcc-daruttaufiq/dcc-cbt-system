@@ -266,7 +266,8 @@ export default function DashboardPeserta() {
         const nilaiPraktik = activeUser?.nilai_praktik !== undefined && activeUser?.nilai_praktik !== null ? Number(activeUser.nilai_praktik) : null;
         const jumlahBenar = activeUser?.jumlah_benar !== undefined && activeUser?.jumlah_benar !== null ? Number(activeUser.jumlah_benar) : null;
         const jumlahSalah = activeUser?.jumlah_salah !== undefined && activeUser?.jumlah_salah !== null ? Number(activeUser.jumlah_salah) : null;
-        
+        const jumlahPindahTab = activeUser?.jumlah_pindah_tab !== undefined && activeUser?.jumlah_pindah_tab !== null ? Number(activeUser.jumlah_pindah_tab) : 0;
+
         let totalNilai = activeUser?.nilai_akhir !== undefined && activeUser?.nilai_akhir !== null ? Number(activeUser.nilai_akhir) : null;
         
         if (totalNilai === null && nilaiPraktik !== null) {
@@ -305,6 +306,7 @@ export default function DashboardPeserta() {
           totalSoal: totalSoalKategori || 0,
           jumlahBenar: jumlahBenar,
           jumlahSalah: jumlahSalah,
+          jumlahPindahTab: jumlahPindahTab,
           statusPraktikText: isFullyCorrected 
             ? (nilaiPraktik !== null ? `${nilaiPraktik}` : 'Selesai Dikoreksi') 
             : 'Dalam Koreksi Pengawas'
@@ -436,6 +438,73 @@ export default function DashboardPeserta() {
         setTokenError(`Token untuk ujian ${activeExamDetail.nama} tidak valid! Gunakan token resmi mapel atau hubungi Pengawas.`);
       }
     }
+  };
+
+  const handleCetakSertifikat = () => {
+    if (!completedExamInfo?.isLulus) return;
+
+    const win = window.open('', '_blank');
+    const tanggalCetak = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Sertifikat - ${userName}</title>
+        <style>
+          @page { size: landscape; margin: 0; }
+          body { margin: 0; font-family: Georgia, 'Times New Roman', serif; background: #f4f1ea; }
+          .sertifikat {
+            width: 1000px; height: 700px; margin: 30px auto; padding: 60px;
+            background: #fffdf8; border: 14px double #0f766e; box-sizing: border-box;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; position: relative;
+          }
+          .label { font-size: 14px; letter-spacing: 4px; color: #0f766e; text-transform: uppercase; margin-bottom: 10px; }
+          .judul { font-size: 42px; font-weight: bold; color: #111827; margin: 0 0 30px 0; letter-spacing: 2px; }
+          .subjudul { font-size: 15px; color: #4b5563; margin-bottom: 4px; }
+          .nama { font-size: 34px; font-weight: bold; color: #0f766e; margin: 14px 0; border-bottom: 2px solid #0f766e; padding-bottom: 8px; display: inline-block; }
+          .desk { font-size: 15px; color: #374151; max-width: 700px; line-height: 1.7; margin: 16px 0 26px 0; }
+          .mapel { font-weight: bold; color: #111827; }
+          .nilai-box { display: flex; gap: 40px; margin-bottom: 30px; }
+          .nilai-item { text-align: center; }
+          .nilai-angka { font-size: 26px; font-weight: bold; color: #0f766e; }
+          .nilai-label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; }
+          .footer { display: flex; justify-content: space-between; width: 100%; margin-top: 20px; font-size: 12px; color: #6b7280; }
+          .techid { font-size: 12px; color: #9ca3af; margin-top: 6px; }
+        </style>
+      </head>
+      <body onload="window.print()">
+        <div class="sertifikat">
+          <div class="label">Daruttaufiq Computer Centre</div>
+          <div class="judul">SERTIFIKAT KELULUSAN</div>
+          <div class="subjudul">Diberikan kepada:</div>
+          <div class="nama">${userName}</div>
+          <div class="techid">TechID: ${techId}</div>
+          <div class="desk">
+            Telah dinyatakan <strong>LULUS</strong> dalam Ujian Sertifikasi Kompetensi
+            <span class="mapel">${completedExamInfo?.namaUjian || '-'}</span>
+            yang diselenggarakan oleh Daruttaufiq Computer Centre (DCC).
+          </div>
+          <div class="nilai-box">
+            <div class="nilai-item">
+              <div class="nilai-angka">${completedExamInfo?.totalNilai ?? 0}</div>
+              <div class="nilai-label">Nilai Akhir</div>
+            </div>
+            <div class="nilai-item">
+              <div class="nilai-angka">${completedExamInfo?.kkm ?? 75}</div>
+              <div class="nilai-label">Batas KKM</div>
+            </div>
+          </div>
+          <div class="footer">
+            <span>Diterbitkan: ${tanggalCetak}</span>
+            <span>Daruttaufiq Computer Centre</span>
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
+    win.document.close();
   };
 
   if (dataError) {
@@ -585,6 +654,21 @@ export default function DashboardPeserta() {
                   </div>
                 </div>
               </div>
+
+              {(completedExamInfo?.jumlahPindahTab ?? 0) > 0 && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-[11px] text-amber-400 font-sans flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  Tercatat berpindah tab/aplikasi lain sebanyak <strong>{completedExamInfo.jumlahPindahTab}x</strong> selama pengerjaan.
+                </div>
+              )}
+
+              {completedExamInfo?.isLulus && (
+                <div className="flex justify-end">
+                  <Button onClick={handleCetakSertifikat} className="bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-display font-bold text-xs border-0 flex items-center gap-2">
+                    <Award className="w-4 h-4" /> Cetak Sertifikat Kelulusan
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <>

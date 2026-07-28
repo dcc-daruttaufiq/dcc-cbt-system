@@ -26,7 +26,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Key,
-  Download
+  Download,
+  Eye,
+  BarChart3,
+  X,
+  Activity
 } from 'lucide-react';
 
 // Helper Generator Token Random Unik Siswa
@@ -63,6 +67,11 @@ export default function DashboardPengawas() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 8;
+
+  // State Analisis Butir Soal
+  const [showAnalisisModal, setShowAnalisisModal] = useState(false);
+  const [isLoadingAnalisis, setIsLoadingAnalisis] = useState(false);
+  const [analisisData, setAnalisisData] = useState([]);
 
   const pesertaFileInputRef = useRef(null);
 
@@ -308,6 +317,83 @@ export default function DashboardPengawas() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // 📊 Fitur Export Rekap Nilai Lengkap Semua Peserta (CSV / dibuka Excel)
+  const handleExportNilai = () => {
+    if (peserta.length === 0) return alert("Belum ada data peserta untuk diekspor!");
+
+    let csvContent = "data:text/csv;charset=utf-8,Nama Lengkap,TechID,Mata Ujian,Status,Nilai PG,Jawaban Benar,Jawaban Salah,Nilai Praktik,Nilai Akhir,KKM,Kelulusan,Pindah Tab\n";
+    peserta.forEach(p => {
+      const nama = p.nama || p.nama_lengkap || '-';
+      const techId = p.tech_id || '-';
+      const kat = normalizeKategori(p.kategori) || p.kategori || '-';
+      const matchedKat = katalogMapel.find(m => m.id === kat);
+      const kkm = matchedKat?.kkm ?? 75;
+      const nilaiAkhir = p.nilai_akhir !== undefined && p.nilai_akhir !== null ? Number(p.nilai_akhir) : 0;
+      const statusLulus = p.status === 'selesai' ? (nilaiAkhir >= kkm ? 'LULUS' : 'BELUM LULUS') : '-';
+      const nilaiPraktikDisplay = p.nilai_praktik !== undefined && p.nilai_praktik !== null ? p.nilai_praktik : (p.status_koreksi === 'dikoreksi' ? 0 : 'Belum Dikoreksi');
+
+      csvContent += `"${nama}","${techId}","${kat}","${p.status || 'belum_mulai'}","${p.nilai_pg ?? 0}","${p.jumlah_benar ?? '-'}","${p.jumlah_salah ?? '-'}","${nilaiPraktikDisplay}","${nilaiAkhir}","${kkm}","${statusLulus}","${p.jumlah_pindah_tab ?? 0}"\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Rekap_Nilai_Ujian_DCC_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // 📈 Fitur Analisis Butir Soal — hitung persentase peserta yang menjawab benar per soal PG
+  const handleAnalisisSoal = async () => {
+    setShowAnalisisModal(true);
+    setIsLoadingAnalisis(true);
+
+    try {
+      const { data: semuaJawaban, error } = await supabase
+        .from(TABLES.JAWABAN_PESERTA)
+        .select('soal_id, jawaban');
+
+      if (error) throw error;
+
+      const soalPGList = bankSoalAll.filter(s => (s.tipe || '').toLowerCase() === 'pg');
+
+      const hasil = soalPGList.map(s => {
+        const kunciHuruf = (s.jawaban_benar || s.jawabanBenar || 'A').toString().toUpperCase().trim();
+        const kunciIdx = kunciHuruf.charCodeAt(0) - 65;
+        const kunciTeks = (Array.isArray(s.opsi) ? s.opsi[kunciIdx] : '') || '';
+
+        const jawabanUntukSoalIni = (semuaJawaban || []).filter(j => String(j.soal_id).trim() === String(s.id).trim());
+
+        let benar = 0;
+        jawabanUntukSoalIni.forEach(j => {
+          const jwbTeks = (j.jawaban || '').toString().trim().toLowerCase();
+          if (jwbTeks && jwbTeks === kunciTeks.toString().trim().toLowerCase()) benar++;
+        });
+
+        const totalDijawab = jawabanUntukSoalIni.length;
+        const persentaseBenar = totalDijawab > 0 ? Math.round((benar / totalDijawab) * 100) : null;
+
+        return {
+          soalId: s.id,
+          pertanyaan: s.pertanyaan || `Soal #${s.id}`,
+          kategori: s.kategori,
+          totalDijawab,
+          benar,
+          salah: totalDijawab - benar,
+          persentaseBenar
+        };
+      }).sort((a, b) => (a.persentaseBenar ?? 999) - (b.persentaseBenar ?? 999));
+
+      setAnalisisData(hasil);
+    } catch (err) {
+      console.error('Gagal memuat analisis soal:', err);
+      alert('Gagal memuat data analisis butir soal.');
+    } finally {
+      setIsLoadingAnalisis(false);
+    }
   };
 
   const handleRegenerateTokenSiswa = async (pesertaId, techId) => {
@@ -702,6 +788,24 @@ export default function DashboardPengawas() {
               )}
 
               {peserta.length > 0 && (
+                <Button
+                  onClick={handleExportNilai}
+                  className="text-xs bg-purple-500 hover:bg-purple-400 text-white font-display font-bold border-0"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Export Nilai
+                </Button>
+              )}
+
+              {bankSoalAll.length > 0 && (
+                <Button
+                  onClick={handleAnalisisSoal}
+                  className="text-xs bg-amber-400 hover:bg-amber-300 text-slate-950 font-display font-bold border-0"
+                >
+                  <BarChart3 className="w-3.5 h-3.5 mr-1.5" /> Analisis Soal
+                </Button>
+              )}
+
+              {peserta.length > 0 && (
                 <Button onClick={handleDeleteAll} className="text-xs bg-rose-500/20 hover:bg-rose-500 text-rose-300 font-display font-bold border border-rose-500/30">
                   <Trash2 className="w-3.5 h-3.5 mr-1" /> Reset All
                 </Button>
@@ -843,6 +947,10 @@ export default function DashboardPengawas() {
                       : (p.nilai_praktik || p.nilai_pg || '-');
 
                     const tokenSiswaReal = p.token || p.token_peserta || generateRandomTokenSiswa();
+                    const isSedangUjian = p.status === 'berjalan';
+                    const progressSoal = p.soal_terakhir || 0;
+                    const totalSoalUjian = p.total_soal_ujian || 0;
+                    const progressPercent = totalSoalUjian > 0 ? Math.min(100, Math.round((progressSoal / totalSoalUjian) * 100)) : 0;
 
                     return (
                       <div
@@ -908,10 +1016,32 @@ export default function DashboardPengawas() {
                           </div>
                         )}
 
-                        <div className="flex items-center justify-between gap-2 pt-0.5">
-                          <Badge variant={statusInfo.variant} className="text-[9px] px-2 py-0.5 rounded-md font-sans">
-                            {statusInfo.text}
-                          </Badge>
+                        {/* 📡 LIVE MONITORING PROGRESS SAAT PESERTA SEDANG UJIAN */}
+                        {isSedangUjian && totalSoalUjian > 0 && (
+                          <div className="space-y-1 bg-[#030712] px-2.5 py-2 rounded-lg border border-cyan-500/20">
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="text-cyan-300 font-display font-bold flex items-center gap-1">
+                                <Activity className="w-3 h-3 text-cyan-400" /> Sedang di soal {progressSoal} / {totalSoalUjian}
+                              </span>
+                              <span className="text-cyan-400 font-mono font-bold">{progressPercent}%</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                              <div className="h-full bg-cyan-400 rounded-full transition-all" style={{ width: `${progressPercent}%` }} />
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between gap-2 pt-0.5 flex-wrap">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant={statusInfo.variant} className="text-[9px] px-2 py-0.5 rounded-md font-sans">
+                              {statusInfo.text}
+                            </Badge>
+                            {(p.jumlah_pindah_tab ?? 0) > 0 && (
+                              <span className="flex items-center gap-1 text-[9px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-1.5 py-0.5 rounded-md">
+                                <Eye className="w-2.5 h-2.5" /> {p.jumlah_pindah_tab}x
+                              </span>
+                            )}
+                          </div>
 
                           <div className="flex items-center gap-2">
                             {(p.jumlah_benar !== undefined && p.jumlah_benar !== null) && (
@@ -1129,6 +1259,53 @@ export default function DashboardPengawas() {
           </div>
         </main>
       </div>
+
+      {/* 📈 MODAL ANALISIS BUTIR SOAL */}
+      {showAnalisisModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0d1527] border border-slate-800 rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-slate-800 shrink-0">
+              <h3 className="text-sm font-display font-bold text-amber-400 flex items-center gap-2">
+                <BarChart3 className="w-4 h-4" /> Analisis Butir Soal (Pilihan Ganda)
+              </h3>
+              <button onClick={() => setShowAnalisisModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto flex-1 space-y-2">
+              {isLoadingAnalisis ? (
+                <p className="text-xs text-slate-500 text-center py-8">Menghitung statistik jawaban peserta...</p>
+              ) : analisisData.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-8">Belum ada data jawaban PG untuk dianalisis.</p>
+              ) : (
+                analisisData.map((item) => (
+                  <div key={item.soalId} className="p-3 bg-[#030712]/60 border border-slate-800 rounded-xl flex items-center justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-slate-200 truncate" title={item.pertanyaan}>{item.pertanyaan}</p>
+                      <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                        Kategori: {item.kategori} • Dijawab {item.totalDijawab} peserta
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      {item.persentaseBenar === null ? (
+                        <span className="text-[10px] text-slate-500">Belum ada data</span>
+                      ) : (
+                        <>
+                          <span className={`text-lg font-display font-bold ${item.persentaseBenar < 50 ? 'text-rose-400' : item.persentaseBenar < 75 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                            {item.persentaseBenar}%
+                          </span>
+                          <p className="text-[9px] text-slate-500">benar dari total dijawab</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
