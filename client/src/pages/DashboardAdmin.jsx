@@ -162,8 +162,8 @@ export default function DashboardAdmin() {
           <div className="flex items-center gap-3">
             <Database className="text-primary w-6 h-6" />
             <div>
-              <h1 className="text-base font-display font-bold text-white tracking-wide">CORE CENTRAL ADMIN</h1>
-              <p className="text-xs text-slate-400">Overview gabungan Sistem Ujian & Presensi — data langsung dari Supabase</p>
+              <h1 className="text-base font-display font-bold text-white tracking-wide">DASBOR UTAMA</h1>
+              <p className="text-xs text-slate-400">Overview gabungan Sistem</p>
             </div>
           </div>
         </Navbar>
