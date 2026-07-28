@@ -606,7 +606,7 @@ export default function DashboardPeserta() {
                     </Badge>
                   ) : (
                     <Badge className="bg-rose-500/20 text-rose-400 border-rose-500/40 text-xs px-3 py-1 font-display font-bold flex items-center gap-1.5">
-                      <XCircle className="w-4 h-4" /> BELUM LULUS (KKM: {completedExamInfo?.kkm})
+                      <XCircle className="w-4 h-4" /> TIDAK LULUS (KKM: {completedExamInfo?.kkm})
                     </Badge>
                   )}
                 </div>
