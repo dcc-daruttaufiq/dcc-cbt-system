@@ -814,9 +814,10 @@ export default function DashboardPengawas() {
                   await loadPeserta();
                   setTimeout(() => setIsRefreshing(false), 500);
                 }}
-                className="bg-slate-800 hover:bg-slate-700 text-xs border-0 text-slate-300"
+                className="bg-slate-800 hover:bg-slate-700 text-xs border-0 text-slate-300 p-2"
+                title="Refresh Status"
               >
-                <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} /> Refresh Status
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
             </div>
           </div>
