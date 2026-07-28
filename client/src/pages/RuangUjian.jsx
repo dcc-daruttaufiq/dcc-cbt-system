@@ -807,11 +807,11 @@ export default function RuangUjian() {
       {/* MODAL PERINGATAN PINDAH TAB */}
       {showTabWarning && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#0d1527] border border-amber-500/40 rounded-2xl max-w-sm w-full p-6 space-y-4 text-center">
-            <Eye className="w-10 h-10 text-amber-400 mx-auto" />
+          <div className="bg-[#0d1527] border border-red-500/50 rounded-2xl max-w-sm w-full p-6 space-y-4 text-center">
+            <Eye className="w-10 h-10 text-red-500 mx-auto" />
             <h3 className="text-sm font-bold text-white">Perpindahan Tab Terdeteksi</h3>
             <p className="text-xs text-slate-300">Aktivitas berpindah tab/aplikasi lain telah tercatat dan akan terlihat oleh Pengawas.</p>
-            <Button onClick={() => setShowTabWarning(false)} className="w-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs border-0">Kembali Mengerjakan</Button>
+            <Button onClick={() => setShowTabWarning(false)} className="w-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs border-0">Kembali Mengerjakan</Button>
           </div>
         </div>
       )}
