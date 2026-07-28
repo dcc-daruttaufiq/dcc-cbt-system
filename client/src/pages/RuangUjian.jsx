@@ -602,14 +602,14 @@ export default function RuangUjian() {
 
           <div className="flex items-center gap-2">
             {jumlahPindahTab > 0 && (
-              <div className="p-2 px-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-1.5">
-                <Eye className="w-3.5 h-3.5 text-amber-400" />
-                <span className="font-bold text-[11px] text-amber-400">Pindah Tab: {jumlahPindahTab}x</span>
+              <div className="p-2 px-3 rounded-xl bg-red-500/15 border border-red-500/40 flex items-center gap-1.5">
+                <Eye className="w-3.5 h-3.5 text-red-500" />
+                <span className="font-bold text-[11px] text-red-500">Pindah Tab: {jumlahPindahTab}x</span>
               </div>
             )}
             <div className="p-2 px-4 rounded-xl bg-[#030712] border border-slate-800 flex items-center gap-2">
-              <Clock className={`w-4 h-4 animate-pulse ${timeLeft <= 300 ? 'text-rose-400' : 'text-cyan-400'}`} />
-              <span className={`font-bold text-sm tracking-wider font-display ${timeLeft <= 300 ? 'text-rose-400' : 'text-emerald-400'}`}>{formatTime(timeLeft)}</span>
+              <Clock className={`w-4 h-4 animate-pulse ${timeLeft <= 300 ? 'text-red-500' : 'text-cyan-400'}`} />
+              <span className={`font-bold text-sm tracking-wider font-display ${timeLeft <= 300 ? 'text-red-500' : 'text-emerald-400'}`}>{formatTime(timeLeft)}</span>
             </div>
           </div>
         </div>
@@ -795,11 +795,11 @@ export default function RuangUjian() {
       {/* MODAL PERINGATAN SISA WAKTU 5 MENIT */}
       {showTimeWarning && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#0d1527] border border-rose-500/40 rounded-2xl max-w-sm w-full p-6 space-y-4 text-center">
-            <Clock className="w-10 h-10 text-rose-400 mx-auto animate-pulse" />
+          <div className="bg-[#0d1527] border border-red-500/50 rounded-2xl max-w-sm w-full p-6 space-y-4 text-center">
+            <Clock className="w-10 h-10 text-red-500 mx-auto animate-pulse" />
             <h3 className="text-sm font-bold text-white">Waktu Tersisa 5 Menit!</h3>
             <p className="text-xs text-slate-300">Segera selesaikan dan periksa kembali jawaban Anda sebelum waktu habis.</p>
-            <Button onClick={() => setShowTimeWarning(false)} className="w-full bg-rose-500 hover:bg-rose-400 text-white font-bold text-xs border-0">Mengerti</Button>
+            <Button onClick={() => setShowTimeWarning(false)} className="w-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs border-0">Mengerti</Button>
           </div>
         </div>
       )}

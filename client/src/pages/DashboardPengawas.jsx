@@ -73,6 +73,9 @@ export default function DashboardPengawas() {
   const [isLoadingAnalisis, setIsLoadingAnalisis] = useState(false);
   const [analisisData, setAnalisisData] = useState([]);
 
+  // State Modal Aktivitas Pindah Tab
+  const [showPindahTabModal, setShowPindahTabModal] = useState(false);
+
   const pesertaFileInputRef = useRef(null);
 
   // Menu Sidebar
@@ -188,6 +191,26 @@ export default function DashboardPengawas() {
     }, 4000);
 
     return () => clearInterval(interval);
+  }, []);
+
+  // 📡 REALTIME: update kartu peserta INSTAN begitu ada perubahan di Supabase
+  // (progress soal, status, jumlah pindah tab, dll) — tanpa perlu menunggu polling atau refresh manual.
+  useEffect(() => {
+    const channel = supabase
+      .channel('realtime_progress_peserta')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: TABLES.PESERTA },
+        (payload) => {
+          if (!payload.new) return;
+          setPeserta(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new, token_peserta: payload.new.token || p.token_peserta } : p));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {
@@ -314,33 +337,6 @@ export default function DashboardPengawas() {
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", `Daftar_Peserta_Dan_Token_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // 📊 Fitur Export Rekap Nilai Lengkap Semua Peserta (CSV / dibuka Excel)
-  const handleExportNilai = () => {
-    if (peserta.length === 0) return alert("Belum ada data peserta untuk diekspor!");
-
-    let csvContent = "data:text/csv;charset=utf-8,Nama Lengkap,TechID,Mata Ujian,Status,Nilai PG,Jawaban Benar,Jawaban Salah,Nilai Praktik,Nilai Akhir,KKM,Kelulusan,Pindah Tab\n";
-    peserta.forEach(p => {
-      const nama = p.nama || p.nama_lengkap || '-';
-      const techId = p.tech_id || '-';
-      const kat = normalizeKategori(p.kategori) || p.kategori || '-';
-      const matchedKat = katalogMapel.find(m => m.id === kat);
-      const kkm = matchedKat?.kkm ?? 75;
-      const nilaiAkhir = p.nilai_akhir !== undefined && p.nilai_akhir !== null ? Number(p.nilai_akhir) : 0;
-      const statusLulus = p.status === 'selesai' ? (nilaiAkhir >= kkm ? 'LULUS' : 'BELUM LULUS') : '-';
-      const nilaiPraktikDisplay = p.nilai_praktik !== undefined && p.nilai_praktik !== null ? p.nilai_praktik : (p.status_koreksi === 'dikoreksi' ? 0 : 'Belum Dikoreksi');
-
-      csvContent += `"${nama}","${techId}","${kat}","${p.status || 'belum_mulai'}","${p.nilai_pg ?? 0}","${p.jumlah_benar ?? '-'}","${p.jumlah_salah ?? '-'}","${nilaiPraktikDisplay}","${nilaiAkhir}","${kkm}","${statusLulus}","${p.jumlah_pindah_tab ?? 0}"\n`;
-    });
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Rekap_Nilai_Ujian_DCC_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -787,12 +783,12 @@ export default function DashboardPengawas() {
                 </Button>
               )}
 
-              {peserta.length > 0 && (
+              {peserta.some(p => (p.jumlah_pindah_tab ?? 0) > 0) && (
                 <Button
-                  onClick={handleExportNilai}
-                  className="text-xs bg-purple-500 hover:bg-purple-400 text-white font-display font-bold border-0"
+                  onClick={() => setShowPindahTabModal(true)}
+                  className="text-xs bg-red-600 hover:bg-red-500 text-white font-display font-bold border-0"
                 >
-                  <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Export Nilai
+                  <Eye className="w-3.5 h-3.5 mr-1.5" /> Aktivitas Pindah Tab
                 </Button>
               )}
 
@@ -1037,7 +1033,7 @@ export default function DashboardPengawas() {
                               {statusInfo.text}
                             </Badge>
                             {(p.jumlah_pindah_tab ?? 0) > 0 && (
-                              <span className="flex items-center gap-1 text-[9px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-1.5 py-0.5 rounded-md">
+                              <span className="flex items-center gap-1 text-[9px] font-bold text-red-500 bg-red-500/15 border border-red-500/40 px-1.5 py-0.5 rounded-md">
                                 <Eye className="w-2.5 h-2.5" /> {p.jumlah_pindah_tab}x
                               </span>
                             )}
@@ -1301,6 +1297,41 @@ export default function DashboardPengawas() {
                     </div>
                   </div>
                 ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 👁 MODAL AKTIVITAS PINDAH TAB — daftar peserta yang terdeteksi berpindah tab/aplikasi lain */}
+      {showPindahTabModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0d1527] border border-slate-800 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-slate-800 shrink-0">
+              <h3 className="text-sm font-display font-bold text-red-500 flex items-center gap-2">
+                <Eye className="w-4 h-4" /> Aktivitas Pindah Tab / Aplikasi Lain
+              </h3>
+              <button onClick={() => setShowPindahTabModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto flex-1 space-y-2">
+              {peserta.filter(p => (p.jumlah_pindah_tab ?? 0) > 0).length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-8">Belum ada peserta yang terdeteksi pindah tab.</p>
+              ) : (
+                peserta
+                  .filter(p => (p.jumlah_pindah_tab ?? 0) > 0)
+                  .sort((a, b) => (b.jumlah_pindah_tab ?? 0) - (a.jumlah_pindah_tab ?? 0))
+                  .map((p) => (
+                    <div key={p.id} className="p-3 bg-[#030712]/60 border border-slate-800 rounded-xl flex items-center justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-display font-bold text-white truncate">{p.nama || p.nama_lengkap || `Peserta #${p.id}`}</p>
+                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">{p.tech_id} • {p.kategori}</p>
+                      </div>
+                      <span className="text-lg font-display font-bold text-red-500 shrink-0">{p.jumlah_pindah_tab}x</span>
+                    </div>
+                  ))
               )}
             </div>
           </div>
