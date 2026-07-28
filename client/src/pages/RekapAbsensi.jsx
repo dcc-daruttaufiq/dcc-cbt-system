@@ -28,13 +28,10 @@ export default function RekapAbsensi() {
   const [isSavingJam, setIsSavingJam] = useState(false);
   const [pesanSimpan, setPesanSimpan] = useState('');
 
-  const menuPengawas = [
-    { label: 'Koreksi Ujian', path: '/dashboard-Pengawas', icon: '📊' },
-    { label: 'Repositori Soal', path: '/bank-soal', icon: '📚' },
-    { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: '⚙️' },
-    { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
-    { label: 'Scan Absensi', path: '/absensi-scan', icon: '📷' },
-    { label: 'Rekap Absensi', path: '/rekap-absensi', icon: '🗓️' },
+  const menuPresensi = [
+    { label: 'Menu Utama', path: '/', icon: '🏠' },
+    { label: 'Scan Presensi', path: '/absensi-scan', icon: '📷' },
+    { label: 'Rekap Presensi', path: '/rekap-absensi', icon: '🗓️' },
   ];
 
   const loadJamBatas = async () => {
@@ -163,7 +160,7 @@ export default function RekapAbsensi() {
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
-      <Sidebar links={menuPengawas} userRole="Pengawas" />
+      <Sidebar links={menuPresensi} userRole="Pengawas" />
 
       <div className="flex-1 flex flex-col min-w-0">
         <Navbar>
