@@ -3,17 +3,21 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { CheckSquare, Database, FileBarChart, Sliders, LogOut } from 'lucide-react';
 import { LOGO_URL } from '../../config/brand';
 
-export default function Sidebar({ userRole = 'Pengawas' }) {
+// Menu default (dipakai HANYA kalau halaman pemanggil tidak mengirim prop `links`)
+const DEFAULT_LINKS = [
+  { label: 'Koreksi Ujian', path: '/dashboard-Pengawas', icon: CheckSquare },
+  { label: 'Repositori Soal', path: '/bank-soal', icon: Database },
+  { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: Sliders },
+  { label: 'Laporan Nilai', path: '/laporan', icon: FileBarChart },
+];
+
+export default function Sidebar({ userRole = 'Pengawas', links }) {
   const navigate = useNavigate();
   const [logoGagalDimuat, setLogoGagalDimuat] = useState(false);
 
-  // Icon Lucide Modern & Elegan (Termasuk Pengaturan Ujian)
-  const links = [
-    { label: 'Koreksi Ujian', path: '/dashboard-Pengawas', icon: CheckSquare },
-    { label: 'Repositori Soal', path: '/bank-soal', icon: Database },
-    { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: Sliders },
-    { label: 'Laporan Nilai', path: '/laporan', icon: FileBarChart },
-  ];
+  // Kalau halaman pemanggil kirim prop `links` sendiri, PAKAI ITU.
+  // Kalau tidak dikirim sama sekali, baru fallback ke menu default di atas.
+  const finalLinks = links && links.length > 0 ? links : DEFAULT_LINKS;
 
   const handleLogout = () => {
     localStorage.clear();
@@ -52,10 +56,11 @@ export default function Sidebar({ userRole = 'Pengawas' }) {
           </div>
         </div>
 
-        {/* Navigasi Links dengan Icon Modern */}
+        {/* Navigasi Links — mendukung icon berupa komponen Lucide ATAU emoji/string biasa */}
         <nav className="flex flex-col gap-1.5">
-          {links.map((item, index) => {
-            const IconComponent = item.icon;
+          {finalLinks.map((item, index) => {
+            const IconValue = item.icon;
+            const isComponentIcon = typeof IconValue === 'function';
             return (
               <NavLink
                 key={index}
@@ -68,7 +73,11 @@ export default function Sidebar({ userRole = 'Pengawas' }) {
                   }`
                 }
               >
-                <IconComponent className="w-4 h-4 shrink-0" />
+                {isComponentIcon ? (
+                  <IconValue className="w-4 h-4 shrink-0" />
+                ) : (
+                  <span className="w-4 h-4 shrink-0 flex items-center justify-center text-sm leading-none">{IconValue}</span>
+                )}
                 <span>{item.label}</span>
               </NavLink>
             );
