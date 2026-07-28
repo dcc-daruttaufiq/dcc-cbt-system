@@ -30,7 +30,8 @@ import {
   Eye,
   BarChart3,
   X,
-  Activity
+  Activity,
+  CreditCard
 } from 'lucide-react';
 
 // Helper Generator Token Random Unik Siswa
@@ -80,6 +81,7 @@ export default function DashboardPengawas() {
 
   // Menu Sidebar
   const menuPengawas = [
+    { label: 'Menu Utama', path: '/', icon: '🏠' },
     { label: 'Koreksi Ujian', path: '/dashboard-Pengawas', icon: '📊' },
     { label: 'Repositori Soal', path: '/bank-soal', icon: '📚' },
     { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: '⚙️' },
@@ -305,7 +307,7 @@ export default function DashboardPengawas() {
         if (error) throw error;
 
         await loadPeserta();
-        alert(`Berhasil mengimpor ${importedPesertaArr.length} peserta! Token unik siswa telah dibuat permanen.`);
+        alert(`Berhasil mengimpor ${importedPesertaArr.length} peserta! Token unik siswa telah dibuat permanen.\n\nKlik tombol kartu hijau (Cetak Kartu ID) di pojok kanan atas untuk langsung cetak kartu + QR peserta yang baru diimpor.`);
       } catch (err) {
         console.error('Gagal impor peserta:', err);
         const mergedWithToken = [...importedPesertaArr, ...peserta];
@@ -390,6 +392,75 @@ export default function DashboardPengawas() {
     } finally {
       setIsLoadingAnalisis(false);
     }
+  };
+
+  // 🪪 Cetak Kartu ID + QR Code untuk semua peserta (langsung dari TechID, tanpa perlu generate/simpan gambar terpisah)
+  const handleCetakKartuID = () => {
+    if (filteredPeserta.length === 0) return alert('Tidak ada peserta untuk dicetak kartunya!');
+
+    const win = window.open('', '_blank');
+    const kartuHtml = filteredPeserta.map((p) => {
+      const nama = p.nama || p.nama_lengkap || '-';
+      const techId = p.tech_id || '-';
+      const kategori = (p.kategori || '-').toUpperCase();
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(techId)}`;
+
+      return `
+        <div class="kartu">
+          <div class="kartu-header">
+            <span class="logo-text">DCC</span>
+            <span class="judul">DARUTTAUFIQ COMPUTER CENTRE</span>
+          </div>
+          <div class="kartu-body">
+            <div class="info">
+              <p class="nama">${nama}</p>
+              <p class="techid">${techId}</p>
+              <p class="kategori">${kategori}</p>
+            </div>
+            <img class="qr" src="${qrUrl}" alt="QR ${techId}" />
+          </div>
+          <div class="kartu-footer">Kartu Identitas & Presensi Digital</div>
+        </div>
+      `;
+    }).join('');
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Cetak Kartu ID Peserta</title>
+        <style>
+          @page { margin: 12mm; }
+          body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: #f1f5f9; }
+          .grid { display: flex; flex-wrap: wrap; gap: 14px; padding: 14px; }
+          .kartu {
+            width: 300px; border: 2px solid #0891b2; border-radius: 14px; overflow: hidden;
+            background: #ffffff; break-inside: avoid; page-break-inside: avoid;
+          }
+          .kartu-header {
+            background: #0891b2; color: #fff; padding: 8px 12px; display: flex; align-items: center; gap: 8px;
+          }
+          .logo-text { font-weight: bold; font-size: 14px; letter-spacing: 1px; }
+          .judul { font-size: 9px; font-weight: bold; letter-spacing: 0.5px; }
+          .kartu-body { display: flex; align-items: center; justify-content: space-between; padding: 14px; gap: 10px; }
+          .info { flex: 1; min-width: 0; }
+          .nama { font-size: 15px; font-weight: bold; color: #0f172a; margin: 0 0 4px 0; }
+          .techid { font-size: 13px; font-weight: bold; color: #0891b2; margin: 0 0 4px 0; font-family: monospace; }
+          .kategori { font-size: 10px; color: #64748b; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; }
+          .qr { width: 80px; height: 80px; shrink: 0; }
+          .kartu-footer { background: #f1f5f9; color: #64748b; font-size: 8px; text-align: center; padding: 4px; letter-spacing: 0.5px; }
+          @media print {
+            body { background: #fff; }
+            .kartu { break-inside: avoid; }
+          }
+        </style>
+      </head>
+      <body onload="window.print()">
+        <div class="grid">${kartuHtml}</div>
+      </body>
+      </html>
+    `);
+    win.document.close();
   };
 
   const handleRegenerateTokenSiswa = async (pesertaId, techId) => {
@@ -778,9 +849,19 @@ export default function DashboardPengawas() {
                 <Button
                   onClick={handleDownloadPesertaToken}
                   className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 border-0 p-2"
-                  title="Download Token"
+                  title="Download Token Peserta"
                 >
                   <Download className="w-4 h-4" />
+                </Button>
+              )}
+
+              {peserta.length > 0 && (
+                <Button
+                  onClick={handleCetakKartuID}
+                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-0 p-2"
+                  title="Cetak Kartu ID + QR Peserta"
+                >
+                  <CreditCard className="w-4 h-4" />
                 </Button>
               )}
 
@@ -1000,7 +1081,7 @@ export default function DashboardPengawas() {
                         {modeToken === 'siswa' && (
                           <div className="flex items-center justify-between bg-[#030712] px-2.5 py-1 rounded-lg border border-purple-500/30 text-[10px]">
                             <span className="text-purple-300 font-display font-bold flex items-center gap-1">
-                              <Key className="w-3 h-3 text-purple-400" /> TOKEN SISWA:
+                              <Key className="w-3 h-3 text-purple-400" /> TOKEN PESERTA:
                             </span>
                             <div className="flex items-center gap-1.5">
                               <span className="font-mono font-bold text-white tracking-widest">{tokenSiswaReal}</span>

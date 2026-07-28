@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { ClipboardList, ScanLine, Plus, ArrowRight } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { LOGO_URL } from '../config/brand';
 
 // 🧩 Daftar sistem/modul yang tersedia. Tambahin objek baru di sini kalau mau
 // bikin sistem baru lagi ke depannya — otomatis muncul jadi kartu di halaman ini.
@@ -25,7 +26,17 @@ export default function Home() {
   const navigate = useNavigate()
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-10 px-6 py-20 text-center">
+    <div className="flex flex-1 flex-col">
+      {/* NAVBAR ATAS — penanda jelas ini halaman navigasi */}
+      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-white/10 bg-background/80 px-6 py-3.5 backdrop-blur-md">
+        <img src={LOGO_URL} alt="Logo DCC" className="h-8 w-auto object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
+        <div>
+          <p className="font-display text-sm font-bold text-text-primary tracking-wide">DCC CBT</p>
+          <p className="text-[11px] text-text-secondary">Daruttaufiq Computer Centre</p>
+        </div>
+      </header>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-10 px-6 py-16 text-center">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -83,6 +94,7 @@ export default function Home() {
           <span className="text-caption">Sistem berikutnya akan muncul di sini</span>
         </motion.div>
       </motion.div>
+      </div>
     </div>
   )
 }
