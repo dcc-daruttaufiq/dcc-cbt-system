@@ -13,7 +13,8 @@ import Select from '../components/ui/Select';
 import Badge from '../components/ui/Badge';
 import { 
   Plus, Trash2, Trash, Edit3, Save, X, Database, Layers, 
-  Download, Upload, FileSpreadsheet, WifiOff, CheckCircle2 
+  Download, Upload, FileSpreadsheet, WifiOff, CheckCircle2,
+  Home, CheckSquare, Sliders, FileBarChart
 } from 'lucide-react';
 
 export default function BankSoal() {
@@ -46,10 +47,11 @@ export default function BankSoal() {
   const excelInputRef = useRef(null);
 
   const menuPengawas = [
-    { label: 'Koreksi Ujian', path: '/dashboard-Pengawas', icon: '📊' },
-    { label: 'Repositori Soal', path: '/bank-soal', icon: '📚' },
-    { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: '⚙️' },
-    { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
+    { label: 'Menu Utama', path: '/', icon: Home },
+    { label: 'Koreksi Ujian', path: '/dashboard-Pengawas', icon: CheckSquare },
+    { label: 'Repositori Soal', path: '/bank-soal', icon: Database },
+    { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: Sliders },
+    { label: 'Laporan Nilai', path: '/laporan', icon: FileBarChart },
   ];
 
   // Fetch Repositori Soal dari Supabase Cloud

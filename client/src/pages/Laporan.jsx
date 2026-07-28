@@ -6,7 +6,7 @@ import Sidebar from '../components/ui/Sidebar';
 import Navbar from '../components/ui/Navbar';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import { BarChart3, Download, FileText, Trophy, Users, Award, TrendingUp, CreditCard } from 'lucide-react';
+import { BarChart3, Download, FileText, Trophy, Users, Award, TrendingUp, CreditCard, Home, CheckSquare, Database, Sliders, FileBarChart } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function Laporan() {
@@ -17,10 +17,11 @@ export default function Laporan() {
   const [katalogMapel, setKatalogMapel] = useState([]);
 
   const menuPengawas = [
-    { label: 'Koreksi Ujian', path: '/dashboard-Pengawas', icon: '📊' },
-    { label: 'Repositori Soal', path: '/bank-soal', icon: '📚' },
-    { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: '⚙️' },
-    { label: 'Laporan Nilai', path: '/laporan', icon: '📈' },
+    { label: 'Menu Utama', path: '/', icon: Home },
+    { label: 'Koreksi Ujian', path: '/dashboard-Pengawas', icon: CheckSquare },
+    { label: 'Repositori Soal', path: '/bank-soal', icon: Database },
+    { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: Sliders },
+    { label: 'Laporan Nilai', path: '/laporan', icon: FileBarChart },
   ];
 
   // Helper Ambil KKM Dinamis per Mata Ujian (Fallback Default: 75)
