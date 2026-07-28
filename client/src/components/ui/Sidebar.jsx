@@ -60,7 +60,6 @@ export default function Sidebar({ userRole = 'Pengawas', links }) {
         <nav className="flex flex-col gap-1.5">
           {finalLinks.map((item, index) => {
             const IconValue = item.icon;
-            const isComponentIcon = typeof IconValue === 'function';
             return (
               <NavLink
                 key={index}
@@ -73,10 +72,10 @@ export default function Sidebar({ userRole = 'Pengawas', links }) {
                   }`
                 }
               >
-                {isComponentIcon ? (
-                  <IconValue className="w-4 h-4 shrink-0" />
-                ) : (
+                {typeof IconValue === 'string' ? (
                   <span className="w-4 h-4 shrink-0 flex items-center justify-center text-sm leading-none">{IconValue}</span>
+                ) : (
+                  <IconValue className="w-4 h-4 shrink-0" />
                 )}
                 <span>{item.label}</span>
               </NavLink>
