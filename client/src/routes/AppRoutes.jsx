@@ -15,6 +15,8 @@ const Laporan = lazy(() => import('../pages/Laporan'));
 const PengaturanUjian = lazy(() => import('../pages/PengaturanUjian')); // <-- 1. TAMBAHKAN LAZY IMPORT INI
 const AbsensiScan = lazy(() => import('../pages/AbsensiScan'));
 const RekapAbsensi = lazy(() => import('../pages/RekapAbsensi'));
+const LoginAkun = lazy(() => import('../pages/LoginAkun'));
+const KelolaAkun = lazy(() => import('../pages/KelolaAkun'));
 const NotFound = lazy(() => import('../pages/NotFound'));
 
 // Wrapper Suspense
@@ -45,6 +47,8 @@ export const router = createBrowserRouter([
       { path: 'pengaturan-ujian', element: <SuspenseWrapper><PengaturanUjian /></SuspenseWrapper> }, // <-- 2. TAMBAHKAN ROUTE INI
       { path: 'absensi-scan', element: <SuspenseWrapper><AbsensiScan /></SuspenseWrapper> },
       { path: 'rekap-absensi', element: <SuspenseWrapper><RekapAbsensi /></SuspenseWrapper> },
+      { path: 'akun-login', element: <SuspenseWrapper><LoginAkun /></SuspenseWrapper> },
+      { path: 'kelola-akun', element: <SuspenseWrapper><KelolaAkun /></SuspenseWrapper> },
       { path: '*', element: <SuspenseWrapper><NotFound /></SuspenseWrapper> },
     ],
   },
