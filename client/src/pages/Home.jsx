@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { 
   ClipboardList, ScanLine, KeyRound, ArrowRight,
   FileSpreadsheet, MessageSquareHeart, MonitorCheck, GraduationCap, Award,
-  Sparkles, Megaphone, Users, CheckCircle2, ShieldCheck, ExternalLink
+  Sparkles, Megaphone, Users, CheckCircle2, ShieldCheck, ExternalLink,
+  MessageCircle, PackageCheck, Trophy, Briefcase
 } from 'lucide-react';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { LOGO_URL } from '../config/brand';
@@ -65,6 +66,34 @@ const modul = [
     desc: 'Portal unduh & verifikasi publik keaslian sertifikat kelulusan santri.',
     path: '/verifikasi-sertifikat',
     icon: Award,
+    badge: 'Pengembangan'
+  },
+  {
+    label: 'Notifikasi WhatsApp Wali',
+    desc: 'Kirim notifikasi otomatis ke orang tua/wali saat presensi, izin, & nilai keluar.',
+    path: '/notifikasi-whatsapp',
+    icon: MessageCircle,
+    badge: 'Baru'
+  },
+  {
+    label: 'Peminjaman Aset Lab',
+    desc: 'Booking & checkout perangkat lab dengan approval pengawas dan riwayat pinjam.',
+    path: '/peminjaman-aset',
+    icon: PackageCheck,
+    badge: 'Baru'
+  },
+  {
+    label: 'Poin & Kedisiplinan Santri',
+    desc: 'Sistem poin dan lencana dari presensi, nilai CBT, dan karya untuk memacu semangat santri.',
+    path: '/poin-gamifikasi',
+    icon: Trophy,
+    badge: 'Baru'
+  },
+  {
+    label: 'Portal Alumni DCC',
+    desc: 'Jejak lulusan DCC — status studi/kerja, testimoni, dan info magang mitra.',
+    path: '/portal-alumni',
+    icon: Briefcase,
     badge: 'Pengembangan'
   },
 ];
