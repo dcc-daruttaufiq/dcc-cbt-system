@@ -1,11 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import {
-  MessageCircle, Send, CheckCircle2, Clock, XCircle,
-  Settings2, Users, ScanLine, FileSpreadsheet, ClipboardList
-} from 'lucide-react';
-import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { supabase } from '../utils/supabaseClient';
+  MessageCircle,
+  Send,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  Settings2,
+  Users,
+  ScanLine,
+  FileSpreadsheet,
+  ClipboardList,
+} from "lucide-react";
+import { useDocumentTitle } from "../../hooks/useDocumentTitle"; // ✅ Ubah ke ../../
+import { supabase } from "../../utils/supabaseClient"; // ✅ Ubah ke ../../
 
 const jenisIcon = {
   presensi: ScanLine,
@@ -14,15 +22,15 @@ const jenisIcon = {
 };
 
 const jenisLabel = {
-  presensi: 'Presensi',
-  perizinan: 'Perizinan',
-  nilai_cbt: 'Nilai CBT',
+  presensi: "Presensi",
+  perizinan: "Perizinan",
+  nilai_cbt: "Nilai CBT",
 };
 
 const statusStyle = {
-  Terkirim: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-  Tertunda: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-  Gagal: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
+  Terkirim: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+  Tertunda: "bg-amber-500/10 text-amber-400 border-amber-500/30",
+  Gagal: "bg-rose-500/10 text-rose-400 border-rose-500/30",
 };
 
 const statusIcon = {
@@ -32,7 +40,7 @@ const statusIcon = {
 };
 
 export default function NotifikasiWhatsapp() {
-  useDocumentTitle('Notifikasi WhatsApp Wali');
+  useDocumentTitle("Notifikasi WhatsApp Wali");
   const [pengaturan, setPengaturan] = useState([]);
   const [logNotifikasi, setLogNotifikasi] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -43,14 +51,14 @@ export default function NotifikasiWhatsapp() {
     setErrMsg(null);
 
     const { data: dataPengaturan, error: errPengaturan } = await supabase
-      .from('pengaturan_notifikasi')
-      .select('*')
-      .order('jenis', { ascending: true });
+      .from("pengaturan_notifikasi")
+      .select("*")
+      .order("jenis", { ascending: true });
 
     const { data: dataLog, error: errLog } = await supabase
-      .from('log_notifikasi')
-      .select('*')
-      .order('created_at', { ascending: false })
+      .from("log_notifikasi")
+      .select("*")
+      .order("created_at", { ascending: false })
       .limit(50);
 
     if (errPengaturan || errLog) {
@@ -69,17 +77,21 @@ export default function NotifikasiWhatsapp() {
   const toggle = async (jenis, aktifSekarang) => {
     // Optimistic update biar UI responsif
     setPengaturan((prev) =>
-      prev.map((p) => (p.jenis === jenis ? { ...p, aktif: !aktifSekarang } : p))
+      prev.map((p) =>
+        p.jenis === jenis ? { ...p, aktif: !aktifSekarang } : p,
+      ),
     );
     const { error } = await supabase
-      .from('pengaturan_notifikasi')
+      .from("pengaturan_notifikasi")
       .update({ aktif: !aktifSekarang, updated_at: new Date().toISOString() })
-      .eq('jenis', jenis);
+      .eq("jenis", jenis);
 
     if (error) {
       // Rollback kalau gagal
       setPengaturan((prev) =>
-        prev.map((p) => (p.jenis === jenis ? { ...p, aktif: aktifSekarang } : p))
+        prev.map((p) =>
+          p.jenis === jenis ? { ...p, aktif: aktifSekarang } : p,
+        ),
       );
       setErrMsg(error.message);
     }
@@ -88,7 +100,6 @@ export default function NotifikasiWhatsapp() {
   return (
     <div className="min-h-screen bg-[#030712] text-slate-100 font-['Poppins',sans-serif] pb-20 px-6 pt-10">
       <div className="max-w-5xl mx-auto">
-
         {/* HEADER */}
         <div className="flex items-center gap-3 mb-2">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-400/10 border border-cyan-400/30">
@@ -98,7 +109,9 @@ export default function NotifikasiWhatsapp() {
             <h1 className="font-['Rajdhani',sans-serif] text-2xl font-bold text-white uppercase tracking-wide">
               Notifikasi WhatsApp Wali
             </h1>
-            <p className="text-xs text-slate-400">Kirim kabar otomatis ke orang tua/wali santri lewat WhatsApp.</p>
+            <p className="text-xs text-slate-400">
+              Kirim kabar otomatis ke orang tua/wali santri lewat WhatsApp.
+            </p>
           </div>
         </div>
 
@@ -125,7 +138,9 @@ export default function NotifikasiWhatsapp() {
             <p className="text-xs text-slate-500">Memuat pengaturan...</p>
           ) : pengaturan.length === 0 ? (
             <p className="text-xs text-slate-500">
-              Belum ada baris di tabel <code className="text-cyan-400">pengaturan_notifikasi</code>. Cek lagi apakah INSERT awal di SQL kamu berhasil.
+              Belum ada baris di tabel{" "}
+              <code className="text-cyan-400">pengaturan_notifikasi</code>. Cek
+              lagi apakah INSERT awal di SQL kamu berhasil.
             </p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -136,18 +151,28 @@ export default function NotifikasiWhatsapp() {
                     key={jenis}
                     onClick={() => toggle(jenis, aktif)}
                     className={`text-left p-4 rounded-xl border transition-all ${
-                      aktif ? 'border-cyan-400/50 bg-cyan-400/5' : 'border-slate-800 bg-[#0a1120]'
+                      aktif
+                        ? "border-cyan-400/50 bg-cyan-400/5"
+                        : "border-slate-800 bg-[#0a1120]"
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <Icon className={`h-4 w-4 ${aktif ? 'text-cyan-400' : 'text-slate-500'}`} />
-                      <span className={`text-[10px] font-['Rajdhani',sans-serif] font-bold px-2 py-0.5 rounded-md border uppercase ${
-                        aktif ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-500 border-slate-700'
-                      }`}>
-                        {aktif ? 'Aktif' : 'Nonaktif'}
+                      <Icon
+                        className={`h-4 w-4 ${aktif ? "text-cyan-400" : "text-slate-500"}`}
+                      />
+                      <span
+                        className={`text-[10px] font-['Rajdhani',sans-serif] font-bold px-2 py-0.5 rounded-md border uppercase ${
+                          aktif
+                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                            : "bg-slate-800 text-slate-500 border-slate-700"
+                        }`}
+                      >
+                        {aktif ? "Aktif" : "Nonaktif"}
                       </span>
                     </div>
-                    <p className="font-['Rajdhani',sans-serif] font-bold text-sm text-white">{jenisLabel[jenis] || jenis}</p>
+                    <p className="font-['Rajdhani',sans-serif] font-bold text-sm text-white">
+                      {jenisLabel[jenis] || jenis}
+                    </p>
                   </button>
                 );
               })}
@@ -177,30 +202,59 @@ export default function NotifikasiWhatsapp() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={5} className="px-5 py-6 text-center text-xs text-slate-500">Memuat...</td></tr>
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-5 py-6 text-center text-xs text-slate-500"
+                    >
+                      Memuat...
+                    </td>
+                  </tr>
                 ) : logNotifikasi.length === 0 ? (
-                  <tr><td colSpan={5} className="px-5 py-6 text-center text-xs text-slate-500">Belum ada riwayat notifikasi. Insert baris manual di tabel `log_notifikasi` untuk uji coba.</td></tr>
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-5 py-6 text-center text-xs text-slate-500"
+                    >
+                      Belum ada riwayat notifikasi. Insert baris manual di tabel
+                      `log_notifikasi` untuk uji coba.
+                    </td>
+                  </tr>
                 ) : (
                   logNotifikasi.map((row) => {
                     const JIcon = jenisIcon[row.jenis] || MessageCircle;
                     const SIcon = statusIcon[row.status] || Clock;
                     return (
-                      <tr key={row.id} className="border-t border-slate-800/80 hover:bg-[#0a1120]/60 transition">
+                      <tr
+                        key={row.id}
+                        className="border-t border-slate-800/80 hover:bg-[#0a1120]/60 transition"
+                      >
                         <td className="px-5 py-3">
-                          <p className="text-white font-medium">{row.nama_santri || '—'}</p>
-                          <p className="text-[11px] text-slate-500 font-['Rajdhani',sans-serif]">{row.tech_id}</p>
+                          <p className="text-white font-medium">
+                            {row.nama_santri || "—"}
+                          </p>
+                          <p className="text-[11px] text-slate-500 font-['Rajdhani',sans-serif]">
+                            {row.tech_id}
+                          </p>
                         </td>
                         <td className="px-5 py-3">
                           <span className="flex items-center gap-1.5 text-slate-300 text-xs">
-                            <JIcon className="h-3.5 w-3.5 text-cyan-400" /> {jenisLabel[row.jenis] || row.jenis}
+                            <JIcon className="h-3.5 w-3.5 text-cyan-400" />{" "}
+                            {jenisLabel[row.jenis] || row.jenis}
                           </span>
                         </td>
-                        <td className="px-5 py-3 text-slate-400 text-xs">{row.pesan}</td>
+                        <td className="px-5 py-3 text-slate-400 text-xs">
+                          {row.pesan}
+                        </td>
                         <td className="px-5 py-3 text-slate-400 text-xs font-['Rajdhani',sans-serif]">
-                          {row.created_at ? new Date(row.created_at).toLocaleString('id-ID') : '—'}
+                          {row.created_at
+                            ? new Date(row.created_at).toLocaleString("id-ID")
+                            : "—"}
                         </td>
                         <td className="px-5 py-3">
-                          <span className={`flex items-center gap-1 w-fit text-[10px] font-['Rajdhani',sans-serif] font-bold px-2 py-1 rounded-md border uppercase ${statusStyle[row.status] || statusStyle.Tertunda}`}>
+                          <span
+                            className={`flex items-center gap-1 w-fit text-[10px] font-['Rajdhani',sans-serif] font-bold px-2 py-1 rounded-md border uppercase ${statusStyle[row.status] || statusStyle.Tertunda}`}
+                          >
                             <SIcon className="h-3 w-3" /> {row.status}
                           </span>
                         </td>
@@ -212,7 +266,9 @@ export default function NotifikasiWhatsapp() {
             </table>
           </div>
           <p className="text-[11px] text-slate-500 mt-3 flex items-center gap-1.5">
-            <Users className="h-3.5 w-3.5" /> Nomor wali diambil dari tabel wali_kontak. Hubungkan API gateway (Fonnte/Wablas/dsb) untuk mengirim otomatis dan mengubah status jadi "Terkirim".
+            <Users className="h-3.5 w-3.5" /> Nomor wali diambil dari tabel
+            wali_kontak. Hubungkan API gateway (Fonnte/Wablas/dsb) untuk
+            mengirim otomatis dan mengubah status jadi "Terkirim".
           </p>
         </div>
       </div>

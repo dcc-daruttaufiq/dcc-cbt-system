@@ -1,26 +1,26 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '../utils/supabaseClient';
-import Card from '../components/ui/Card';
-import Input from '../components/ui/Input';
-import Button from '../components/ui/Button';
-import { GraduationCap, ShieldCheck, Crown } from 'lucide-react';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "../../utils/supabaseClient";
+import Card from "../../components/ui/Card";
+import Input from "../../components/ui/Input";
+import Button from "../../components/ui/Button";
+import { GraduationCap, ShieldCheck, Crown } from "lucide-react";
 
-const AKUN_TABLE = 'akun_dcc';
-const AKUN_SESSION_KEY = 'dcc_akun_session';
+const AKUN_TABLE = "akun_dcc";
+const AKUN_SESSION_KEY = "dcc_akun_session";
 
 export default function LoginAkun() {
   const navigate = useNavigate();
 
-  const [selectedRole, setSelectedRole] = useState('siswa'); // 'siswa' | 'member' | 'lead'
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [selectedRole, setSelectedRole] = useState("siswa"); // 'siswa' | 'member' | 'lead'
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setErrorMsg('');
+    setErrorMsg("");
     setIsLoading(true);
 
     const cleanUsername = username.trim().toLowerCase();
@@ -28,73 +28,87 @@ export default function LoginAkun() {
     try {
       const { data: akun, error } = await supabase
         .from(AKUN_TABLE)
-        .select('*')
-        .ilike('username', cleanUsername)
+        .select("*")
+        .ilike("username", cleanUsername)
         .maybeSingle();
 
       if (error) throw error;
 
       if (!akun) {
-        setErrorMsg('Username tidak ditemukan. Periksa kembali penulisan.');
+        setErrorMsg("Username tidak ditemukan. Periksa kembali penulisan.");
         setIsLoading(false);
         return;
       }
 
       if (akun.password !== password) {
-        setErrorMsg('Password salah.');
+        setErrorMsg("Password salah.");
         setIsLoading(false);
         return;
       }
 
-      if (akun.status !== 'aktif') {
-        setErrorMsg('Akun ini sudah dinonaktifkan. Hubungi admin DCC.');
+      if (akun.status !== "aktif") {
+        setErrorMsg("Akun ini sudah dinonaktifkan. Hubungi admin DCC.");
         setIsLoading(false);
         return;
       }
 
       // 🔒 Validasi tab yang dipilih harus cocok sama tipe akun sebenarnya
-      if (selectedRole === 'lead' && akun.tipe !== 'admin') {
-        setErrorMsg('Akun ini bukan Lead Instructor. Silakan pilih tab yang sesuai.');
+      if (selectedRole === "lead" && akun.tipe !== "admin") {
+        setErrorMsg(
+          "Akun ini bukan Lead Instructor. Silakan pilih tab yang sesuai.",
+        );
         setIsLoading(false);
         return;
       }
-      if (selectedRole === 'member' && akun.tipe !== 'anggota') {
-        setErrorMsg('Akun ini bukan Member. Silakan pilih tab yang sesuai.');
+      if (selectedRole === "member" && akun.tipe !== "anggota") {
+        setErrorMsg("Akun ini bukan Member. Silakan pilih tab yang sesuai.");
         setIsLoading(false);
         return;
       }
-      if (selectedRole === 'siswa' && akun.tipe !== 'siswa' && akun.tipe !== 'tamu') {
-        setErrorMsg('Akun ini bukan Student. Silakan pilih tab yang sesuai.');
+      if (
+        selectedRole === "siswa" &&
+        akun.tipe !== "siswa" &&
+        akun.tipe !== "tamu"
+      ) {
+        setErrorMsg("Akun ini bukan Student. Silakan pilih tab yang sesuai.");
         setIsLoading(false);
         return;
       }
 
-      if ((akun.tipe === 'tamu' || akun.tipe === 'siswa') && akun.tanggal_expired) {
+      if (
+        (akun.tipe === "tamu" || akun.tipe === "siswa") &&
+        akun.tanggal_expired
+      ) {
         const hariIni = new Date().toISOString().slice(0, 10);
         if (akun.tanggal_expired < hariIni) {
-          setErrorMsg('Akun ini sudah kedaluwarsa. Hubungi admin DCC untuk perpanjangan.');
+          setErrorMsg(
+            "Akun ini sudah kedaluwarsa. Hubungi admin DCC untuk perpanjangan.",
+          );
           setIsLoading(false);
           return;
         }
       }
 
-      localStorage.setItem(AKUN_SESSION_KEY, JSON.stringify({
-        id: akun.id,
-        nama: `${akun.nama_depan} ${akun.nama_belakang}`,
-        username: akun.username,
-        tipe: akun.tipe
-      }));
+      localStorage.setItem(
+        AKUN_SESSION_KEY,
+        JSON.stringify({
+          id: akun.id,
+          nama: `${akun.nama_depan} ${akun.nama_belakang}`,
+          username: akun.username,
+          tipe: akun.tipe,
+        }),
+      );
 
-      if (akun.tipe === 'admin') {
-        navigate('/dashboard-admin');
-      } else if (akun.tipe === 'anggota') {
-        navigate('/dashboard-Pengawas');
+      if (akun.tipe === "admin") {
+        navigate("/dashboard-admin");
+      } else if (akun.tipe === "anggota") {
+        navigate("/dashboard-Pengawas");
       } else {
-        navigate('/');
+        navigate("/");
       }
     } catch (err) {
-      console.error('Gagal login akun DCC:', err);
-      setErrorMsg('Gagal terhubung ke server. Periksa koneksi internet.');
+      console.error("Gagal login akun DCC:", err);
+      setErrorMsg("Gagal terhubung ke server. Periksa koneksi internet.");
       setIsLoading(false);
     }
   };
@@ -102,21 +116,28 @@ export default function LoginAkun() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-8 border-borderCustom bg-surface space-y-6 shadow-2xl">
-
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-display font-bold text-primary tracking-wider">AKUN DCC</h1>
-          <p className="text-xs text-slate-400 font-sans">Pilih peran Anda untuk masuk ke dalam sistem</p>
+          <h1 className="text-3xl font-display font-bold text-primary tracking-wider">
+            AKUN DCC
+          </h1>
+          <p className="text-xs text-slate-400 font-sans">
+            Pilih peran Anda untuk masuk ke dalam sistem
+          </p>
         </div>
 
         {/* SELEKSI PERAN */}
         <div className="grid grid-cols-3 gap-1 bg-background p-1.5 rounded-xl border border-borderCustom/60">
           <button
             type="button"
-            onClick={() => { setSelectedRole('siswa'); setErrorMsg(''); }}
-            className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${selectedRole === 'siswa'
-                ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100'
-                : 'text-slate-400 hover:text-white hover:bg-surface/50'
-              }`}
+            onClick={() => {
+              setSelectedRole("siswa");
+              setErrorMsg("");
+            }}
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${
+              selectedRole === "siswa"
+                ? "bg-primary text-background shadow-md shadow-primary/30 scale-100"
+                : "text-slate-400 hover:text-white hover:bg-surface/50"
+            }`}
           >
             <GraduationCap className="w-4 h-4 mb-1" />
             <span>STUDENT</span>
@@ -124,11 +145,15 @@ export default function LoginAkun() {
 
           <button
             type="button"
-            onClick={() => { setSelectedRole('member'); setErrorMsg(''); }}
-            className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${selectedRole === 'member'
-                ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100'
-                : 'text-slate-400 hover:text-white hover:bg-surface/50'
-              }`}
+            onClick={() => {
+              setSelectedRole("member");
+              setErrorMsg("");
+            }}
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${
+              selectedRole === "member"
+                ? "bg-primary text-background shadow-md shadow-primary/30 scale-100"
+                : "text-slate-400 hover:text-white hover:bg-surface/50"
+            }`}
           >
             <ShieldCheck className="w-4 h-4 mb-1" />
             <span>MEMBER</span>
@@ -136,11 +161,15 @@ export default function LoginAkun() {
 
           <button
             type="button"
-            onClick={() => { setSelectedRole('lead'); setErrorMsg(''); }}
-            className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${selectedRole === 'lead'
-                ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100'
-                : 'text-slate-400 hover:text-white hover:bg-surface/50'
-              }`}
+            onClick={() => {
+              setSelectedRole("lead");
+              setErrorMsg("");
+            }}
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${
+              selectedRole === "lead"
+                ? "bg-primary text-background shadow-md shadow-primary/30 scale-100"
+                : "text-slate-400 hover:text-white hover:bg-surface/50"
+            }`}
           >
             <Crown className="w-4 h-4 mb-1" />
             <span>LEAD</span>
@@ -155,7 +184,9 @@ export default function LoginAkun() {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="text-xs font-display font-semibold text-slate-300 mb-1 block uppercase">Username</label>
+            <label className="text-xs font-display font-semibold text-slate-300 mb-1 block uppercase">
+              Username
+            </label>
             <Input
               type="text"
               placeholder="nama.belakang@dcc.com"
@@ -165,7 +196,9 @@ export default function LoginAkun() {
             />
           </div>
           <div>
-            <label className="text-xs font-display font-semibold text-slate-300 mb-1 block uppercase">Password</label>
+            <label className="text-xs font-display font-semibold text-slate-300 mb-1 block uppercase">
+              Password
+            </label>
             <Input
               type="password"
               placeholder="••••••••"
@@ -174,13 +207,23 @@ export default function LoginAkun() {
               required
             />
           </div>
-          <Button type="submit" variant="primary" size="lg" className="w-full mt-2" disabled={isLoading}>
-            {isLoading ? 'MEMVERIFIKASI...' : `MASUK SEBAGAI ${selectedRole === 'lead' ? 'LEAD INSTRUCTOR' : selectedRole === 'member' ? 'MEMBER' : 'STUDENT'}`}
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            className="w-full mt-2"
+            disabled={isLoading}
+          >
+            {isLoading
+              ? "MEMVERIFIKASI..."
+              : `MASUK SEBAGAI ${selectedRole === "lead" ? "LEAD INSTRUCTOR" : selectedRole === "member" ? "MEMBER" : "STUDENT"}`}
           </Button>
         </form>
 
         <div className="text-center border-t border-borderCustom/40 pt-4">
-          <p className="text-xs text-slate-400 font-medium tracking-wide">Daruttaufiq Computer Centre</p>
+          <p className="text-xs text-slate-400 font-medium tracking-wide">
+            Daruttaufiq Computer Centre
+          </p>
         </div>
       </Card>
     </div>

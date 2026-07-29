@@ -1,13 +1,32 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { supabase, TABLES, BUCKET_LAMPIRAN_PRAKTIK } from '../utils/supabaseClient';
-import { normalizeKategori, getLabelKategori } from '../utils/examCategories';
-import { STORAGE_KEYS, jawabanLocalKey } from '../utils/storageKeys';
-import { LOGO_URL } from '../config/brand';
-import Button from '../components/ui/Button';
-import Badge from '../components/ui/Badge';
-import { Clock, ChevronLeft, ChevronRight, Save, Send, AlertTriangle, HelpCircle, Paperclip, FileCheck, CheckCircle, Eye } from 'lucide-react';
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { useDocumentTitle } from "../../hooks/useDocumentTitle"; // ✅ Ubah ke ../../
+import {
+  supabase,
+  TABLES,
+  BUCKET_LAMPIRAN_PRAKTIK,
+} from "../../utils/supabaseClient"; // ✅ Ubah ke ../../
+import {
+  normalizeKategori,
+  getLabelKategori,
+} from "../../utils/examCategories"; // ✅ Ubah ke ../../
+import { STORAGE_KEYS, jawabanLocalKey } from "../../utils/storageKeys"; // ✅ Ubah ke ../../
+import { LOGO_URL } from "../../config/brand"; // ✅ Ubah ke ../../
+import Button from "../../components/ui/Button"; // ✅ Ubah ke ../../
+import Badge from "../../components/ui/Badge"; // ✅ Ubah ke ../../
+import {
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+  Save,
+  Send,
+  AlertTriangle,
+  HelpCircle,
+  Paperclip,
+  FileCheck,
+  CheckCircle,
+  Eye,
+} from "lucide-react";
 
 // Pengacak Deterministik (Seeded Shuffle) — urutan tetap konsisten untuk TechID yang sama,
 // tapi berbeda-beda antar peserta. Jadi soal & opsi PG tidak berubah-ubah kalau di-refresh,
@@ -30,35 +49,35 @@ const seededShuffle = (array, seedStr) => {
 };
 
 export default function RuangUjian() {
-  useDocumentTitle('Ruang Ujian Berjalan - DCC CBT');
+  useDocumentTitle("Ruang Ujian Berjalan - DCC CBT");
   const navigate = useNavigate();
 
-  const [userName, setUserName] = useState('');
-  const [techId, setTechId] = useState('');
+  const [userName, setUserName] = useState("");
+  const [techId, setTechId] = useState("");
   const [listSoal, setListSoal] = useState([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [jawaban, setJawaban] = useState({});
   const [raguRagu, setRaguRagu] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
-  
+
   const [timeLeft, setTimeLeft] = useState(0);
   const [isTimerReady, setIsTimerReady] = useState(false);
   const [showTimeWarning, setShowTimeWarning] = useState(false);
 
   const [showSubmitModal, setShowSubmitModal] = useState(false);
-  const [errorState, setErrorState] = useState('');
-  const [examKategori, setExamKategori] = useState('');
+  const [errorState, setErrorState] = useState("");
+  const [examKategori, setExamKategori] = useState("");
   const [logoGagalDimuat, setLogoGagalDimuat] = useState(false);
 
   // State & Modal Deteksi Pindah Tab / Aplikasi Lain
   const [jumlahPindahTab, setJumlahPindahTab] = useState(0);
   const [showTabWarning, setShowTabWarning] = useState(false);
-  
+
   const timerRef = useRef(null);
   const fileInputPraktikRef = useRef(null);
   const debounceTimerRef = useRef(null);
-  const techIdRef = useRef('');
+  const techIdRef = useRef("");
   const timeWarningShownRef = useRef(false);
 
   // Ref untuk menyimpan state jawaban terbaru agar bisa dibaca di handler Realtime secara akurat
@@ -73,23 +92,32 @@ export default function RuangUjian() {
     listSoalRef.current = listSoal;
   }, [listSoal]);
 
-  const currentUser = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || '{}');
+  const currentUser = JSON.parse(
+    localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || "{}",
+  );
 
   const fetchDurasiUjianMenit = async (katId) => {
-    let defaultDurasiMap = { word: 90, excel: 90, powerpoint: 90, desain: 90, pemrograman: 120 };
+    let defaultDurasiMap = {
+      word: 90,
+      excel: 90,
+      powerpoint: 90,
+      desain: 90,
+      pemrograman: 120,
+    };
     let targetMenit = defaultDurasiMap[katId] || 90;
 
     try {
       const { data, error } = await supabase
-        .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
-        .select('*')
-        .eq('key', 'katalog_mata_ujian')
+        .from(TABLES.PENGATURAN_UJIAN || "pengaturan_ujian")
+        .select("*")
+        .eq("key", "katalog_mata_ujian")
         .maybeSingle();
 
       if (!error && data && data.value) {
-        const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+        const parsed =
+          typeof data.value === "string" ? JSON.parse(data.value) : data.value;
         if (Array.isArray(parsed)) {
-          const found = parsed.find(m => m.id === katId);
+          const found = parsed.find((m) => m.id === katId);
           if (found && found.durasi) {
             targetMenit = Number(found.durasi);
             return targetMenit * 60;
@@ -97,15 +125,15 @@ export default function RuangUjian() {
         }
       }
     } catch (err) {
-      console.warn('Gagal membaca katalog durasi dari Supabase Cloud...', err);
+      console.warn("Gagal membaca katalog durasi dari Supabase Cloud...", err);
     }
 
-    const localKatalog = localStorage.getItem('dcc_katalog_mapel');
+    const localKatalog = localStorage.getItem("dcc_katalog_mapel");
     if (localKatalog) {
       try {
         const parsedLocal = JSON.parse(localKatalog);
         if (Array.isArray(parsedLocal)) {
-          const foundLocal = parsedLocal.find(m => m.id === katId);
+          const foundLocal = parsedLocal.find((m) => m.id === katId);
           if (foundLocal && foundLocal.durasi) {
             targetMenit = Number(foundLocal.durasi);
           }
@@ -118,8 +146,15 @@ export default function RuangUjian() {
 
   useEffect(() => {
     const initRuangUjian = async () => {
-      const realName = currentUser.nama || currentUser.nama_lengkap || localStorage.getItem(STORAGE_KEYS.USER_NAME) || 'Peserta Ujian';
-      const realTechId = currentUser.tech_id || localStorage.getItem(STORAGE_KEYS.USER_TECH_ID) || '';
+      const realName =
+        currentUser.nama ||
+        currentUser.nama_lengkap ||
+        localStorage.getItem(STORAGE_KEYS.USER_NAME) ||
+        "Peserta Ujian";
+      const realTechId =
+        currentUser.tech_id ||
+        localStorage.getItem(STORAGE_KEYS.USER_TECH_ID) ||
+        "";
 
       setUserName(realName);
       setTechId(realTechId);
@@ -127,39 +162,50 @@ export default function RuangUjian() {
       setJumlahPindahTab(Number(currentUser.jumlah_pindah_tab) || 0);
 
       if (!realTechId) {
-        setErrorState('Sesi login tidak valid (TechID tidak ditemukan). Silakan login ulang.');
+        setErrorState(
+          "Sesi login tidak valid (TechID tidak ditemukan). Silakan login ulang.",
+        );
         return;
       }
 
       // 1. VERIFIKASI AWAL STATUS SESI UJIAN GLOBAL
       try {
         const { data: dataStatus } = await supabase
-          .from(TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian')
-          .select('*')
-          .eq('key', 'status_sesi_ujian')
+          .from(TABLES.PENGATURAN_UJIAN || "pengaturan_ujian")
+          .select("*")
+          .eq("key", "status_sesi_ujian")
           .maybeSingle();
 
-        const st = dataStatus?.value ? (typeof dataStatus.value === 'string' ? JSON.parse(dataStatus.value) : dataStatus.value) : null;
-        const statusSesi = st?.status || localStorage.getItem('dcc_status_sesi') || 'DITUTUP';
+        const st = dataStatus?.value
+          ? typeof dataStatus.value === "string"
+            ? JSON.parse(dataStatus.value)
+            : dataStatus.value
+          : null;
+        const statusSesi =
+          st?.status || localStorage.getItem("dcc_status_sesi") || "DITUTUP";
 
-        if (statusSesi !== 'DIBUKA') {
-          setErrorState('AKSES DITUTUP: Sesi ujian saat ini sedang DITUTUP/DIKUNCI oleh Pengawas.');
+        if (statusSesi !== "DIBUKA") {
+          setErrorState(
+            "AKSES DITUTUP: Sesi ujian saat ini sedang DITUTUP/DIKUNCI oleh Pengawas.",
+          );
           return;
         }
       } catch (err) {
-        console.warn('Gagal verifikasi status sesi ujian...', err);
+        console.warn("Gagal verifikasi status sesi ujian...", err);
       }
 
       const rawExamId =
         localStorage.getItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY) ||
         sessionStorage.getItem(STORAGE_KEYS.SELECTED_EXAM_CATEGORY) ||
         currentUser.kategori ||
-        '';
+        "";
 
       const storedExamId = normalizeKategori(rawExamId);
 
       if (!storedExamId) {
-        setErrorState(`Kategori ujian Anda tidak valid ("${rawExamId || '-'}"). Silakan hubungi Pengawas.`);
+        setErrorState(
+          `Kategori ujian Anda tidak valid ("${rawExamId || "-"}"). Silakan hubungi Pengawas.`,
+        );
         return;
       }
 
@@ -167,7 +213,9 @@ export default function RuangUjian() {
 
       // FETCH DURASI
       const totalDetikKategori = await fetchDurasiUjianMenit(storedExamId);
-      const wMulaiStr = currentUser?.waktu_mulai || localStorage.getItem(`startTime_${realTechId}`);
+      const wMulaiStr =
+        currentUser?.waktu_mulai ||
+        localStorage.getItem(`startTime_${realTechId}`);
       if (wMulaiStr) {
         const tMulai = new Date(wMulaiStr).getTime();
         const tSekarang = Date.now();
@@ -187,44 +235,63 @@ export default function RuangUjian() {
       // AMBIL REPOSITORI SOAL
       let bankSoalImpor = [];
       try {
-        const { data, error } = await supabase.from(TABLES.BANK_SOAL).select('*');
+        const { data, error } = await supabase
+          .from(TABLES.BANK_SOAL)
+          .select("*");
         if (error) throw error;
         bankSoalImpor = Array.isArray(data) ? data : [];
-        localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(bankSoalImpor));
+        localStorage.setItem(
+          STORAGE_KEYS.BANK_SOAL,
+          JSON.stringify(bankSoalImpor),
+        );
       } catch (err) {
         try {
-          bankSoalImpor = JSON.parse(localStorage.getItem(STORAGE_KEYS.BANK_SOAL) || '[]');
+          bankSoalImpor = JSON.parse(
+            localStorage.getItem(STORAGE_KEYS.BANK_SOAL) || "[]",
+          );
         } catch (e) {
           bankSoalImpor = [];
         }
       }
 
       if (!Array.isArray(bankSoalImpor) || bankSoalImpor.length === 0) {
-        setErrorState('EMPTY_BANK_SOAL');
+        setErrorState("EMPTY_BANK_SOAL");
         return;
       }
 
-      const filteredSoal = bankSoalImpor.filter(s => normalizeKategori(s.kategori) === storedExamId);
+      const filteredSoal = bankSoalImpor.filter(
+        (s) => normalizeKategori(s.kategori) === storedExamId,
+      );
 
       if (filteredSoal.length === 0) {
-        setErrorState('EMPTY_KATEGORI');
+        setErrorState("EMPTY_KATEGORI");
         return;
       }
 
       // 🔀 ACAK OPSI PG PER SISWA (menyimpan teks kunci jawaban asli sebelum diacak agar penilaian tetap akurat)
-      const soalDenganOpsiTeracak = filteredSoal.map(s => {
-        if (s.tipe === 'pg' && Array.isArray(s.opsi) && s.opsi.length > 0) {
-          const kunciHuruf = (s.jawaban_benar || s.jawabanBenar || 'A').toString().toUpperCase().trim();
+      const soalDenganOpsiTeracak = filteredSoal.map((s) => {
+        if (s.tipe === "pg" && Array.isArray(s.opsi) && s.opsi.length > 0) {
+          const kunciHuruf = (s.jawaban_benar || s.jawabanBenar || "A")
+            .toString()
+            .toUpperCase()
+            .trim();
           const kunciIdx = kunciHuruf.charCodeAt(0) - 65;
-          const kunciTeksAsli = s.opsi[kunciIdx] !== undefined ? s.opsi[kunciIdx] : s.opsi[0];
-          const opsiTeracak = seededShuffle(s.opsi, `${realTechId}-opsi-${s.id}`);
+          const kunciTeksAsli =
+            s.opsi[kunciIdx] !== undefined ? s.opsi[kunciIdx] : s.opsi[0];
+          const opsiTeracak = seededShuffle(
+            s.opsi,
+            `${realTechId}-opsi-${s.id}`,
+          );
           return { ...s, opsi: opsiTeracak, _kunciTeksAsli: kunciTeksAsli };
         }
         return s;
       });
 
       // 🔀 ACAK URUTAN SOAL PER SISWA (konsisten selama sesi ujian yang sama, tidak berubah kalau di-refresh)
-      const soalUrutanFinal = seededShuffle(soalDenganOpsiTeracak, `${realTechId}-soal`);
+      const soalUrutanFinal = seededShuffle(
+        soalDenganOpsiTeracak,
+        `${realTechId}-soal`,
+      );
 
       setListSoal(soalUrutanFinal);
 
@@ -232,8 +299,8 @@ export default function RuangUjian() {
       try {
         const { data: jawabanRows, error: jawabanErr } = await supabase
           .from(TABLES.JAWABAN_PESERTA)
-          .select('*')
-          .eq('tech_id', realTechId);
+          .select("*")
+          .eq("tech_id", realTechId);
 
         if (jawabanErr) throw jawabanErr;
 
@@ -241,8 +308,13 @@ export default function RuangUjian() {
         const restoredRagu = {};
         (jawabanRows || []).forEach((row) => {
           let parsedVal = row.jawaban;
-          if (typeof row.jawaban === 'string' && (row.jawaban.startsWith('{') || row.jawaban.startsWith('['))) {
-            try { parsedVal = JSON.parse(row.jawaban); } catch(e) {}
+          if (
+            typeof row.jawaban === "string" &&
+            (row.jawaban.startsWith("{") || row.jawaban.startsWith("["))
+          ) {
+            try {
+              parsedVal = JSON.parse(row.jawaban);
+            } catch (e) {}
           }
           restoredJawaban[row.soal_id] = parsedVal;
           restoredRagu[row.soal_id] = !!row.ragu_ragu;
@@ -250,7 +322,9 @@ export default function RuangUjian() {
         setJawaban(restoredJawaban);
         setRaguRagu(restoredRagu);
       } catch (err) {
-        const savedJwbStr = localStorage.getItem(jawabanLocalKey(realTechId)) || localStorage.getItem(STORAGE_KEYS.JAWABAN_LOCAL_LEGACY);
+        const savedJwbStr =
+          localStorage.getItem(jawabanLocalKey(realTechId)) ||
+          localStorage.getItem(STORAGE_KEYS.JAWABAN_LOCAL_LEGACY);
         if (savedJwbStr) {
           try {
             const parsed = JSON.parse(savedJwbStr);
@@ -258,7 +332,8 @@ export default function RuangUjian() {
             const restoredRagu = {};
             Object.keys(parsed).forEach((soalId) => {
               const entry = parsed[soalId];
-              const isWrapped = entry && typeof entry === 'object' && 'jawaban' in entry;
+              const isWrapped =
+                entry && typeof entry === "object" && "jawaban" in entry;
               restoredJawaban[soalId] = isWrapped ? entry.jawaban : entry;
               restoredRagu[soalId] = isWrapped ? !!entry.ragu_ragu : false;
             });
@@ -275,24 +350,27 @@ export default function RuangUjian() {
   // ⚡⚡ 2. SUPABASE REALTIME SUBSCRIPTION (DETEKSI PENUTUPAN SESI SECARA LIVE TANPA REFRESH)
   useEffect(() => {
     const channel = supabase
-      .channel('realtime_status_sesi')
+      .channel("realtime_status_sesi")
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: TABLES.PENGATURAN_UJIAN || 'pengaturan_ujian',
-          filter: 'key=eq.status_sesi_ujian'
+          event: "*",
+          schema: "public",
+          table: TABLES.PENGATURAN_UJIAN || "pengaturan_ujian",
+          filter: "key=eq.status_sesi_ujian",
         },
         (payload) => {
           if (payload.new && payload.new.value) {
-            const val = typeof payload.new.value === 'string' ? JSON.parse(payload.new.value) : payload.new.value;
-            if (val.status === 'DITUTUP') {
+            const val =
+              typeof payload.new.value === "string"
+                ? JSON.parse(payload.new.value)
+                : payload.new.value;
+            if (val.status === "DITUTUP") {
               // Otomatis Simpan Nilai Terakhir & Tendang Ke Dashboard!
               handleAutoSubmit();
             }
           }
-        }
+        },
       )
       .subscribe();
 
@@ -305,12 +383,12 @@ export default function RuangUjian() {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden && techIdRef.current) {
-        setJumlahPindahTab(prev => {
+        setJumlahPindahTab((prev) => {
           const next = prev + 1;
           supabase
             .from(TABLES.PESERTA)
             .update({ jumlah_pindah_tab: next })
-            .eq('tech_id', techIdRef.current)
+            .eq("tech_id", techIdRef.current)
             .then(() => {})
             .catch(() => {});
           return next;
@@ -319,8 +397,9 @@ export default function RuangUjian() {
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
   // TIMER
@@ -353,32 +432,42 @@ export default function RuangUjian() {
     if (techIdRef.current && listSoal.length > 0) {
       supabase
         .from(TABLES.PESERTA)
-        .update({ soal_terakhir: currentIdx + 1, total_soal_ujian: listSoal.length })
-        .eq('tech_id', techIdRef.current)
+        .update({
+          soal_terakhir: currentIdx + 1,
+          total_soal_ujian: listSoal.length,
+        })
+        .eq("tech_id", techIdRef.current)
         .then(() => {})
         .catch(() => {});
     }
   }, [currentIdx, listSoal.length]);
 
   const formatTime = (seconds) => {
-    const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
-    const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
-    const s = (seconds % 60).toString().padStart(2, '0');
+    const h = Math.floor(seconds / 3600)
+      .toString()
+      .padStart(2, "0");
+    const m = Math.floor((seconds % 3600) / 60)
+      .toString()
+      .padStart(2, "0");
+    const s = (seconds % 60).toString().padStart(2, "0");
     return `${h}:${m}:${s}`;
   };
 
   const persistJawaban = async (soalId, jawabanValue, raguValue) => {
     setIsSaving(true);
     try {
-      const savedLocal = JSON.parse(localStorage.getItem(jawabanLocalKey(techId)) || '{}');
+      const savedLocal = JSON.parse(
+        localStorage.getItem(jawabanLocalKey(techId)) || "{}",
+      );
       savedLocal[soalId] = { jawaban: jawabanValue, ragu_ragu: raguValue };
       localStorage.setItem(jawabanLocalKey(techId), JSON.stringify(savedLocal));
     } catch (e) {}
 
     try {
-      const dbJawabanPayload = typeof jawabanValue === 'object' && jawabanValue !== null 
-        ? JSON.stringify(jawabanValue) 
-        : jawabanValue;
+      const dbJawabanPayload =
+        typeof jawabanValue === "object" && jawabanValue !== null
+          ? JSON.stringify(jawabanValue)
+          : jawabanValue;
 
       await supabase.from(TABLES.JAWABAN_PESERTA).upsert(
         {
@@ -388,7 +477,7 @@ export default function RuangUjian() {
           ragu_ragu: raguValue,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: 'tech_id,soal_id' }
+        { onConflict: "tech_id,soal_id" },
       );
     } catch (err) {}
     setTimeout(() => setIsSaving(false), 300);
@@ -403,10 +492,12 @@ export default function RuangUjian() {
   };
 
   const handleTextareaPraktik = (val) => {
-    const dataLama = typeof jawaban[soalAktif.id] === 'object' && jawaban[soalAktif.id] !== null 
-      ? jawaban[soalAktif.id] 
-      : { teks: '', fileName: '', fileUrl: '' };
-    
+    const dataLama =
+      typeof jawaban[soalAktif.id] === "object" &&
+      jawaban[soalAktif.id] !== null
+        ? jawaban[soalAktif.id]
+        : { teks: "", fileName: "", fileUrl: "" };
+
     const dataBaru = { ...dataLama, teks: val };
     const updated = { ...jawaban, [soalAktif.id]: dataBaru };
     setJawaban(updated);
@@ -425,50 +516,64 @@ export default function RuangUjian() {
     const newRaguValue = !raguRagu[soalId];
     const updated = { ...raguRagu, [soalId]: newRaguValue };
     setRaguRagu(updated);
-    persistJawaban(soalId, jawaban[soalId] !== undefined ? jawaban[soalId] : null, newRaguValue);
+    persistJawaban(
+      soalId,
+      jawaban[soalId] !== undefined ? jawaban[soalId] : null,
+      newRaguValue,
+    );
   };
 
   const handleFileLampiranChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    const allowedExt = ['.docx', '.xlsx', '.pdf'];
-    const ext = '.' + (file.name.split('.').pop() || '').toLowerCase();
+    const allowedExt = [".docx", ".xlsx", ".pdf"];
+    const ext = "." + (file.name.split(".").pop() || "").toLowerCase();
     if (!allowedExt.includes(ext)) {
-      alert('Format file tidak didukung!');
-      e.target.value = '';
+      alert("Format file tidak didukung!");
+      e.target.value = "";
       return;
     }
 
     setIsUploadingFile(true);
     try {
-      const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const path = `${techId}/${soalAktif.id}_${Date.now()}_${safeFileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from(BUCKET_LAMPIRAN_PRAKTIK || 'lampiran_praktik')
+        .from(BUCKET_LAMPIRAN_PRAKTIK || "lampiran_praktik")
         .upload(path, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
       const { data: urlData } = supabase.storage
-        .from(BUCKET_LAMPIRAN_PRAKTIK || 'lampiran_praktik')
+        .from(BUCKET_LAMPIRAN_PRAKTIK || "lampiran_praktik")
         .getPublicUrl(path);
 
-      const dataLama = typeof jawaban[soalAktif.id] === 'object' && jawaban[soalAktif.id] !== null 
-        ? jawaban[soalAktif.id] 
-        : { teks: '', fileName: '', fileUrl: '' };
+      const dataLama =
+        typeof jawaban[soalAktif.id] === "object" &&
+        jawaban[soalAktif.id] !== null
+          ? jawaban[soalAktif.id]
+          : { teks: "", fileName: "", fileUrl: "" };
 
-      const dataBaru = { ...dataLama, fileName: file.name, fileUrl: urlData?.publicUrl || '' };
+      const dataBaru = {
+        ...dataLama,
+        fileName: file.name,
+        fileUrl: urlData?.publicUrl || "",
+      };
       const updated = { ...jawaban, [soalAktif.id]: dataBaru };
       setJawaban(updated);
-      
-      await persistJawaban(soalAktif.id, dataBaru, raguRagu[soalAktif.id] || false);
+
+      await persistJawaban(
+        soalAktif.id,
+        dataBaru,
+        raguRagu[soalAktif.id] || false,
+      );
     } catch (err) {
-      alert('Gagal mengunggah lampiran praktik.');
+      alert("Gagal mengunggah lampiran praktik.");
     } finally {
       setIsUploadingFile(false);
-      e.target.value = '';
+      e.target.value = "";
     }
   };
 
@@ -476,54 +581,68 @@ export default function RuangUjian() {
   const handleAutoSubmit = async () => {
     if (timerRef.current) clearInterval(timerRef.current);
     const nowIso = new Date().toISOString();
-    
-    localStorage.setItem(STORAGE_KEYS.IS_EXAM_FINISHED, 'true');
+
+    localStorage.setItem(STORAGE_KEYS.IS_EXAM_FINISHED, "true");
     localStorage.setItem(`endTime_${techId}`, nowIso);
 
     // Ambil list soal & jawaban terbaru
-    const currentListSoal = listSoalRef.current.length > 0 ? listSoalRef.current : listSoal;
+    const currentListSoal =
+      listSoalRef.current.length > 0 ? listSoalRef.current : listSoal;
     const currentJawaban = jawabanRef.current;
 
-    let soalPG = currentListSoal.filter(s => s.tipe === 'pg');
+    let soalPG = currentListSoal.filter((s) => s.tipe === "pg");
     let benarCount = 0;
 
-    soalPG.forEach(s => {
-      const jwbSiswa = (currentJawaban[s.id] || '').toString().trim().toLowerCase();
+    soalPG.forEach((s) => {
+      const jwbSiswa = (currentJawaban[s.id] || "")
+        .toString()
+        .trim()
+        .toLowerCase();
       // Kunci jawaban dicocokkan berdasarkan TEKS opsi asli (bukan huruf), karena opsi sudah diacak per-siswa
-      const kunciTeks = (s._kunciTeksAsli !== undefined ? s._kunciTeksAsli : (s.jawaban_benar || s.jawabanBenar || 'A')).toString().trim().toLowerCase();
+      const kunciTeks = (
+        s._kunciTeksAsli !== undefined
+          ? s._kunciTeksAsli
+          : s.jawaban_benar || s.jawabanBenar || "A"
+      )
+        .toString()
+        .trim()
+        .toLowerCase();
       if (jwbSiswa && jwbSiswa === kunciTeks) benarCount++;
     });
 
     const salahCount = soalPG.length - benarCount;
-    const calculatedSkorPG = soalPG.length > 0 ? Math.round((benarCount / soalPG.length) * 100) : 0;
+    const calculatedSkorPG =
+      soalPG.length > 0 ? Math.round((benarCount / soalPG.length) * 100) : 0;
 
     try {
       await supabase
         .from(TABLES.PESERTA)
         .update({
-          status: 'selesai',
-          status_koreksi: 'belum_dikoreksi',
+          status: "selesai",
+          status_koreksi: "belum_dikoreksi",
           nilai_pg: calculatedSkorPG,
           nilai_akhir: calculatedSkorPG,
           jumlah_benar: benarCount,
           jumlah_salah: salahCount,
           waktu_selesai: nowIso,
         })
-        .eq('tech_id', techId);
+        .eq("tech_id", techId);
     } catch (err) {
-      console.warn('Gagal update status di Cloud:', err);
+      console.warn("Gagal update status di Cloud:", err);
     }
 
-    let listSesiLokal = JSON.parse(localStorage.getItem(STORAGE_KEYS.PESERTA) || '[]');
-    listSesiLokal = listSesiLokal.map(p => {
+    let listSesiLokal = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.PESERTA) || "[]",
+    );
+    listSesiLokal = listSesiLokal.map((p) => {
       if (p.tech_id?.toLowerCase().trim() === techId.toLowerCase().trim()) {
         return {
           ...p,
-          status: 'selesai',
-          status_koreksi: 'belum_dikoreksi',
+          status: "selesai",
+          status_koreksi: "belum_dikoreksi",
           nilai_pg: calculatedSkorPG,
           nilai_akhir: calculatedSkorPG,
-          waktu_selesai: nowIso
+          waktu_selesai: nowIso,
         };
       }
       return p;
@@ -534,34 +653,42 @@ export default function RuangUjian() {
     if (currentUserStr) {
       try {
         const cu = JSON.parse(currentUserStr);
-        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify({
-          ...cu,
-          status: 'selesai',
-          status_koreksi: 'belum_dikoreksi',
-          nilai_pg: calculatedSkorPG,
-          nilai_akhir: calculatedSkorPG,
-          waktu_selesai: nowIso
-        }));
+        localStorage.setItem(
+          STORAGE_KEYS.CURRENT_USER,
+          JSON.stringify({
+            ...cu,
+            status: "selesai",
+            status_koreksi: "belum_dikoreksi",
+            nilai_pg: calculatedSkorPG,
+            nilai_akhir: calculatedSkorPG,
+            waktu_selesai: nowIso,
+          }),
+        );
       } catch (e) {}
     }
 
-    navigate('/dashboard-peserta');
+    navigate("/dashboard-peserta");
   };
 
   // ⚡⚡ 3. TEKS PROGRES (HITUNG JUMLAH TERJAWAB V.S. TOTAL SOAL)
-  const totalTerjawab = Object.keys(jawaban).filter(soalId => {
+  const totalTerjawab = Object.keys(jawaban).filter((soalId) => {
     const val = jawaban[soalId];
     if (!val) return false;
-    if (typeof val === 'object') return !!(val.teks || val.fileName);
+    if (typeof val === "object") return !!(val.teks || val.fileName);
     return true;
   }).length;
 
   if (errorState) {
     return (
       <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center gap-3 p-4 text-center font-sans">
-        <p className="text-sm font-bold text-cyan-400">Ruang Ujian Tidak Dapat Dibuka</p>
+        <p className="text-sm font-bold text-cyan-400">
+          Ruang Ujian Tidak Dapat Dibuka
+        </p>
         <p className="text-xs text-slate-400 max-w-md">{errorState}</p>
-        <Button onClick={() => navigate('/dashboard-peserta')} className="mt-2 bg-slate-800 text-xs text-slate-300 font-sans">
+        <Button
+          onClick={() => navigate("/dashboard-peserta")}
+          className="mt-2 bg-slate-800 text-xs text-slate-300 font-sans"
+        >
           ← Kembali ke Dashboard
         </Button>
       </div>
@@ -592,11 +719,17 @@ export default function RuangUjian() {
                 className="h-10 w-auto object-contain drop-shadow-md"
               />
             ) : (
-              <span className="text-cyan-400 font-display font-bold text-lg">DCC</span>
+              <span className="text-cyan-400 font-display font-bold text-lg">
+                DCC
+              </span>
             )}
             <div>
-              <h1 className="text-xs font-bold text-cyan-400 uppercase tracking-widest">{getLabelKategori(examKategori)}</h1>
-              <p className="text-[11px] text-slate-300">{userName} • TechID: {techId}</p>
+              <h1 className="text-xs font-bold text-cyan-400 uppercase tracking-widest">
+                {getLabelKategori(examKategori)}
+              </h1>
+              <p className="text-[11px] text-slate-300">
+                {userName} • TechID: {techId}
+              </p>
             </div>
           </div>
 
@@ -604,12 +737,20 @@ export default function RuangUjian() {
             {jumlahPindahTab > 0 && (
               <div className="p-2 px-3 rounded-xl bg-red-500/15 border border-red-500/40 flex items-center gap-1.5">
                 <Eye className="w-3.5 h-3.5 text-red-500" />
-                <span className="font-bold text-[11px] text-red-500">Pindah Tab: {jumlahPindahTab}x</span>
+                <span className="font-bold text-[11px] text-red-500">
+                  Pindah Tab: {jumlahPindahTab}x
+                </span>
               </div>
             )}
             <div className="p-2 px-4 rounded-xl bg-[#030712] border border-slate-800 flex items-center gap-2">
-              <Clock className={`w-4 h-4 animate-pulse ${timeLeft <= 300 ? 'text-red-500' : 'text-cyan-400'}`} />
-              <span className={`font-bold text-sm tracking-wider font-display ${timeLeft <= 300 ? 'text-red-500' : 'text-emerald-400'}`}>{formatTime(timeLeft)}</span>
+              <Clock
+                className={`w-4 h-4 animate-pulse ${timeLeft <= 300 ? "text-red-500" : "text-cyan-400"}`}
+              />
+              <span
+                className={`font-bold text-sm tracking-wider font-display ${timeLeft <= 300 ? "text-red-500" : "text-emerald-400"}`}
+              >
+                {formatTime(timeLeft)}
+              </span>
             </div>
           </div>
         </div>
@@ -619,7 +760,9 @@ export default function RuangUjian() {
         <div className="lg:col-span-3 space-y-5">
           <div className="p-4 rounded-2xl bg-[#0d1527]/50 border border-slate-800/50 flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-wrap">
-              <Badge variant="primary" className="text-xs px-3 py-1 font-bold">SOAL NO. {currentIdx + 1}</Badge>
+              <Badge variant="primary" className="text-xs px-3 py-1 font-bold">
+                SOAL NO. {currentIdx + 1}
+              </Badge>
               {isSoalAktifRagu && (
                 <Badge className="bg-amber-400/20 text-amber-400 border-amber-400/50 text-xs px-3 py-1 font-bold flex items-center gap-1.5">
                   <HelpCircle className="w-3.5 h-3.5" /> RAGU-RAGU
@@ -630,46 +773,64 @@ export default function RuangUjian() {
             {/* TEKS PROGRES TERJAWAB */}
             <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-3 py-1.5 rounded-xl">
               <CheckCircle className="w-3.5 h-3.5" />
-              <span>Berhasil menjawab {totalTerjawab} dari {listSoal.length} soal</span>
+              <span>
+                Berhasil menjawab {totalTerjawab} dari {listSoal.length} soal
+              </span>
             </div>
 
             <span className="text-xs text-slate-400 flex items-center gap-1">
-              <Save className="w-3.5 h-3.5 text-cyan-400" /> {isSaving ? 'Menyimpan...' : 'Autosave Aktif'}
+              <Save className="w-3.5 h-3.5 text-cyan-400" />{" "}
+              {isSaving ? "Menyimpan..." : "Autosave Aktif"}
             </span>
           </div>
 
           <div className="p-6 md:p-8 rounded-2xl bg-[#0d1527]/40 border border-slate-800/50 min-h-[340px] flex flex-col justify-between space-y-6">
             <div className="space-y-6">
-              <p className="text-base md:text-lg leading-relaxed text-slate-100 whitespace-pre-wrap">{soalAktif?.pertanyaan}</p>
+              <p className="text-base md:text-lg leading-relaxed text-slate-100 whitespace-pre-wrap">
+                {soalAktif?.pertanyaan}
+              </p>
 
-              {soalAktif?.tipe === 'pg' ? (
+              {soalAktif?.tipe === "pg" ? (
                 <div className="grid grid-cols-1 gap-3 pt-2">
-                  {soalAktif?.opsi && soalAktif.opsi.map((opsiTeks, idx) => {
-                    const labelHuruf = String.fromCharCode(65 + idx);
-                    const isSelected = jawaban[soalAktif.id] === opsiTeks;
+                  {soalAktif?.opsi &&
+                    soalAktif.opsi.map((opsiTeks, idx) => {
+                      const labelHuruf = String.fromCharCode(65 + idx);
+                      const isSelected = jawaban[soalAktif.id] === opsiTeks;
 
-                    return (
-                      <div
-                        key={idx}
-                        onClick={() => handleSelectPG(opsiTeks)}
-                        className={`p-4 rounded-xl border cursor-pointer flex items-start gap-4 ${
-                          isSelected ? 'bg-[#0d1527] border-cyan-400 text-white shadow-md' : 'bg-[#030712]/60 border-slate-800 text-slate-300 hover:bg-[#0d1527]/60'
-                        }`}
-                      >
-                        <span className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 ${isSelected ? 'bg-cyan-400 text-slate-950' : 'bg-slate-800 text-slate-300'}`}>
-                          {labelHuruf}
-                        </span>
-                        <span className="text-sm pt-0.5">{typeof opsiTeks === 'string' ? opsiTeks.replace(/^[A-D]\.\s*/, '') : opsiTeks}</span>
-                      </div>
-                    );
-                  })}
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => handleSelectPG(opsiTeks)}
+                          className={`p-4 rounded-xl border cursor-pointer flex items-start gap-4 ${
+                            isSelected
+                              ? "bg-[#0d1527] border-cyan-400 text-white shadow-md"
+                              : "bg-[#030712]/60 border-slate-800 text-slate-300 hover:bg-[#0d1527]/60"
+                          }`}
+                        >
+                          <span
+                            className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 ${isSelected ? "bg-cyan-400 text-slate-950" : "bg-slate-800 text-slate-300"}`}
+                          >
+                            {labelHuruf}
+                          </span>
+                          <span className="text-sm pt-0.5">
+                            {typeof opsiTeks === "string"
+                              ? opsiTeks.replace(/^[A-D]\.\s*/, "")
+                              : opsiTeks}
+                          </span>
+                        </div>
+                      );
+                    })}
                 </div>
               ) : (
                 <div className="space-y-3">
                   <textarea
                     rows={5}
                     placeholder="Tuliskan jawaban praktik Anda di sini..."
-                    value={(typeof jawaban[soalAktif?.id] === 'object' ? jawaban[soalAktif?.id]?.teks : jawaban[soalAktif?.id]) || ''}
+                    value={
+                      (typeof jawaban[soalAktif?.id] === "object"
+                        ? jawaban[soalAktif?.id]?.teks
+                        : jawaban[soalAktif?.id]) || ""
+                    }
                     onChange={(e) => handleTextareaPraktik(e.target.value)}
                     className="w-full p-4 bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-xs text-white rounded-xl focus:outline-none font-sans"
                   />
@@ -684,24 +845,36 @@ export default function RuangUjian() {
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                     <Button
                       type="button"
-                      onClick={() => fileInputPraktikRef.current && fileInputPraktikRef.current.click()}
+                      onClick={() =>
+                        fileInputPraktikRef.current &&
+                        fileInputPraktikRef.current.click()
+                      }
                       disabled={isUploadingFile}
                       className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs border-0 flex items-center gap-2 w-fit"
                     >
-                      <Paperclip className="w-3.5 h-3.5" /> {isUploadingFile ? 'Mengunggah Lampiran...' : 'Unggah Lampiran Praktik (.docx/.xlsx/.pdf)'}
+                      <Paperclip className="w-3.5 h-3.5" />{" "}
+                      {isUploadingFile
+                        ? "Mengunggah Lampiran..."
+                        : "Unggah Lampiran Praktik (.docx/.xlsx/.pdf)"}
                     </Button>
-                    {typeof jawaban[soalAktif?.id] === 'object' && jawaban[soalAktif?.id]?.fileName && (
-                      <span className="text-xs text-emerald-400 font-sans flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg break-all">
-                        <FileCheck className="w-3.5 h-3.5 shrink-0" /> {jawaban[soalAktif.id].fileName}
-                      </span>
-                    )}
+                    {typeof jawaban[soalAktif?.id] === "object" &&
+                      jawaban[soalAktif?.id]?.fileName && (
+                        <span className="text-xs text-emerald-400 font-sans flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg break-all">
+                          <FileCheck className="w-3.5 h-3.5 shrink-0" />{" "}
+                          {jawaban[soalAktif.id].fileName}
+                        </span>
+                      )}
                   </div>
                 </div>
               )}
             </div>
 
             <div className="flex items-center justify-between border-t border-slate-800/40 pt-5 gap-2 flex-wrap">
-              <Button onClick={() => setCurrentIdx(Math.max(0, currentIdx - 1))} disabled={currentIdx === 0} className="bg-slate-800 text-slate-300 text-xs border-0">
+              <Button
+                onClick={() => setCurrentIdx(Math.max(0, currentIdx - 1))}
+                disabled={currentIdx === 0}
+                className="bg-slate-800 text-slate-300 text-xs border-0"
+              >
                 <ChevronLeft className="w-4 h-4 mr-1" /> Kembali
               </Button>
 
@@ -709,20 +882,27 @@ export default function RuangUjian() {
                 type="button"
                 onClick={toggleRaguRagu}
                 className={`text-xs border-0 font-bold flex items-center gap-1.5 ${
-                  isSoalAktifRagu ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-slate-800 text-amber-400 hover:bg-slate-700'
+                  isSoalAktifRagu
+                    ? "bg-amber-400 text-slate-950 hover:bg-amber-300"
+                    : "bg-slate-800 text-amber-400 hover:bg-slate-700"
                 }`}
               >
-                <HelpCircle className="w-4 h-4" /> {isSoalAktifRagu ? 'Batal Ragu-ragu' : 'Tandai Ragu-ragu'}
+                <HelpCircle className="w-4 h-4" />{" "}
+                {isSoalAktifRagu ? "Batal Ragu-ragu" : "Tandai Ragu-ragu"}
               </Button>
 
               <Button
                 onClick={() => {
-                  if (currentIdx < listSoal.length - 1) setCurrentIdx(currentIdx + 1);
+                  if (currentIdx < listSoal.length - 1)
+                    setCurrentIdx(currentIdx + 1);
                   else setShowSubmitModal(true);
                 }}
                 className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs border-0"
               >
-                {currentIdx === listSoal.length - 1 ? 'Selesai Ujian' : 'Berikutnya'} <ChevronRight className="w-4 h-4 ml-1" />
+                {currentIdx === listSoal.length - 1
+                  ? "Selesai Ujian"
+                  : "Berikutnya"}{" "}
+                <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
             </div>
           </div>
@@ -731,29 +911,36 @@ export default function RuangUjian() {
         {/* SIDEBAR NAVIGASI SOAL */}
         <div className="p-6 rounded-2xl bg-[#0d1527]/40 border border-slate-800/50 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-widest">NAVIGASI SOAL</h3>
-            <span className="text-[10px] font-bold text-cyan-400">{totalTerjawab}/{listSoal.length}</span>
+            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-widest">
+              NAVIGASI SOAL
+            </h3>
+            <span className="text-[10px] font-bold text-cyan-400">
+              {totalTerjawab}/{listSoal.length}
+            </span>
           </div>
 
           <div className="grid grid-cols-5 gap-2">
             {listSoal.map((item, index) => {
               const isCurrent = index === currentIdx;
-              const isAnswered = jawaban[item.id] !== undefined && jawaban[item.id] !== null && jawaban[item.id] !== '';
+              const isAnswered =
+                jawaban[item.id] !== undefined &&
+                jawaban[item.id] !== null &&
+                jawaban[item.id] !== "";
               const isRagu = !!raguRagu[item.id];
 
               return (
                 <button
                   key={index}
                   onClick={() => setCurrentIdx(index)}
-                  title={isRagu ? 'Ditandai Ragu-ragu' : undefined}
+                  title={isRagu ? "Ditandai Ragu-ragu" : undefined}
                   className={`h-10 rounded-xl font-bold text-xs border transition-all ${
                     isCurrent
-                      ? 'ring-2 ring-cyan-400 bg-cyan-400 text-slate-950'
+                      ? "ring-2 ring-cyan-400 bg-cyan-400 text-slate-950"
                       : isRagu
-                      ? 'bg-amber-400 text-slate-950 border-amber-300 font-bold'
-                      : isAnswered
-                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50'
-                      : 'bg-[#030712] text-slate-400 border-slate-800'
+                        ? "bg-amber-400 text-slate-950 border-amber-300 font-bold"
+                        : isAnswered
+                          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50"
+                          : "bg-[#030712] text-slate-400 border-slate-800"
                   }`}
                 >
                   {index + 1}
@@ -763,12 +950,24 @@ export default function RuangUjian() {
           </div>
 
           <div className="flex flex-wrap gap-3 text-[10px] text-slate-400 pt-1">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500/60 inline-block" /> Terjawab</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" /> Ragu-ragu</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-slate-700 inline-block" /> Belum Dijawab</span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/60 inline-block" />{" "}
+              Terjawab
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />{" "}
+              Ragu-ragu
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-slate-700 inline-block" />{" "}
+              Belum Dijawab
+            </span>
           </div>
 
-          <Button onClick={() => setShowSubmitModal(true)} className="w-full mt-4 py-3 bg-cyan-400 text-slate-950 font-bold text-xs border-0 rounded-xl flex items-center justify-center gap-2">
+          <Button
+            onClick={() => setShowSubmitModal(true)}
+            className="w-full mt-4 py-3 bg-cyan-400 text-slate-950 font-bold text-xs border-0 rounded-xl flex items-center justify-center gap-2"
+          >
             <Send className="w-3.5 h-3.5" /> SUBMIT SELESAI
           </Button>
         </div>
@@ -777,16 +976,32 @@ export default function RuangUjian() {
       {showSubmitModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#0d1527] border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-5">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-400" /> Konfirmasi Selesai Ujian</h3>
-            <p className="text-xs text-slate-300">Apakah Anda yakin ingin menyelesaikan ujian ini?</p>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400" /> Konfirmasi
+              Selesai Ujian
+            </h3>
+            <p className="text-xs text-slate-300">
+              Apakah Anda yakin ingin menyelesaikan ujian ini?
+            </p>
             {Object.values(raguRagu).some(Boolean) && (
               <p className="text-[11px] text-amber-400 bg-amber-400/10 border border-amber-400/30 rounded-lg p-2.5 flex items-center gap-2">
-                <HelpCircle className="w-3.5 h-3.5 shrink-0" /> Anda masih memiliki soal yang ditandai Ragu-ragu.
+                <HelpCircle className="w-3.5 h-3.5 shrink-0" /> Anda masih
+                memiliki soal yang ditandai Ragu-ragu.
               </p>
             )}
             <div className="flex gap-3">
-              <Button onClick={() => setShowSubmitModal(false)} className="flex-1 bg-slate-800 text-xs border-0">Batal</Button>
-              <Button onClick={handleAutoSubmit} className="flex-1 bg-cyan-400 text-slate-950 font-bold text-xs border-0">Ya, Submit</Button>
+              <Button
+                onClick={() => setShowSubmitModal(false)}
+                className="flex-1 bg-slate-800 text-xs border-0"
+              >
+                Batal
+              </Button>
+              <Button
+                onClick={handleAutoSubmit}
+                className="flex-1 bg-cyan-400 text-slate-950 font-bold text-xs border-0"
+              >
+                Ya, Submit
+              </Button>
             </div>
           </div>
         </div>
@@ -797,9 +1012,19 @@ export default function RuangUjian() {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#0d1527] border border-red-500/50 rounded-2xl max-w-sm w-full p-6 space-y-4 text-center">
             <Clock className="w-10 h-10 text-red-500 mx-auto animate-pulse" />
-            <h3 className="text-sm font-bold text-white">Waktu Tersisa 5 Menit!</h3>
-            <p className="text-xs text-slate-300">Segera selesaikan dan periksa kembali jawaban Anda sebelum waktu habis.</p>
-            <Button onClick={() => setShowTimeWarning(false)} className="w-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs border-0">Mengerti</Button>
+            <h3 className="text-sm font-bold text-white">
+              Waktu Tersisa 5 Menit!
+            </h3>
+            <p className="text-xs text-slate-300">
+              Segera selesaikan dan periksa kembali jawaban Anda sebelum waktu
+              habis.
+            </p>
+            <Button
+              onClick={() => setShowTimeWarning(false)}
+              className="w-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs border-0"
+            >
+              Mengerti
+            </Button>
           </div>
         </div>
       )}
@@ -809,9 +1034,19 @@ export default function RuangUjian() {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#0d1527] border border-red-500/50 rounded-2xl max-w-sm w-full p-6 space-y-4 text-center">
             <Eye className="w-10 h-10 text-red-500 mx-auto" />
-            <h3 className="text-sm font-bold text-white">Perpindahan Tab Terdeteksi</h3>
-            <p className="text-xs text-slate-300">Aktivitas berpindah tab/aplikasi lain telah tercatat dan akan terlihat oleh Pengawas.</p>
-            <Button onClick={() => setShowTabWarning(false)} className="w-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs border-0">Kembali Mengerjakan</Button>
+            <h3 className="text-sm font-bold text-white">
+              Perpindahan Tab Terdeteksi
+            </h3>
+            <p className="text-xs text-slate-300">
+              Aktivitas berpindah tab/aplikasi lain telah tercatat dan akan
+              terlihat oleh Pengawas.
+            </p>
+            <Button
+              onClick={() => setShowTabWarning(false)}
+              className="w-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs border-0"
+            >
+              Kembali Mengerjakan
+            </Button>
           </div>
         </div>
       )}
