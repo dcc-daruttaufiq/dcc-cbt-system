@@ -1,10 +1,13 @@
+/* ✅ 1. WAJIB DI PALING ATAS */
+@import './variables.css';
+@import './typography.css';
+
+/* ✅ 2. BARU DIRECTIVE TAILWIND */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import './variables.css';
-@import './typography.css';
-
+/* ✅ 3. BARU STYLES LAINNYA */
 body {
   background-color: var(--background);
   color: var(--text-primary);
