@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { supabase, TABLES } from '../utils/supabaseClient';
-import Sidebar from '../components/ui/Sidebar';
-import Navbar from '../components/ui/Navbar';
-import Card from '../components/ui/Card';
-import Button from '../components/ui/Button';
-import Badge from '../components/ui/Badge';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';      
+import { supabase, TABLES } from '../../utils/supabaseClient';       
+import Sidebar from '../../components/ui/Sidebar';                  
+import Navbar from '../../components/ui/Navbar';                     
+import Card from '../../components/ui/Card';                        
+import Button if from '../../components/ui/Button';                     
+import Badge from '../../components/ui/Badge';                       
 import {
   Database, FileText, Users, TrendingUp, RefreshCw,
   ScanLine, ClipboardList, Home, Power, Key
 } from 'lucide-react';
-
 const PRESENSI_TABLE = 'presensi_harian';
 
 const getTanggalHariIni = () => {
