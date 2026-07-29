@@ -8,8 +8,8 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import {
-  Database, FileText, Users, Award, TrendingUp, RefreshCw,
-  ScanLine, ClipboardList, Home, Power, Key, CheckCircle2, Clock
+  Database, FileText, Users, TrendingUp, RefreshCw,
+  ScanLine, ClipboardList, Home, Power, Key
 } from 'lucide-react';
 
 const PRESENSI_TABLE = 'presensi_harian';
@@ -42,7 +42,7 @@ export default function DashboardAdmin() {
 
   const menuAdmin = [
     { label: 'Menu Utama', path: '/', icon: Home },
-    { label: 'Sistem Ujian', path: '/dashboard-Pengawas', icon: ClipboardList },
+    { label: 'Sistem Ujian', path: '/dashboard-pengawas', icon: ClipboardList },
     { label: 'Presensi Harian', path: '/absensi-scan', icon: ScanLine },
     { label: 'Kelola Akun DCC', path: '/kelola-akun', icon: Users },
   ];
@@ -155,16 +155,20 @@ export default function DashboardAdmin() {
   };
 
   return (
-    <div className="flex min-h-screen bg-background text-slate-100 font-sans">
+    <div className="flex min-h-screen bg-[#030712] text-slate-100 font-['Poppins',sans-serif]">
       <Sidebar links={menuAdmin} userRole="Admin" />
 
       <div className="flex-1 flex flex-col min-w-0">
         <Navbar>
           <div className="flex items-center gap-3">
-            <Database className="text-primary w-6 h-6" />
+            <Database className="text-cyan-400 w-6 h-6" />
             <div>
-              <h1 className="text-base font-display font-bold text-white tracking-wide">CORE CENTRAL ADMIN</h1>
-              <p className="text-xs text-slate-400">Overview gabungan Sistem Ujian & Presensi — data langsung dari Supabase</p>
+              <h1 className="text-base font-['Rajdhani',sans-serif] font-bold text-white tracking-wider uppercase">
+                DASBOR UTAMA
+              </h1>
+              <p className="text-xs text-slate-400 font-['Poppins',sans-serif]">
+                Overview gabungan Sistem Ujian & Presensi
+              </p>
             </div>
           </div>
         </Navbar>
@@ -178,87 +182,107 @@ export default function DashboardAdmin() {
             <div className="flex justify-end">
               <Button
                 onClick={async () => { setIsRefreshing(true); await loadData(); setTimeout(() => setIsRefreshing(false), 400); }}
-                className="bg-slate-800 hover:bg-slate-700 text-xs border-0 text-slate-300 flex items-center gap-1.5"
+                className="bg-[#0d1527] hover:bg-[#1e293b] text-xs border border-slate-800 text-slate-300 font-['Poppins',sans-serif] flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} /> Refresh Data
+                <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${isRefreshing ? 'animate-spin' : ''}`} /> Refresh Data
               </Button>
             </div>
 
             {/* GRID STATISTIK REAL */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              <Card className="border-customBorder bg-surface">
+              <Card className="border-slate-800/80 bg-[#0d1527]/80 backdrop-blur-md p-5 rounded-2xl shadow-xl">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-slate-400 font-sans">Total Soal</span>
-                  <Database className="w-5 h-5 text-primary" />
+                  <span className="text-xs text-slate-400 font-['Poppins',sans-serif]">Total Soal</span>
+                  <Database className="w-5 h-5 text-cyan-400" />
                 </div>
-                <h3 className="text-3xl font-display font-bold text-white">{isLoading ? '—' : statistik.totalSoal}</h3>
+                <h3 className="text-3xl font-['Rajdhani',sans-serif] font-bold text-white tracking-wide">
+                  {isLoading ? '—' : statistik.totalSoal}
+                </h3>
               </Card>
 
-              <Card className="border-customBorder bg-surface">
+              <Card className="border-slate-800/80 bg-[#0d1527]/80 backdrop-blur-md p-5 rounded-2xl shadow-xl">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-slate-400 font-sans">Total Peserta</span>
+                  <span className="text-xs text-slate-400 font-['Poppins',sans-serif]">Total Peserta</span>
                   <Users className="w-5 h-5 text-indigo-400" />
                 </div>
-                <h3 className="text-3xl font-display font-bold text-white">{isLoading ? '—' : statistik.totalPeserta}</h3>
+                <h3 className="text-3xl font-['Rajdhani',sans-serif] font-bold text-white tracking-wide">
+                  {isLoading ? '—' : statistik.totalPeserta}
+                </h3>
               </Card>
 
-              <Card className="border-customBorder bg-surface">
+              <Card className="border-slate-800/80 bg-[#0d1527]/80 backdrop-blur-md p-5 rounded-2xl shadow-xl">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-slate-400 font-sans">Selesai Ujian</span>
+                  <span className="text-xs text-slate-400 font-['Poppins',sans-serif]">Selesai Ujian</span>
                   <FileText className="w-5 h-5 text-emerald-400" />
                 </div>
-                <h3 className="text-3xl font-display font-bold text-emerald-400">{isLoading ? '—' : statistik.pesertaSelesai}</h3>
+                <h3 className="text-3xl font-['Rajdhani',sans-serif] font-bold text-emerald-400 tracking-wide">
+                  {isLoading ? '—' : statistik.pesertaSelesai}
+                </h3>
               </Card>
 
-              <Card className="border-customBorder bg-surface">
+              <Card className="border-slate-800/80 bg-[#0d1527]/80 backdrop-blur-md p-5 rounded-2xl shadow-xl">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-slate-400 font-sans">Rata-Rata Nilai</span>
+                  <span className="text-xs text-slate-400 font-['Poppins',sans-serif]">Rata-Rata Nilai</span>
                   <TrendingUp className="w-5 h-5 text-amber-400" />
                 </div>
-                <h3 className="text-3xl font-display font-bold text-amber-400">{isLoading ? '—' : statistik.rataRataNilai}</h3>
+                <h3 className="text-3xl font-['Rajdhani',sans-serif] font-bold text-amber-400 tracking-wide">
+                  {isLoading ? '—' : statistik.rataRataNilai}
+                </h3>
               </Card>
 
-              <Card className="border-customBorder bg-surface">
+              <Card className="border-slate-800/80 bg-[#0d1527]/80 backdrop-blur-md p-5 rounded-2xl shadow-xl">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-slate-400 font-sans">Presensi Hari Ini</span>
+                  <span className="text-xs text-slate-400 font-['Poppins',sans-serif]">Presensi Hari Ini</span>
                   <ScanLine className="w-5 h-5 text-cyan-400" />
                 </div>
-                <h3 className="text-3xl font-display font-bold text-cyan-400">{isLoading ? '—' : statistik.presensiHariIni}</h3>
+                <h3 className="text-3xl font-['Rajdhani',sans-serif] font-bold text-cyan-400 tracking-wide">
+                  {isLoading ? '—' : statistik.presensiHariIni}
+                </h3>
               </Card>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* STATUS SISTEM REAL */}
-              <Card className="border-customBorder bg-surface/50 p-6 space-y-4">
-                <h3 className="text-lg font-display font-bold text-white">Status Sistem Ujian</h3>
+              <Card className="border-slate-800/80 bg-[#0d1527]/50 backdrop-blur-md p-6 space-y-4 rounded-2xl shadow-xl">
+                <h3 className="text-lg font-['Rajdhani',sans-serif] font-bold text-white tracking-wider uppercase">
+                  Status Sistem Ujian
+                </h3>
 
-                <div className="flex items-center justify-between p-3 bg-background/50 rounded-lg border border-customBorder/20">
-                  <span className="text-xs text-slate-400 flex items-center gap-2"><Power className="w-4 h-4" /> Sesi Ujian</span>
-                  <Badge className={`text-[10px] font-display font-bold px-2.5 py-1 rounded-md uppercase ${
+                <div className="flex items-center justify-between p-3.5 bg-[#030712]/80 rounded-xl border border-slate-800/60">
+                  <span className="text-xs text-slate-300 font-['Poppins',sans-serif] flex items-center gap-2">
+                    <Power className="w-4 h-4 text-cyan-400" /> Sesi Ujian
+                  </span>
+                  <Badge className={`text-[10px] font-['Rajdhani',sans-serif] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider ${
                     statusSesi === 'DIBUKA' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
                   }`}>
                     {statusSesi}
                   </Badge>
                 </div>
 
-                <div className="flex items-center justify-between p-3 bg-background/50 rounded-lg border border-customBorder/20">
-                  <span className="text-xs text-slate-400 flex items-center gap-2"><Key className="w-4 h-4" /> Mode Token</span>
-                  <Badge className="text-[10px] font-display font-bold px-2.5 py-1 rounded-md uppercase bg-cyan-500/20 text-cyan-400 border border-cyan-500/40">
+                <div className="flex items-center justify-between p-3.5 bg-[#030712]/80 rounded-xl border border-slate-800/60">
+                  <span className="text-xs text-slate-300 font-['Poppins',sans-serif] flex items-center gap-2">
+                    <Key className="w-4 h-4 text-cyan-400" /> Mode Token
+                  </span>
+                  <Badge className="text-[10px] font-['Rajdhani',sans-serif] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider bg-cyan-500/20 text-cyan-400 border border-cyan-500/40">
                     {modeToken === 'siswa' ? 'Per Siswa' : 'Per Mapel'}
                   </Badge>
                 </div>
 
-                <p className="text-[11px] text-slate-500">Pengaturan ini dikontrol dari halaman Pengaturan Ujian di Sistem Ujian.</p>
+                <p className="text-[11px] text-slate-400 font-['Poppins',sans-serif]">
+                  Pengaturan ini dikontrol dari halaman Pengaturan Ujian di Sistem Ujian.
+                </p>
               </Card>
 
               {/* AKTIVITAS TERBARU REAL */}
-              <Card className="border-customBorder bg-surface/50 p-6">
-                <h3 className="text-lg font-display font-bold mb-3 text-white">Aktivitas Terbaru</h3>
-                <div className="text-xs font-mono space-y-2 text-slate-400 bg-background/50 p-4 rounded-lg border border-customBorder/20 max-h-64 overflow-y-auto">
+              <Card className="border-slate-800/80 bg-[#0d1527]/50 backdrop-blur-md p-6 rounded-2xl shadow-xl">
+                <h3 className="text-lg font-['Rajdhani',sans-serif] font-bold mb-3 text-white tracking-wider uppercase">
+                  Aktivitas Terbaru
+                </h3>
+                <div className="text-xs font-['Rajdhani',sans-serif] tracking-wide space-y-2 text-slate-300 bg-[#030712]/80 p-4 rounded-xl border border-slate-800/60 max-h-64 overflow-y-auto">
                   {isLoading ? (
-                    <p className="text-slate-500">Memuat aktivitas...</p>
+                    <p className="text-slate-500 font-['Poppins',sans-serif]">Memuat aktivitas...</p>
                   ) : aktivitasTerbaru.length === 0 ? (
-                    <p className="text-slate-500">Belum ada aktivitas tercatat.</p>
+                    <p className="text-slate-500 font-['Poppins',sans-serif]">Belum ada aktivitas tercatat.</p>
                   ) : (
                     aktivitasTerbaru.map((a, idx) => (
                       <p key={idx} className={a.tipe === 'presensi' ? 'text-cyan-400' : 'text-emerald-400'}>
