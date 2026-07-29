@@ -1,42 +1,89 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   MessageCircle, Send, CheckCircle2, Clock, XCircle,
   Settings2, Users, ScanLine, FileSpreadsheet, ClipboardList
 } from 'lucide-react';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-
-// Dummy log notifikasi — ganti dengan data dari API gateway (mis. Fonnte/Wablas)
-const logNotifikasi = [
-  { id: 1, santri: 'Ahmad Rifa\'i', techId: 'DCC26-0012', jenis: 'Presensi', pesan: 'Hadir di lab jam 07:15', status: 'Terkirim', waktu: '07:16' },
-  { id: 2, santri: 'Nurul Hidayah', techId: 'DCC26-0045', jenis: 'Perizinan', pesan: 'Izin sakit disetujui pengawas', status: 'Terkirim', waktu: '08:02' },
-  { id: 3, santri: 'Muhammad Fikri', techId: 'DCC26-0089', jenis: 'Nilai CBT', pesan: 'Nilai ujian Web Development: 88', status: 'Tertunda', waktu: '—' },
-  { id: 4, santri: 'Siti Aisyah', techId: 'DCC26-0102', jenis: 'Presensi', pesan: 'Tidak hadir, belum scan TechID', status: 'Gagal', waktu: '07:40' },
-];
+import { supabase } from '../utils/supabaseClient';
 
 const jenisIcon = {
-  'Presensi': ScanLine,
-  'Perizinan': FileSpreadsheet,
-  'Nilai CBT': ClipboardList,
+  presensi: ScanLine,
+  perizinan: FileSpreadsheet,
+  nilai_cbt: ClipboardList,
+};
+
+const jenisLabel = {
+  presensi: 'Presensi',
+  perizinan: 'Perizinan',
+  nilai_cbt: 'Nilai CBT',
 };
 
 const statusStyle = {
-  'Terkirim': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-  'Tertunda': 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-  'Gagal': 'bg-rose-500/10 text-rose-400 border-rose-500/30',
+  Terkirim: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+  Tertunda: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+  Gagal: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
 };
 
 const statusIcon = {
-  'Terkirim': CheckCircle2,
-  'Tertunda': Clock,
-  'Gagal': XCircle,
+  Terkirim: CheckCircle2,
+  Tertunda: Clock,
+  Gagal: XCircle,
 };
 
 export default function NotifikasiWhatsapp() {
   useDocumentTitle('Notifikasi WhatsApp Wali');
-  const [aktif, setAktif] = useState({ presensi: true, perizinan: true, nilai: false });
+  const [pengaturan, setPengaturan] = useState([]);
+  const [logNotifikasi, setLogNotifikasi] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errMsg, setErrMsg] = useState(null);
 
-  const toggle = (key) => setAktif((prev) => ({ ...prev, [key]: !prev[key] }));
+  const fetchData = async () => {
+    setLoading(true);
+    setErrMsg(null);
+
+    const { data: dataPengaturan, error: errPengaturan } = await supabase
+      .from('pengaturan_notifikasi')
+      .select('*')
+      .order('jenis', { ascending: true });
+
+    const { data: dataLog, error: errLog } = await supabase
+      .from('log_notifikasi')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (errPengaturan || errLog) {
+      setErrMsg((errPengaturan || errLog).message);
+    } else {
+      setPengaturan(dataPengaturan || []);
+      setLogNotifikasi(dataLog || []);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const toggle = async (jenis, aktifSekarang) => {
+    // Optimistic update biar UI responsif
+    setPengaturan((prev) =>
+      prev.map((p) => (p.jenis === jenis ? { ...p, aktif: !aktifSekarang } : p))
+    );
+    const { error } = await supabase
+      .from('pengaturan_notifikasi')
+      .update({ aktif: !aktifSekarang, updated_at: new Date().toISOString() })
+      .eq('jenis', jenis);
+
+    if (error) {
+      // Rollback kalau gagal
+      setPengaturan((prev) =>
+        prev.map((p) => (p.jenis === jenis ? { ...p, aktif: aktifSekarang } : p))
+      );
+      setErrMsg(error.message);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#030712] text-slate-100 font-['Poppins',sans-serif] pb-20 px-6 pt-10">
@@ -55,6 +102,12 @@ export default function NotifikasiWhatsapp() {
           </div>
         </div>
 
+        {errMsg && (
+          <div className="mt-4 bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-lg px-4 py-3">
+            Gagal memuat data: {errMsg}
+          </div>
+        )}
+
         {/* PENGATURAN PEMICU NOTIFIKASI */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -68,34 +121,38 @@ export default function NotifikasiWhatsapp() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[
-              { key: 'presensi', label: 'Presensi Harian', desc: 'Kirim saat santri scan TechID masuk lab.', icon: ScanLine },
-              { key: 'perizinan', label: 'Perizinan Disetujui', desc: 'Kirim saat pengawas menyetujui izin.', icon: FileSpreadsheet },
-              { key: 'nilai', label: 'Nilai Ujian CBT', desc: 'Kirim saat hasil CBT santri terbit.', icon: ClipboardList },
-            ].map(({ key, label, desc, icon: Icon }) => (
-              <button
-                key={key}
-                onClick={() => toggle(key)}
-                className={`text-left p-4 rounded-xl border transition-all ${
-                  aktif[key]
-                    ? 'border-cyan-400/50 bg-cyan-400/5'
-                    : 'border-slate-800 bg-[#0a1120]'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <Icon className={`h-4 w-4 ${aktif[key] ? 'text-cyan-400' : 'text-slate-500'}`} />
-                  <span className={`text-[10px] font-['Rajdhani',sans-serif] font-bold px-2 py-0.5 rounded-md border uppercase ${
-                    aktif[key] ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-500 border-slate-700'
-                  }`}>
-                    {aktif[key] ? 'Aktif' : 'Nonaktif'}
-                  </span>
-                </div>
-                <p className="font-['Rajdhani',sans-serif] font-bold text-sm text-white">{label}</p>
-                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">{desc}</p>
-              </button>
-            ))}
-          </div>
+          {loading ? (
+            <p className="text-xs text-slate-500">Memuat pengaturan...</p>
+          ) : pengaturan.length === 0 ? (
+            <p className="text-xs text-slate-500">
+              Belum ada baris di tabel <code className="text-cyan-400">pengaturan_notifikasi</code>. Cek lagi apakah INSERT awal di SQL kamu berhasil.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {pengaturan.map(({ jenis, aktif }) => {
+                const Icon = jenisIcon[jenis] || MessageCircle;
+                return (
+                  <button
+                    key={jenis}
+                    onClick={() => toggle(jenis, aktif)}
+                    className={`text-left p-4 rounded-xl border transition-all ${
+                      aktif ? 'border-cyan-400/50 bg-cyan-400/5' : 'border-slate-800 bg-[#0a1120]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <Icon className={`h-4 w-4 ${aktif ? 'text-cyan-400' : 'text-slate-500'}`} />
+                      <span className={`text-[10px] font-['Rajdhani',sans-serif] font-bold px-2 py-0.5 rounded-md border uppercase ${
+                        aktif ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-500 border-slate-700'
+                      }`}>
+                        {aktif ? 'Aktif' : 'Nonaktif'}
+                      </span>
+                    </div>
+                    <p className="font-['Rajdhani',sans-serif] font-bold text-sm text-white">{jenisLabel[jenis] || jenis}</p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </motion.div>
 
         {/* LOG NOTIFIKASI */}
@@ -119,35 +176,43 @@ export default function NotifikasiWhatsapp() {
                 </tr>
               </thead>
               <tbody>
-                {logNotifikasi.map((row) => {
-                  const JIcon = jenisIcon[row.jenis] || MessageCircle;
-                  const SIcon = statusIcon[row.status];
-                  return (
-                    <tr key={row.id} className="border-t border-slate-800/80 hover:bg-[#0a1120]/60 transition">
-                      <td className="px-5 py-3">
-                        <p className="text-white font-medium">{row.santri}</p>
-                        <p className="text-[11px] text-slate-500 font-['Rajdhani',sans-serif]">{row.techId}</p>
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className="flex items-center gap-1.5 text-slate-300 text-xs">
-                          <JIcon className="h-3.5 w-3.5 text-cyan-400" /> {row.jenis}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 text-slate-400 text-xs">{row.pesan}</td>
-                      <td className="px-5 py-3 text-slate-400 text-xs font-['Rajdhani',sans-serif]">{row.waktu}</td>
-                      <td className="px-5 py-3">
-                        <span className={`flex items-center gap-1 w-fit text-[10px] font-['Rajdhani',sans-serif] font-bold px-2 py-1 rounded-md border uppercase ${statusStyle[row.status]}`}>
-                          <SIcon className="h-3 w-3" /> {row.status}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {loading ? (
+                  <tr><td colSpan={5} className="px-5 py-6 text-center text-xs text-slate-500">Memuat...</td></tr>
+                ) : logNotifikasi.length === 0 ? (
+                  <tr><td colSpan={5} className="px-5 py-6 text-center text-xs text-slate-500">Belum ada riwayat notifikasi. Insert baris manual di tabel `log_notifikasi` untuk uji coba.</td></tr>
+                ) : (
+                  logNotifikasi.map((row) => {
+                    const JIcon = jenisIcon[row.jenis] || MessageCircle;
+                    const SIcon = statusIcon[row.status] || Clock;
+                    return (
+                      <tr key={row.id} className="border-t border-slate-800/80 hover:bg-[#0a1120]/60 transition">
+                        <td className="px-5 py-3">
+                          <p className="text-white font-medium">{row.nama_santri || '—'}</p>
+                          <p className="text-[11px] text-slate-500 font-['Rajdhani',sans-serif]">{row.tech_id}</p>
+                        </td>
+                        <td className="px-5 py-3">
+                          <span className="flex items-center gap-1.5 text-slate-300 text-xs">
+                            <JIcon className="h-3.5 w-3.5 text-cyan-400" /> {jenisLabel[row.jenis] || row.jenis}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-slate-400 text-xs">{row.pesan}</td>
+                        <td className="px-5 py-3 text-slate-400 text-xs font-['Rajdhani',sans-serif]">
+                          {row.created_at ? new Date(row.created_at).toLocaleString('id-ID') : '—'}
+                        </td>
+                        <td className="px-5 py-3">
+                          <span className={`flex items-center gap-1 w-fit text-[10px] font-['Rajdhani',sans-serif] font-bold px-2 py-1 rounded-md border uppercase ${statusStyle[row.status] || statusStyle.Tertunda}`}>
+                            <SIcon className="h-3 w-3" /> {row.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
           <p className="text-[11px] text-slate-500 mt-3 flex items-center gap-1.5">
-            <Users className="h-3.5 w-3.5" /> Nomor wali diambil dari data induk santri di modul Akademik DCC. Hubungkan API gateway (Fonnte/Wablas/dsb) di halaman ini untuk mulai mengirim otomatis.
+            <Users className="h-3.5 w-3.5" /> Nomor wali diambil dari tabel wali_kontak. Hubungkan API gateway (Fonnte/Wablas/dsb) untuk mengirim otomatis dan mengubah status jadi "Terkirim".
           </p>
         </div>
       </div>
