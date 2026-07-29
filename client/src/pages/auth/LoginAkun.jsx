@@ -4,12 +4,15 @@ import { supabase } from '../utils/supabaseClient';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
+import { GraduationCap, ShieldCheck, Crown } from 'lucide-react';
 
 const AKUN_TABLE = 'akun_dcc';
 const AKUN_SESSION_KEY = 'dcc_akun_session';
 
 export default function LoginAkun() {
   const navigate = useNavigate();
+
+  const [selectedRole, setSelectedRole] = useState('siswa'); // 'siswa' | 'member' | 'lead'
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -49,10 +52,27 @@ export default function LoginAkun() {
         return;
       }
 
-      if (akun.tipe === 'tamu' && akun.tanggal_expired) {
+      // 🔒 Validasi tab yang dipilih harus cocok sama tipe akun sebenarnya
+      if (selectedRole === 'lead' && akun.tipe !== 'admin') {
+        setErrorMsg('Akun ini bukan Lead Instructor. Silakan pilih tab yang sesuai.');
+        setIsLoading(false);
+        return;
+      }
+      if (selectedRole === 'member' && akun.tipe !== 'anggota') {
+        setErrorMsg('Akun ini bukan Member. Silakan pilih tab yang sesuai.');
+        setIsLoading(false);
+        return;
+      }
+      if (selectedRole === 'siswa' && akun.tipe !== 'siswa' && akun.tipe !== 'tamu') {
+        setErrorMsg('Akun ini bukan Student. Silakan pilih tab yang sesuai.');
+        setIsLoading(false);
+        return;
+      }
+
+      if ((akun.tipe === 'tamu' || akun.tipe === 'siswa') && akun.tanggal_expired) {
         const hariIni = new Date().toISOString().slice(0, 10);
         if (akun.tanggal_expired < hariIni) {
-          setErrorMsg('Akun tamu ini sudah kedaluwarsa. Hubungi admin DCC untuk perpanjangan.');
+          setErrorMsg('Akun ini sudah kedaluwarsa. Hubungi admin DCC untuk perpanjangan.');
           setIsLoading(false);
           return;
         }
@@ -67,6 +87,8 @@ export default function LoginAkun() {
 
       if (akun.tipe === 'admin') {
         navigate('/dashboard-admin');
+      } else if (akun.tipe === 'anggota') {
+        navigate('/dashboard-Pengawas');
       } else {
         navigate('/');
       }
@@ -80,9 +102,49 @@ export default function LoginAkun() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-8 border-borderCustom bg-surface space-y-6 shadow-2xl">
+
         <div className="text-center space-y-2">
-          <h1 className="text-2xl font-display font-bold text-primary tracking-wider">AKUN DCC</h1>
-          <p className="text-xs text-slate-400 font-sans">Login untuk Admin, Anggota, dan Tamu Daruttaufiq Computer Centre</p>
+          <h1 className="text-3xl font-display font-bold text-primary tracking-wider">AKUN DCC</h1>
+          <p className="text-xs text-slate-400 font-sans">Pilih peran Anda untuk masuk ke dalam sistem</p>
+        </div>
+
+        {/* SELEKSI PERAN */}
+        <div className="grid grid-cols-3 gap-1 bg-background p-1.5 rounded-xl border border-borderCustom/60">
+          <button
+            type="button"
+            onClick={() => { setSelectedRole('siswa'); setErrorMsg(''); }}
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${selectedRole === 'siswa'
+                ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100'
+                : 'text-slate-400 hover:text-white hover:bg-surface/50'
+              }`}
+          >
+            <GraduationCap className="w-4 h-4 mb-1" />
+            <span>STUDENT</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setSelectedRole('member'); setErrorMsg(''); }}
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${selectedRole === 'member'
+                ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100'
+                : 'text-slate-400 hover:text-white hover:bg-surface/50'
+              }`}
+          >
+            <ShieldCheck className="w-4 h-4 mb-1" />
+            <span>MEMBER</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setSelectedRole('lead'); setErrorMsg(''); }}
+            className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-display font-bold transition-all ${selectedRole === 'lead'
+                ? 'bg-primary text-background shadow-md shadow-primary/30 scale-100'
+                : 'text-slate-400 hover:text-white hover:bg-surface/50'
+              }`}
+          >
+            <Crown className="w-4 h-4 mb-1" />
+            <span>LEAD</span>
+          </button>
         </div>
 
         {errorMsg && (
@@ -113,7 +175,7 @@ export default function LoginAkun() {
             />
           </div>
           <Button type="submit" variant="primary" size="lg" className="w-full mt-2" disabled={isLoading}>
-            {isLoading ? 'MEMVERIFIKASI...' : 'MASUK'}
+            {isLoading ? 'MEMVERIFIKASI...' : `MASUK SEBAGAI ${selectedRole === 'lead' ? 'LEAD INSTRUCTOR' : selectedRole === 'member' ? 'MEMBER' : 'STUDENT'}`}
           </Button>
         </form>
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase, TABLES } from '../utils/supabaseClient';
 import { normalizeKategori } from '../utils/examCategories';
 import { STORAGE_KEYS, jawabanLocalKey } from '../utils/storageKeys';
@@ -35,8 +36,22 @@ import {
   Home,
   Database,
   Sliders,
-  FileBarChart
+  FileBarChart,
+  MonitorCheck,
+  LogIn,
+  Clock
 } from 'lucide-react';
+
+const AKUN_SESSION_KEY = 'dcc_akun_session';
+const PRESENSI_STAFF_TABLE = 'presensi_staff';
+
+const getTanggalHariIni = () => {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
 
 // Helper Generator Token Random Unik Siswa
 const generateRandomTokenSiswa = (prefix = 'TS') => {
@@ -49,6 +64,12 @@ const generateRandomTokenSiswa = (prefix = 'TS') => {
 };
 
 export default function DashboardPengawas() {
+  const navigate = useNavigate();
+  const [sesiStaff, setSesiStaff] = useState(null);
+  const [isCheckingSesi, setIsCheckingSesi] = useState(true);
+  const [sudahPresensiHariIni, setSudahPresensiHariIni] = useState(false);
+  const [isPresensiLoading, setIsPresensiLoading] = useState(false);
+
   const [peserta, setPeserta] = useState([]);
   const [bankSoalAll, setBankSoalAll] = useState([]);
   const [katalogMapel, setKatalogMapel] = useState([]);
@@ -90,6 +111,7 @@ export default function DashboardPengawas() {
     { label: 'Repositori Soal', path: '/bank-soal', icon: Database },
     { label: 'Pengaturan Ujian', path: '/pengaturan-ujian', icon: Sliders },
     { label: 'Laporan Nilai', path: '/laporan', icon: FileBarChart },
+    { label: 'Fasilitas DCC', path: '/fasilitas-dcc', icon: MonitorCheck },
   ];
 
   // Load Katalog Mata Ujian & Mode Token
@@ -187,7 +209,66 @@ export default function DashboardPengawas() {
     }
   };
 
+  // 🔐 Proteksi halaman — cuma yang login lewat /akun-login (anggota/admin) yang boleh masuk
   useEffect(() => {
+    try {
+      const raw = localStorage.getItem(AKUN_SESSION_KEY);
+      const sesi = raw ? JSON.parse(raw) : null;
+      if (!sesi || (sesi.tipe !== 'anggota' && sesi.tipe !== 'admin')) {
+        navigate('/akun-login');
+        return;
+      }
+      setSesiStaff(sesi);
+    } catch (e) {
+      navigate('/akun-login');
+      return;
+    } finally {
+      setIsCheckingSesi(false);
+    }
+  }, [navigate]);
+
+  // 📋 Cek apakah staff ini sudah presensi hari ini
+  const cekPresensiHariIni = async (username) => {
+    try {
+      const { data } = await supabase
+        .from(PRESENSI_STAFF_TABLE)
+        .select('*')
+        .eq('username', username)
+        .eq('tanggal', getTanggalHariIni())
+        .maybeSingle();
+      setSudahPresensiHariIni(!!data);
+    } catch (e) {
+      console.warn('Gagal cek presensi staff:', e);
+    }
+  };
+
+  const handlePresensiStaff = async () => {
+    if (!sesiStaff) return;
+    setIsPresensiLoading(true);
+    try {
+      const { error } = await supabase.from(PRESENSI_STAFF_TABLE).insert({
+        username: sesiStaff.username,
+        nama: sesiStaff.nama,
+        tanggal: getTanggalHariIni(),
+        waktu_masuk: new Date().toISOString(),
+        status: 'HADIR'
+      });
+      if (error) throw error;
+      setSudahPresensiHariIni(true);
+    } catch (e) {
+      alert('Gagal mencatat presensi. Mungkin sudah tercatat hari ini.');
+      setSudahPresensiHariIni(true);
+    } finally {
+      setIsPresensiLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (sesiStaff?.username) cekPresensiHariIni(sesiStaff.username);
+  }, [sesiStaff]);
+
+  useEffect(() => {
+    if (!sesiStaff) return;
     loadPeserta();
     loadBankSoal();
     loadKatalogPengaturan();
@@ -197,7 +278,7 @@ export default function DashboardPengawas() {
     }, 4000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [sesiStaff]);
 
   // 📡 REALTIME: update kartu peserta INSTAN begitu ada perubahan di Supabase
   // (progress soal, status, jumlah pindah tab, dll) — tanpa perlu menunggu polling atau refresh manual.
@@ -813,6 +894,10 @@ export default function DashboardPengawas() {
 
   const infoSiswaTerpilih = peserta.find(p => p.id === selectedSiswa);
 
+  if (isCheckingSesi) {
+    return <div className="min-h-screen bg-[#030712] flex items-center justify-center text-slate-400 text-xs">Memeriksa sesi login...</div>;
+  }
+
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
       <Sidebar links={menuPengawas} userRole="Pengawas" />
@@ -834,6 +919,21 @@ export default function DashboardPengawas() {
             </div>
 
             <div className="flex items-center gap-2">
+              {sesiStaff && (
+                sudahPresensiHariIni ? (
+                  <span className="flex items-center gap-1.5 text-[11px] font-display font-bold text-emerald-400 bg-emerald-400/10 border border-emerald-400/30 px-3 py-1.5 rounded-xl">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Sudah Presensi Hari Ini
+                  </span>
+                ) : (
+                  <Button
+                    onClick={handlePresensiStaff}
+                    disabled={isPresensiLoading}
+                    className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-display font-bold border-0 flex items-center gap-1.5"
+                  >
+                    <Clock className="w-3.5 h-3.5" /> {isPresensiLoading ? 'Mencatat...' : 'Presensi Masuk Hari Ini'}
+                  </Button>
+                )
+              )}
               <input
                 type="file"
                 ref={pesertaFileInputRef}
