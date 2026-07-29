@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardList, ScanLine, Plus, ArrowRight } from 'lucide-react'
+import { ClipboardList, ScanLine, KeyRound, Plus, ArrowRight } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { LOGO_URL } from '../config/brand';
 
@@ -18,6 +18,12 @@ const modul = [
     desc: 'Scan kartu TechID via kamera untuk mencatat kehadiran harian secara realtime.',
     path: '/absensi-scan',
     icon: ScanLine,
+  },
+  {
+    label: 'Akun DCC',
+    desc: 'Login untuk Admin, Anggota, dan Tamu — akses ke sistem-sistem DCC.',
+    path: '/akun-login',
+    icon: KeyRound,
   },
 ]
 
