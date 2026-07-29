@@ -17,6 +17,10 @@ const AbsensiScan = lazy(() => import('../pages/AbsensiScan'));
 const RekapAbsensi = lazy(() => import('../pages/RekapAbsensi'));
 const LoginAkun = lazy(() => import('../pages/LoginAkun'));
 const KelolaAkun = lazy(() => import('../pages/KelolaAkun'));
+const NotifikasiWhatsapp = lazy(() => import('../pages/NotifikasiWhatsapp')); // <-- MODUL BARU
+const PeminjamanAset = lazy(() => import('../pages/PeminjamanAset')); // <-- MODUL BARU
+const PoinGamifikasi = lazy(() => import('../pages/PoinGamifikasi')); // <-- MODUL BARU
+const PortalAlumni = lazy(() => import('../pages/PortalAlumni')); // <-- MODUL BARU
 const NotFound = lazy(() => import('../pages/NotFound'));
 
 // Wrapper Suspense
@@ -49,6 +53,10 @@ export const router = createBrowserRouter([
       { path: 'rekap-absensi', element: <SuspenseWrapper><RekapAbsensi /></SuspenseWrapper> },
       { path: 'akun-login', element: <SuspenseWrapper><LoginAkun /></SuspenseWrapper> },
       { path: 'kelola-akun', element: <SuspenseWrapper><KelolaAkun /></SuspenseWrapper> },
+      { path: 'notifikasi-whatsapp', element: <SuspenseWrapper><NotifikasiWhatsapp /></SuspenseWrapper> }, // <-- MODUL BARU
+      { path: 'peminjaman-aset', element: <SuspenseWrapper><PeminjamanAset /></SuspenseWrapper> }, // <-- MODUL BARU
+      { path: 'poin-gamifikasi', element: <SuspenseWrapper><PoinGamifikasi /></SuspenseWrapper> }, // <-- MODUL BARU
+      { path: 'portal-alumni', element: <SuspenseWrapper><PortalAlumni /></SuspenseWrapper> }, // <-- MODUL BARU
       { path: '*', element: <SuspenseWrapper><NotFound /></SuspenseWrapper> },
     ],
   },
