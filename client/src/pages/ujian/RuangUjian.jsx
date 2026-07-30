@@ -1,19 +1,19 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useDocumentTitle } from "../../hooks/useDocumentTitle"; // ✅ Ubah ke ../../
+import { useDocumentTitle } from "../../hooks/useDocumentTitle";
 import {
   supabase,
   TABLES,
   BUCKET_LAMPIRAN_PRAKTIK,
-} from "../../utils/supabaseClient"; // ✅ Ubah ke ../../
+} from "../../utils/supabaseClient";
 import {
   normalizeKategori,
   getLabelKategori,
-} from "../../utils/examCategories"; // ✅ Ubah ke ../../
-import { STORAGE_KEYS, jawabanLocalKey } from "../../utils/storageKeys"; // ✅ Ubah ke ../../
-import { LOGO_URL } from "../../config/brand"; // ✅ Ubah ke ../../
-import Button from "../../components/ui/Button"; // ✅ Ubah ke ../../
-import Badge from "../../components/ui/Badge"; // ✅ Ubah ke ../../
+} from "../../utils/examCategories";
+import { STORAGE_KEYS, jawabanLocalKey } from "../../utils/storageKeys";
+import { LOGO_URL } from "../../config/brand";
+import Button from "../../components/ui/Button";
+import Badge from "../../components/ui/Badge";
 import {
   Clock,
   ChevronLeft,
@@ -26,11 +26,13 @@ import {
   FileCheck,
   CheckCircle,
   Eye,
+  Lock,
+  WifiOff,
+  CloudCheck,
+  RefreshCw,
 } from "lucide-react";
 
-// Pengacak Deterministik (Seeded Shuffle) — urutan tetap konsisten untuk TechID yang sama,
-// tapi berbeda-beda antar peserta. Jadi soal & opsi PG tidak berubah-ubah kalau di-refresh,
-// tapi peserta A dan peserta B melihat urutan yang berbeda (anti-nyontek visual).
+// Pengacak Deterministik (Seeded Shuffle)
 const seededShuffle = (array, seedStr) => {
   let seed = 0;
   for (let i = 0; i < seedStr.length; i++) {
@@ -58,8 +60,10 @@ export default function RuangUjian() {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [jawaban, setJawaban] = useState({});
   const [raguRagu, setRaguRagu] = useState({});
-  const [isSaving, setIsSaving] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
+
+  // 🟢 Status Sinkronisasi Server ('synced' | 'saving' | 'offline')
+  const [syncStatus, setSyncStatus] = useState("synced");
 
   const [timeLeft, setTimeLeft] = useState(0);
   const [isTimerReady, setIsTimerReady] = useState(false);
@@ -70,17 +74,24 @@ export default function RuangUjian() {
   const [examKategori, setExamKategori] = useState("");
   const [logoGagalDimuat, setLogoGagalDimuat] = useState(false);
 
-  // State & Modal Deteksi Pindah Tab / Aplikasi Lain
+  // 🔒 State & Modal Deteksi Pindah Tab / Auto-Lock
   const [jumlahPindahTab, setJumlahPindahTab] = useState(0);
   const [showTabWarning, setShowTabWarning] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+  const [supervisorPinInput, setSupervisorPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
+
+  const SUPERVISOR_PIN = "123456"; // PIN Default Pengawas
+  const MAX_VIOLATION_LIMIT = 3; // Batas Maksimal Pindah Tab Sebelum Terkunci
 
   const timerRef = useRef(null);
   const fileInputPraktikRef = useRef(null);
   const debounceTimerRef = useRef(null);
   const techIdRef = useRef("");
   const timeWarningShownRef = useRef(false);
+  const isExamFinishedRef = useRef(false);
 
-  // Ref untuk menyimpan state jawaban terbaru agar bisa dibaca di handler Realtime secara akurat
+  // Ref untuk menyimpan state jawaban terbaru agar bisa dibaca di handler Realtime/AutoSubmit
   const jawabanRef = useRef(jawaban);
   const listSoalRef = useRef(listSoal);
 
@@ -95,6 +106,21 @@ export default function RuangUjian() {
   const currentUser = JSON.parse(
     localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || "{}",
   );
+
+  // 🚨 1. PROTEKSI ANTI-REFRESH / CLOSE BROWSER (beforeunload)
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (!isExamFinishedRef.current) {
+        e.preventDefault();
+        e.returnValue =
+          "Ujian sedang berlangsung! Yakin ingin meninggalkan halaman?";
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
 
   const fetchDurasiUjianMenit = async (katId) => {
     let defaultDurasiMap = {
@@ -159,7 +185,12 @@ export default function RuangUjian() {
       setUserName(realName);
       setTechId(realTechId);
       techIdRef.current = realTechId;
-      setJumlahPindahTab(Number(currentUser.jumlah_pindah_tab) || 0);
+
+      const initialViolations = Number(currentUser.jumlah_pindah_tab) || 0;
+      setJumlahPindahTab(initialViolations);
+      if (initialViolations >= MAX_VIOLATION_LIMIT) {
+        setIsLocked(true);
+      }
 
       if (!realTechId) {
         setErrorState(
@@ -168,7 +199,7 @@ export default function RuangUjian() {
         return;
       }
 
-      // 1. VERIFIKASI AWAL STATUS SESI UJIAN GLOBAL
+      // VERIFIKASI AWAL STATUS SESI UJIAN GLOBAL
       try {
         const { data: dataStatus } = await supabase
           .from(TABLES.PENGATURAN_UJIAN || "pengaturan_ujian")
@@ -268,7 +299,7 @@ export default function RuangUjian() {
         return;
       }
 
-      // 🔀 ACAK OPSI PG PER SISWA (menyimpan teks kunci jawaban asli sebelum diacak agar penilaian tetap akurat)
+      // 🔀 ACAK OPSI PG PER SISWA
       const soalDenganOpsiTeracak = filteredSoal.map((s) => {
         if (s.tipe === "pg" && Array.isArray(s.opsi) && s.opsi.length > 0) {
           const kunciHuruf = (s.jawaban_benar || s.jawabanBenar || "A")
@@ -287,7 +318,7 @@ export default function RuangUjian() {
         return s;
       });
 
-      // 🔀 ACAK URUTAN SOAL PER SISWA (konsisten selama sesi ujian yang sama, tidak berubah kalau di-refresh)
+      // 🔀 ACAK URUTAN SOAL PER SISWA
       const soalUrutanFinal = seededShuffle(
         soalDenganOpsiTeracak,
         `${realTechId}-soal`,
@@ -321,6 +352,7 @@ export default function RuangUjian() {
         });
         setJawaban(restoredJawaban);
         setRaguRagu(restoredRagu);
+        setSyncStatus("synced");
       } catch (err) {
         const savedJwbStr =
           localStorage.getItem(jawabanLocalKey(realTechId)) ||
@@ -341,13 +373,14 @@ export default function RuangUjian() {
             setRaguRagu(restoredRagu);
           } catch (e) {}
         }
+        setSyncStatus("offline");
       }
     };
 
     initRuangUjian();
   }, []);
 
-  // ⚡⚡ 2. SUPABASE REALTIME SUBSCRIPTION (DETEKSI PENUTUPAN SESI SECARA LIVE TANPA REFRESH)
+  // REALTIME SUBSCRIPTION (DETEKSI PENUTUPAN SESI SECARA LIVE)
   useEffect(() => {
     const channel = supabase
       .channel("realtime_status_sesi")
@@ -366,7 +399,6 @@ export default function RuangUjian() {
                 ? JSON.parse(payload.new.value)
                 : payload.new.value;
             if (val.status === "DITUTUP") {
-              // Otomatis Simpan Nilai Terakhir & Tendang Ke Dashboard!
               handleAutoSubmit();
             }
           }
@@ -379,21 +411,30 @@ export default function RuangUjian() {
     };
   }, [techId]);
 
-  // 🕵️ DETEKSI PINDAH TAB / MINIMIZE / APLIKASI LAIN (Anti-Kecurangan)
+  // 🕵️ DETEKSI PINDAH TAB / AUTO-LOCK
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden && techIdRef.current) {
+      if (document.hidden && techIdRef.current && !isExamFinishedRef.current) {
         setJumlahPindahTab((prev) => {
           const next = prev + 1;
+
+          // Catat ke server
           supabase
             .from(TABLES.PESERTA)
             .update({ jumlah_pindah_tab: next })
             .eq("tech_id", techIdRef.current)
             .then(() => {})
             .catch(() => {});
+
+          // Auto-Lock jika melewati batas
+          if (next >= MAX_VIOLATION_LIMIT) {
+            setIsLocked(true);
+            setShowTabWarning(false);
+          } else {
+            setShowTabWarning(true);
+          }
           return next;
         });
-        setShowTabWarning(true);
       }
     };
 
@@ -419,7 +460,7 @@ export default function RuangUjian() {
     return () => clearInterval(timerRef.current);
   }, [isTimerReady]);
 
-  // ⏰ PERINGATAN SISA WAKTU 5 MENIT
+  // PERINGATAN SISA WAKTU 5 MENIT
   useEffect(() => {
     if (timeLeft === 300 && !timeWarningShownRef.current) {
       timeWarningShownRef.current = true;
@@ -427,7 +468,7 @@ export default function RuangUjian() {
     }
   }, [timeLeft]);
 
-  // 📡 LAPOR PROGRESS SOAL SAAT INI KE SUPABASE (untuk Live Monitoring Pengawas)
+  // LAPOR PROGRESS SOAL SAAT INI KE SUPABASE
   useEffect(() => {
     if (techIdRef.current && listSoal.length > 0) {
       supabase
@@ -453,8 +494,11 @@ export default function RuangUjian() {
     return `${h}:${m}:${s}`;
   };
 
+  // 🟢 PERSIST JAWABAN DENGAN STATUS SINKRONISASI JUJUR
   const persistJawaban = async (soalId, jawabanValue, raguValue) => {
-    setIsSaving(true);
+    setSyncStatus("saving");
+
+    // 1. Simpan ke LocalStorage sebagai Cadangan Offline
     try {
       const savedLocal = JSON.parse(
         localStorage.getItem(jawabanLocalKey(techId)) || "{}",
@@ -463,13 +507,14 @@ export default function RuangUjian() {
       localStorage.setItem(jawabanLocalKey(techId), JSON.stringify(savedLocal));
     } catch (e) {}
 
+    // 2. Kirim ke Supabase Cloud
     try {
       const dbJawabanPayload =
         typeof jawabanValue === "object" && jawabanValue !== null
           ? JSON.stringify(jawabanValue)
           : jawabanValue;
 
-      await supabase.from(TABLES.JAWABAN_PESERTA).upsert(
+      const { error } = await supabase.from(TABLES.JAWABAN_PESERTA).upsert(
         {
           tech_id: techId,
           soal_id: soalId,
@@ -479,12 +524,16 @@ export default function RuangUjian() {
         },
         { onConflict: "tech_id,soal_id" },
       );
-    } catch (err) {}
-    setTimeout(() => setIsSaving(false), 300);
+
+      if (error) throw error;
+
+      setSyncStatus("synced");
+    } catch (err) {
+      console.warn("⚠️ Gagal sinkronisasi ke cloud, tersimpan di lokal:", err);
+      setSyncStatus("offline");
+    }
   };
 
-  // Jawaban PG disimpan sebagai TEKS opsi (bukan huruf A/B/C/D), karena urutan opsi
-  // sudah diacak per-siswa sehingga posisi huruf bisa berbeda antar peserta.
   const handleSelectPG = (opsiTeks) => {
     const updated = { ...jawaban, [soalAktif.id]: opsiTeks };
     setJawaban(updated);
@@ -536,6 +585,8 @@ export default function RuangUjian() {
     }
 
     setIsUploadingFile(true);
+    setSyncStatus("saving");
+
     try {
       const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const path = `${techId}/${soalAktif.id}_${Date.now()}_${safeFileName}`;
@@ -571,21 +622,34 @@ export default function RuangUjian() {
       );
     } catch (err) {
       alert("Gagal mengunggah lampiran praktik.");
+      setSyncStatus("offline");
     } finally {
       setIsUploadingFile(false);
       e.target.value = "";
     }
   };
 
-  // ⚡⚡ 1. PROSES SUBMIT OTOMATIS (MENGHITUNG DAN MENYIMPAN NILAI DENGAN AKURAT)
+  // 🔓 FUNGSI BUKA KUNCI UJIAN OLEH PENGAWAS
+  const handleUnlockExam = (e) => {
+    e.preventDefault();
+    if (supervisorPinInput === SUPERVISOR_PIN) {
+      setIsLocked(false);
+      setSupervisorPinInput("");
+      setPinError("");
+    } else {
+      setPinError("PIN Pengawas salah! Hubungi pengawas ruangan Anda.");
+    }
+  };
+
+  // PROSES SUBMIT OTOMATIS
   const handleAutoSubmit = async () => {
+    isExamFinishedRef.current = true;
     if (timerRef.current) clearInterval(timerRef.current);
     const nowIso = new Date().toISOString();
 
     localStorage.setItem(STORAGE_KEYS.IS_EXAM_FINISHED, "true");
     localStorage.setItem(`endTime_${techId}`, nowIso);
 
-    // Ambil list soal & jawaban terbaru
     const currentListSoal =
       listSoalRef.current.length > 0 ? listSoalRef.current : listSoal;
     const currentJawaban = jawabanRef.current;
@@ -598,7 +662,6 @@ export default function RuangUjian() {
         .toString()
         .trim()
         .toLowerCase();
-      // Kunci jawaban dicocokkan berdasarkan TEKS opsi asli (bukan huruf), karena opsi sudah diacak per-siswa
       const kunciTeks = (
         s._kunciTeksAsli !== undefined
           ? s._kunciTeksAsli
@@ -670,7 +733,6 @@ export default function RuangUjian() {
     navigate("/dashboard-peserta");
   };
 
-  // ⚡⚡ 3. TEKS PROGRES (HITUNG JUMLAH TERJAWAB V.S. TOTAL SOAL)
   const totalTerjawab = Object.keys(jawaban).filter((soalId) => {
     const val = jawaban[soalId];
     if (!val) return false;
@@ -774,14 +836,34 @@ export default function RuangUjian() {
             <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-3 py-1.5 rounded-xl">
               <CheckCircle className="w-3.5 h-3.5" />
               <span>
-                Berhasil menjawab {totalTerjawab} dari {listSoal.length} soal
+                Terjawab {totalTerjawab} dari {listSoal.length}
               </span>
             </div>
 
-            <span className="text-xs text-slate-400 flex items-center gap-1">
-              <Save className="w-3.5 h-3.5 text-cyan-400" />{" "}
-              {isSaving ? "Menyimpan..." : "Autosave Aktif"}
-            </span>
+            {/* 🟢 INDIKATOR SINKRONISASI SERVER JUJUR */}
+            <div className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-800 bg-[#030712]/80">
+              {syncStatus === "synced" && (
+                <span className="text-emerald-400 flex items-center gap-1.5">
+                  <CloudCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  Tersinkron ke Server
+                </span>
+              )}
+              {syncStatus === "saving" && (
+                <span className="text-amber-400 flex items-center gap-1.5">
+                  <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+                  Menyimpan...
+                </span>
+              )}
+              {syncStatus === "offline" && (
+                <span
+                  className="text-rose-400 flex items-center gap-1.5"
+                  title="Koneksi terputus. Jawaban tersimpan aman di perangkat ini."
+                >
+                  <WifiOff className="w-3.5 h-3.5 text-rose-400" />
+                  Tersimpan di Perangkat (Offline)
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="p-6 md:p-8 rounded-2xl bg-[#0d1527]/40 border border-slate-800/50 min-h-[340px] flex flex-col justify-between space-y-6">
@@ -973,6 +1055,7 @@ export default function RuangUjian() {
         </div>
       </main>
 
+      {/* MODAL KONFIRMASI SUBMIT */}
       {showSubmitModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#0d1527] border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-5">
@@ -1029,17 +1112,20 @@ export default function RuangUjian() {
         </div>
       )}
 
-      {/* MODAL PERINGATAN PINDAH TAB */}
-      {showTabWarning && (
+      {/* MODAL PERINGATAN PINDAH TAB (Peringatan Biasa) */}
+      {showTabWarning && !isLocked && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#0d1527] border border-red-500/50 rounded-2xl max-w-sm w-full p-6 space-y-4 text-center">
             <Eye className="w-10 h-10 text-red-500 mx-auto" />
             <h3 className="text-sm font-bold text-white">
-              Perpindahan Tab Terdeteksi
+              Perpindahan Tab Terdeteksi ({jumlahPindahTab}/
+              {MAX_VIOLATION_LIMIT})
             </h3>
             <p className="text-xs text-slate-300">
-              Aktivitas berpindah tab/aplikasi lain telah tercatat dan akan
-              terlihat oleh Pengawas.
+              Aktivitas berpindah tab/aplikasi lain telah tercatat. Jika
+              mencapai{" "}
+              <strong className="text-red-400">{MAX_VIOLATION_LIMIT}x</strong>,
+              ujian akan terkunci otomatis!
             </p>
             <Button
               onClick={() => setShowTabWarning(false)}
@@ -1047,6 +1133,48 @@ export default function RuangUjian() {
             >
               Kembali Mengerjakan
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* 🔒 MODAL AUTO-LOCK LAYAR TERKUNCI TOTAL (Membutuhkan PIN Pengawas) */}
+      {isLocked && (
+        <div className="fixed inset-0 z-50 bg-[#030712]/95 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#0d1527] border border-red-500/50 p-6 md:p-8 rounded-2xl max-w-md w-full text-center shadow-2xl space-y-5">
+            <div className="w-16 h-16 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mx-auto text-2xl border border-red-500/30">
+              <Lock className="w-8 h-8 text-red-500" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">
+                Ujian Terkunci Otomatis!
+              </h2>
+              <p className="text-xs text-slate-300 mt-1">
+                Kamu terdeteksi meninggalkan halaman ujian sebanyak{" "}
+                <strong className="text-red-400 font-bold">
+                  {jumlahPindahTab} kali
+                </strong>
+                . Silakan panggil Pengawas Ruangan untuk membuka kunci.
+              </p>
+            </div>
+
+            <form onSubmit={handleUnlockExam} className="space-y-3 pt-2">
+              <input
+                type="password"
+                placeholder="Masukkan PIN Pengawas"
+                value={supervisorPinInput}
+                onChange={(e) => setSupervisorPinInput(e.target.value)}
+                className="w-full text-center tracking-widest text-lg font-bold p-3 bg-[#030712] border border-slate-700 text-white rounded-xl focus:border-red-500 outline-none"
+              />
+              {pinError && (
+                <p className="text-xs text-red-400 font-semibold">{pinError}</p>
+              )}
+              <Button
+                type="submit"
+                className="w-full py-3 bg-red-600 hover:bg-red-500 text-white font-bold text-xs border-0 rounded-xl"
+              >
+                Buka Kunci Ujian
+              </Button>
+            </form>
           </div>
         </div>
       )}
