@@ -1,14 +1,14 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase, TABLES } from "../../utils/supabaseClient"; // ✅ Sudah benar
-import { normalizeKategori } from "../../utils/examCategories"; // ✅ Ubah ke ../../
-import { STORAGE_KEYS } from "../../utils/storageKeys"; // ✅ Ubah ke ../../
-import Card from "../../components/ui/Card"; // ✅ Ubah ke ../../
-import Input from "../../components/ui/Input"; // ✅ Ubah ke ../../
-import Button from "../../components/ui/Button"; // ✅ Ubah ke ../../
+import { supabase, TABLES } from "../../utils/supabaseClient";
+import { normalizeKategori } from "../../utils/examCategories";
+import { STORAGE_KEYS } from "../../utils/storageKeys";
+import Card from "../../components/ui/Card";
+import Input from "../../components/ui/Input";
+import Button from "../../components/ui/Button";
 import { UserCheck, ShieldCheck, Crown } from "lucide-react";
 
-export default function Login() {
+export default function LoginUjian() {
   const navigate = useNavigate();
 
   const [selectedRole, setSelectedRole] = useState("peserta");
@@ -43,9 +43,8 @@ export default function Login() {
       }
     } else if (selectedRole === "Pengawas") {
       if (
-        (inputUser.toLowerCase() === "Pengawas" ||
-          inputUser.toLowerCase() === "admin" ||
-          inputUser.toLowerCase() === "pengawas") &&
+        (inputUser.toLowerCase() === "pengawas" ||
+          inputUser.toLowerCase() === "admin") &&
         (inputPass === "Pengawas123" ||
           inputPass === "admin123" ||
           inputPass === "123")
@@ -61,12 +60,11 @@ export default function Login() {
       }
     }
 
-    // 2. LOGIN SEBAGAI PESERTA UJIAN (MURNI SUPABASE CLOUD)
+    // 2. LOGIN SEBAGAI PESERTA UJIAN (SUPABASE CLOUD)
     if (selectedRole === "peserta") {
       try {
         const cleanInput = inputUser.toLowerCase().trim();
 
-        // Query data peserta dari Supabase Cloud
         const { data: listPeserta, error } = await supabase
           .from(TABLES.PESERTA)
           .select("*");
@@ -81,7 +79,6 @@ export default function Login() {
           return;
         }
 
-        // Cari peserta berdasarkan TechID, Nama, atau Nama Lengkap
         const matchedPeserta = listPeserta.find(
           (p) =>
             (p.tech_id && p.tech_id.toLowerCase().trim() === cleanInput) ||
@@ -92,17 +89,16 @@ export default function Login() {
 
         if (!matchedPeserta) {
           setErrorMsg(
-            `Nama Lengkap/TechID "${inputUser}" tidak ditemukan pada data hasil impor Pengawas di Supabase Cloud. Periksa kembali penulisan, atau hubungi Pengawas jika Anda merasa sudah terdaftar.`,
+            `Nama Lengkap/TechID "${inputUser}" tidak ditemukan pada data hasil impor Pengawas. Periksa kembali penulisan!`,
           );
           setIsLoading(false);
           return;
         }
 
-        // Kategori WAJIB salah satu dari 5 kategori resmi
         const kategoriValid = normalizeKategori(matchedPeserta.kategori);
         if (!kategoriValid) {
           setErrorMsg(
-            `Kategori ujian pada data peserta ini tidak valid ("${matchedPeserta.kategori || "-"}"). Hubungi Pengawas untuk memperbaiki data impor TechID ${matchedPeserta.tech_id}.`,
+            `Kategori ujian pada data peserta tidak valid ("${matchedPeserta.kategori || "-"}").`,
           );
           setIsLoading(false);
           return;
@@ -117,7 +113,6 @@ export default function Login() {
               : matchedPeserta.status || "berjalan",
         };
 
-        // Update status berjalan di Supabase Cloud jika belum mulai
         if (matchedPeserta.status === "belum_mulai") {
           await supabase
             .from(TABLES.PESERTA)
@@ -130,7 +125,6 @@ export default function Login() {
           pesertaTerupdate.nama_lengkap ||
           "Peserta Ujian";
 
-        // SIMPAN SESI LOGIN SECARA AKURAT
         localStorage.setItem(
           STORAGE_KEYS.CURRENT_USER,
           JSON.stringify(pesertaTerupdate),
@@ -199,7 +193,8 @@ export default function Login() {
     if (formattedRole === "master_admin" || formattedRole === "admin") {
       navigate("/dashboard-admin");
     } else if (formattedRole === "pengawas") {
-      navigate("/dashboard-Pengawas");
+      // ✅ Mengarah ke route dashboard anggota baru
+      navigate("/dashboard-anggota");
     } else {
       navigate("/dashboard-peserta");
     }
@@ -208,17 +203,15 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-8 border-borderCustom bg-surface space-y-6 shadow-2xl">
-        {/* JUDUL SISTEM */}
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-display font-bold text-primary tracking-wider">
             SISTEM UJIAN DCC
           </h1>
           <p className="text-xs text-slate-400 font-sans">
-            Pilih peran Anda untuk masuk ke dalam sistem
+            Pilih peran Anda untuk masuk ke dalam sistem ujian
           </p>
         </div>
 
-        {/* SELEKSI PERAN */}
         <div className="grid grid-cols-3 gap-1 bg-background p-1.5 rounded-xl border border-borderCustom/60">
           <button
             type="button"
@@ -269,14 +262,12 @@ export default function Login() {
           </button>
         </div>
 
-        {/* PESAN ERROR */}
         {errorMsg && (
           <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs text-center font-sans">
             {errorMsg}
           </div>
         )}
 
-        {/* FORM LOGIN */}
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="text-xs font-display font-semibold text-slate-300 mb-1 block uppercase">
@@ -331,11 +322,16 @@ export default function Login() {
           >
             {isLoading
               ? "MEMVERIFIKASI..."
-              : `MASUK SEBAGAI ${selectedRole === "Pengawas" ? "PENGAWAS" : selectedRole === "master_admin" ? "LEAD INSTRUCTOR" : "PESERTA"}`}
+              : `MASUK SEBAGAI ${
+                  selectedRole === "Pengawas"
+                    ? "PENGAWAS"
+                    : selectedRole === "master_admin"
+                      ? "LEAD INSTRUCTOR"
+                      : "PESERTA"
+                }`}
           </Button>
         </form>
 
-        {/* FOOTER DCC */}
         <div className="text-center border-t border-borderCustom/40 pt-4">
           <p className="text-xs text-slate-400 font-medium tracking-wide">
             Daruttaufiq Computer Centre

@@ -11,6 +11,11 @@ const NotFound = lazy(() => import("../pages/NotFound"));
 const DashboardAdmin = lazy(() => import("../pages/admin/DashboardAdmin"));
 const KelolaAkun = lazy(() => import("../pages/admin/KelolaAkun"));
 
+// 👥 Folder dashboardanggota/
+const DashboardAnggota = lazy(
+  () => import("../pages/dashboardanggota/dashboardanggota"),
+);
+
 // 🔐 Folder auth/
 const Login = lazy(() => import("../pages/auth/Login"));
 const LoginAkun = lazy(() => import("../pages/auth/LoginAkun"));
@@ -21,9 +26,6 @@ const RekapAbsensi = lazy(() => import("../pages/presensi/RekapAbsensi"));
 
 // 📝 Folder ujian/
 const DashboardPeserta = lazy(() => import("../pages/ujian/DashboardPeserta"));
-const DashboardPengawas = lazy(
-  () => import("../pages/ujian/DashboardPengawas"),
-);
 const RuangUjian = lazy(() => import("../pages/ujian/RuangUjian"));
 const BankSoal = lazy(() => import("../pages/ujian/BankSoal"));
 const Laporan = lazy(() => import("../pages/ujian/Laporan"));
@@ -88,10 +90,10 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: "dashboard-Pengawas",
+        path: "dashboard-anggota",
         element: (
           <SuspenseWrapper>
-            <DashboardPengawas />
+            <DashboardAnggota />
           </SuspenseWrapper>
         ),
       },
