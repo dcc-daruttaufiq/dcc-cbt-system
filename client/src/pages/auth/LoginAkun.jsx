@@ -102,7 +102,7 @@ export default function LoginAkun() {
       if (akun.tipe === "admin") {
         navigate("/dashboard-admin");
       } else if (akun.tipe === "anggota") {
-        navigate("/dashboard-Pengawas");
+        navigate("/dashboard-anggota");
       } else {
         navigate("/");
       }
