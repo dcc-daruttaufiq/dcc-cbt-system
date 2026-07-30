@@ -17,7 +17,7 @@ const DashboardAnggota = lazy(
 );
 
 // 🔐 Folder auth/
-const Login = lazy(() => import("../pages/auth/Login"));
+const LoginUjian = lazy(() => import("../pages/auth/LoginUjian"));
 const LoginAkun = lazy(() => import("../pages/auth/LoginAkun"));
 
 // 📋 Folder presensi/
@@ -73,11 +73,20 @@ export const router = createBrowserRouter([
           </SuspenseWrapper>
         ),
       },
+      // ✅ Route Login Ujian (Disupport via /login-ujian maupun /login)
+      {
+        path: "login-ujian",
+        element: (
+          <SuspenseWrapper>
+            <LoginUjian />
+          </SuspenseWrapper>
+        ),
+      },
       {
         path: "login",
         element: (
           <SuspenseWrapper>
-            <Login />
+            <LoginUjian />
           </SuspenseWrapper>
         ),
       },
