@@ -9,7 +9,15 @@ const NotFound = lazy(() => import("../pages/NotFound"));
 
 // 🏛️ Folder admin/
 const DashboardAdmin = lazy(() => import("../pages/admin/DashboardAdmin"));
-const KelolaAkun = lazy(() => import("../pages/admin/KelolaAkun"));
+
+// 📂 Folder database/ (Daftar file yang dipindahkan)
+const KelolaAkun = lazy(() => import("../pages/database/KelolaAkun"));
+const RekapAbsensi = lazy(() => import("../pages/database/RekapAbsensi"));
+const BankSoal = lazy(() => import("../pages/database/BankSoal"));
+const Laporan = lazy(() => import("../pages/database/Laporan"));
+const Fasilitasdcc = lazy(() => import("../pages/database/Fasilitasdcc"));
+const PeminjamanAset = lazy(() => import("../pages/database/PeminjamanAset"));
+const PortalAlumni = lazy(() => import("../pages/database/PortalAlumni"));
 
 // 👥 Folder dashboardanggota/
 const DashboardAnggota = lazy(
@@ -22,20 +30,11 @@ const LoginAkun = lazy(() => import("../pages/auth/LoginAkun"));
 
 // 📋 Folder presensi/
 const AbsensiScan = lazy(() => import("../pages/presensi/AbsensiScan"));
-const RekapAbsensi = lazy(() => import("../pages/presensi/RekapAbsensi"));
 
 // 📝 Folder ujian/
 const DashboardPeserta = lazy(() => import("../pages/ujian/DashboardPeserta"));
 const RuangUjian = lazy(() => import("../pages/ujian/RuangUjian"));
-const BankSoal = lazy(() => import("../pages/ujian/BankSoal"));
-const Laporan = lazy(() => import("../pages/ujian/Laporan"));
 const PengaturanUjian = lazy(() => import("../pages/ujian/PengaturanUjian"));
-
-// 🏢 Folder fasilitasdcc/
-const Fasilitasdcc = lazy(() => import("../pages/fasilitasdcc/Fasilitasdcc"));
-const PeminjamanAset = lazy(
-  () => import("../pages/fasilitasdcc/PeminjamanAset"),
-);
 
 // 🚀 Folder fitur_tambahan/
 const NotifikasiWhatsapp = lazy(
@@ -44,7 +43,6 @@ const NotifikasiWhatsapp = lazy(
 const PoinGamifikasi = lazy(
   () => import("../pages/fitur_tambahan/PoinGamifikasi"),
 );
-const PortalAlumni = lazy(() => import("../pages/fitur_tambahan/PortalAlumni"));
 
 // Wrapper Suspense
 const SuspenseWrapper = ({ children }) => (
