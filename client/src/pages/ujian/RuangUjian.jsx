@@ -114,7 +114,6 @@ export default function RuangUjian() {
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
-    // Set status awal sesuai koneksi jaringan laptop
     if (!navigator.onLine) {
       setSyncStatus("offline");
     }
@@ -139,6 +138,46 @@ export default function RuangUjian() {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, []);
+
+  // 🔒 3. ANTI-LOGIN GANDA / SINGLE SESSION OVERWRITE (REALTIME SUPABASE)
+  useEffect(() => {
+    if (!techId) return;
+
+    const currentLocalToken = localStorage.getItem("dcc_session_token");
+
+    const sessionChannel = supabase
+      .channel(`session_check_${techId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: TABLES.PESERTA || "peserta",
+          filter: `tech_id=eq.${techId}`,
+        },
+        (payload) => {
+          const newServerToken = payload.new?.session_token;
+          // Jika token sesi di cloud berubah dan berbeda dari laptop ini -> AUTO KICK!
+          if (
+            newServerToken &&
+            currentLocalToken &&
+            newServerToken !== currentLocalToken
+          ) {
+            alert(
+              "⚠️ SESI DIALIHKAN!\n\nAkun kamu baru saja di-login-kan di perangkat/tab lain. Kamu akan dikeluarkan dari ujian.",
+            );
+            isExamFinishedRef.current = true; // Matikan pop-up dialog beforeunload
+            localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+            navigate("/");
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(sessionChannel);
+    };
+  }, [techId, navigate]);
 
   const fetchDurasiUjianMenit = async (katId) => {
     let defaultDurasiMap = {
@@ -488,19 +527,31 @@ export default function RuangUjian() {
     }
   }, [timeLeft]);
 
-  // LAPOR PROGRESS SOAL SAAT INI KE SUPABASE
+  // ⚡ THROTTLED MONITORING PROGRESS (Paling cepat terkirim 5 detik sekali biar server ga overload)
+  const progressThrottleRef = useRef(null);
+
   useEffect(() => {
     if (techIdRef.current && listSoal.length > 0) {
-      supabase
-        .from(TABLES.PESERTA)
-        .update({
-          soal_terakhir: currentIdx + 1,
-          total_soal_ujian: listSoal.length,
-        })
-        .eq("tech_id", techIdRef.current)
-        .then(() => {})
-        .catch(() => {});
+      if (progressThrottleRef.current)
+        clearTimeout(progressThrottleRef.current);
+
+      progressThrottleRef.current = setTimeout(() => {
+        supabase
+          .from(TABLES.PESERTA || "peserta")
+          .update({
+            soal_terakhir: currentIdx + 1,
+            total_soal_ujian: listSoal.length,
+          })
+          .eq("tech_id", techIdRef.current)
+          .then(() => {})
+          .catch(() => {});
+      }, 5000); // 5000ms Delay
     }
+
+    return () => {
+      if (progressThrottleRef.current)
+        clearTimeout(progressThrottleRef.current);
+    };
   }, [currentIdx, listSoal.length]);
 
   const formatTime = (seconds) => {
@@ -690,7 +741,6 @@ export default function RuangUjian() {
     localStorage.setItem(`endTime_${techId}`, nowIso);
 
     try {
-      // Panggil Stored Procedure Postgres `submit_ujian` untuk menghitung nilai di Server
       const { data, error } = await supabase.rpc("submit_ujian", {
         p_tech_id: techId,
       });
@@ -840,7 +890,6 @@ export default function RuangUjian() {
               )}
             </div>
 
-            {/* TEKS PROGRES TERJAWAB */}
             <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 px-3 py-1.5 rounded-xl">
               <CheckCircle className="w-3.5 h-3.5" />
               <span>
@@ -848,7 +897,6 @@ export default function RuangUjian() {
               </span>
             </div>
 
-            {/* 🟢 INDIKATOR SINKRONISASI SERVER JUJUR */}
             <div className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-800 bg-[#030712]/80">
               {syncStatus === "synced" && (
                 <span className="text-emerald-400 flex items-center gap-1.5">
@@ -1120,7 +1168,7 @@ export default function RuangUjian() {
         </div>
       )}
 
-      {/* MODAL PERINGATAN PINDAH TAB (Peringatan Biasa) */}
+      {/* MODAL PERINGATAN PINDAH TAB */}
       {showTabWarning && !isLocked && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#0d1527] border border-red-500/50 rounded-2xl max-w-sm w-full p-6 space-y-4 text-center">
@@ -1145,7 +1193,7 @@ export default function RuangUjian() {
         </div>
       )}
 
-      {/* 🔒 MODAL AUTO-LOCK LAYAR TERKUNCI TOTAL (Membutuhkan PIN Pengawas) */}
+      {/* 🔒 MODAL AUTO-LOCK LAYAR TERKUNCI TOTAL */}
       {isLocked && (
         <div className="fixed inset-0 z-50 bg-[#030712]/95 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-[#0d1527] border border-red-500/50 p-6 md:p-8 rounded-2xl max-w-md w-full text-center shadow-2xl space-y-5">

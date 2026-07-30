@@ -34,7 +34,6 @@ export default function LoginUjian() {
     // =============================================================
     if (selectedRole === "master_admin" || selectedRole === "Pengawas") {
       try {
-        // Query ke tabel akun_dcc berdasarkan username/email custom DCC
         const { data: akun, error } = await supabase
           .from(AKUN_TABLE)
           .select("*")
@@ -63,7 +62,6 @@ export default function LoginUjian() {
           return;
         }
 
-        // 🔒 Validasi tipe akun dari database dengan tab peran yang dipilih
         if (selectedRole === "master_admin" && akun.tipe !== "admin") {
           setErrorMsg(
             "Akun ini bukan Lead Instructor (Admin). Silakan pilih tab Pengawas.",
@@ -84,14 +82,12 @@ export default function LoginUjian() {
           return;
         }
 
-        // Format nama lengkap pengguna dari database
         const namaLengkap =
           `${akun.nama_depan || ""} ${akun.nama_belakang || ""}`.trim() ||
           akun.username;
 
         const roleKey = akun.tipe === "admin" ? "master_admin" : "Pengawas";
 
-        // Simpan sesi Akun DCC
         localStorage.setItem(
           AKUN_SESSION_KEY,
           JSON.stringify({
@@ -121,12 +117,12 @@ export default function LoginUjian() {
     }
 
     // =============================================================
-    // 2. LOGIN PESERTA UJIAN (TECHID / NAMA LENGKAP)
+    // 2. LOGIN PESERTA UJIAN (TECHID / NAMA LENGKAP) - WITH TAHAP 2 ANTI-JOKI
     // =============================================================
     if (selectedRole === "peserta") {
       try {
         const { data: listPeserta, error } = await supabase
-          .from(TABLES.PESERTA)
+          .from(TABLES.PESERTA || "peserta")
           .select("*");
 
         if (error) throw error;
@@ -164,21 +160,35 @@ export default function LoginUjian() {
           return;
         }
 
+        // 🔒 GENERATE SESSION TOKEN UNIK UNTUK ANTI-LOGIN GANDA (TAHAP 2)
+        const newSessionToken = `SESS_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        localStorage.setItem("dcc_session_token", newSessionToken);
+
+        // Update session_token ke Supabase Cloud
+        try {
+          await supabase
+            .from(TABLES.PESERTA || "peserta")
+            .update({
+              session_token: newSessionToken,
+              status:
+                matchedPeserta.status === "belum_mulai"
+                  ? "berjalan"
+                  : matchedPeserta.status || "berjalan",
+            })
+            .eq("tech_id", matchedPeserta.tech_id);
+        } catch (errSession) {
+          console.warn("Gagal update session_token ke cloud:", errSession);
+        }
+
         const pesertaTerupdate = {
           ...matchedPeserta,
+          session_token: newSessionToken,
           kategori: kategoriValid,
           status:
             matchedPeserta.status === "selesai"
               ? "selesai"
               : matchedPeserta.status || "berjalan",
         };
-
-        if (matchedPeserta.status === "belum_mulai") {
-          await supabase
-            .from(TABLES.PESERTA)
-            .update({ status: "berjalan" })
-            .eq("tech_id", matchedPeserta.tech_id);
-        }
 
         const displayName =
           pesertaTerupdate.nama ||
