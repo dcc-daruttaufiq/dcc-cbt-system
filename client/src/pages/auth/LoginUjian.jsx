@@ -6,7 +6,7 @@ import { STORAGE_KEYS } from "../../utils/storageKeys";
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
-import { UserCheck, ShieldCheck, Crown } from "lucide-react";
+import { UserCheck, ShieldCheck, Crown, AlertTriangle } from "lucide-react";
 
 const AKUN_TABLE = "akun_dcc";
 const AKUN_SESSION_KEY = "dcc_akun_session";
@@ -21,6 +21,10 @@ export default function LoginUjian() {
   const [errorMsg, setErrorMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  // State Modal Konfirmasi Pindah Sesi Login Ganda
+  const [showSessionModal, setShowSessionModal] = useState(false);
+  const [pendingPeserta, setPendingPeserta] = useState(null);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -30,7 +34,7 @@ export default function LoginUjian() {
     const inputPass = password.trim();
 
     // =============================================================
-    // 1. LOGIN PENGAWAS & LEAD INSTRUCTOR (MEMBACA TABEL akun_dcc)
+    // 1. LOGIN PENGAWAS & LEAD INSTRUCTOR
     // =============================================================
     if (selectedRole === "master_admin" || selectedRole === "Pengawas") {
       try {
@@ -43,9 +47,7 @@ export default function LoginUjian() {
         if (error) throw error;
 
         if (!akun) {
-          setErrorMsg(
-            "Username/Email custom DCC tidak ditemukan. Periksa kembali penulisan!",
-          );
+          setErrorMsg("Username/Email custom DCC tidak ditemukan.");
           setIsLoading(false);
           return;
         }
@@ -63,9 +65,7 @@ export default function LoginUjian() {
         }
 
         if (selectedRole === "master_admin" && akun.tipe !== "admin") {
-          setErrorMsg(
-            "Akun ini bukan Lead Instructor (Admin). Silakan pilih tab Pengawas.",
-          );
+          setErrorMsg("Akun ini bukan Lead Instructor (Admin).");
           setIsLoading(false);
           return;
         }
@@ -75,9 +75,7 @@ export default function LoginUjian() {
           akun.tipe !== "anggota" &&
           akun.tipe !== "admin"
         ) {
-          setErrorMsg(
-            "Akun ini bukan Pengawas/Member DCC. Silakan pilih tab yang sesuai.",
-          );
+          setErrorMsg("Akun ini bukan Pengawas/Member DCC.");
           setIsLoading(false);
           return;
         }
@@ -108,16 +106,14 @@ export default function LoginUjian() {
         return;
       } catch (err) {
         console.error("Login Akun DCC Error:", err);
-        setErrorMsg(
-          "Gagal memverifikasi akun ke database. Periksa koneksi internet!",
-        );
+        setErrorMsg("Gagal memverifikasi akun ke database.");
         setIsLoading(false);
         return;
       }
     }
 
     // =============================================================
-    // 2. LOGIN PESERTA UJIAN (TECHID / NAMA LENGKAP) - WITH TAHAP 2 ANTI-JOKI
+    // 2. LOGIN PESERTA UJIAN (WITH DIALOG KONFIRMASI LOGIN GANDA)
     // =============================================================
     if (selectedRole === "peserta") {
       try {
@@ -128,9 +124,7 @@ export default function LoginUjian() {
         if (error) throw error;
 
         if (!Array.isArray(listPeserta) || listPeserta.length === 0) {
-          setErrorMsg(
-            "Data peserta belum diimpor oleh Pengawas di Supabase Cloud. Silakan hubungi Pengawas Ujian.",
-          );
+          setErrorMsg("Data peserta belum diimpor oleh Pengawas.");
           setIsLoading(false);
           return;
         }
@@ -144,97 +138,99 @@ export default function LoginUjian() {
         );
 
         if (!matchedPeserta) {
-          setErrorMsg(
-            `Nama Lengkap/TechID "${username}" tidak ditemukan pada data hasil impor Pengawas. Periksa kembali penulisan!`,
-          );
+          setErrorMsg(`Nama Lengkap/TechID "${username}" tidak ditemukan.`);
           setIsLoading(false);
           return;
         }
 
         const kategoriValid = normalizeKategori(matchedPeserta.kategori);
         if (!kategoriValid) {
-          setErrorMsg(
-            `Kategori ujian pada data peserta tidak valid ("${matchedPeserta.kategori || "-"}").`,
-          );
+          setErrorMsg(`Kategori ujian pada data peserta tidak valid.`);
           setIsLoading(false);
           return;
         }
 
-        // 🔒 GENERATE SESSION TOKEN UNIK UNTUK ANTI-LOGIN GANDA (TAHAP 2)
-        const newSessionToken = `SESS_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-        localStorage.setItem("dcc_session_token", newSessionToken);
+        const pesertaWithKat = { ...matchedPeserta, kategori: kategoriValid };
 
-        // Update session_token ke Supabase Cloud
-        try {
-          await supabase
-            .from(TABLES.PESERTA || "peserta")
-            .update({
-              session_token: newSessionToken,
-              status:
-                matchedPeserta.status === "belum_mulai"
-                  ? "berjalan"
-                  : matchedPeserta.status || "berjalan",
-            })
-            .eq("tech_id", matchedPeserta.tech_id);
-        } catch (errSession) {
-          console.warn("Gagal update session_token ke cloud:", errSession);
+        // 🚨 CEK APAKAH AKUN SEDANG AKTIF DI PERANGKAT LAIN (STATUS AKTIF / BERJALAN)
+        if (
+          matchedPeserta.session_token &&
+          matchedPeserta.status !== "selesai" &&
+          matchedPeserta.status !== "belum_mulai"
+        ) {
+          setIsLoading(false);
+          setPendingPeserta(pesertaWithKat);
+          setShowSessionModal(true); // Tampilkan Pop-Up Konfirmasi Pemindahan Sesi!
+          return;
         }
 
-        const pesertaTerupdate = {
-          ...matchedPeserta,
-          session_token: newSessionToken,
-          kategori: kategoriValid,
-          status:
-            matchedPeserta.status === "selesai"
-              ? "selesai"
-              : matchedPeserta.status || "berjalan",
-        };
-
-        const displayName =
-          pesertaTerupdate.nama ||
-          pesertaTerupdate.nama_lengkap ||
-          "Peserta Ujian";
-
-        localStorage.setItem(
-          STORAGE_KEYS.CURRENT_USER,
-          JSON.stringify(pesertaTerupdate),
-        );
-        localStorage.setItem(STORAGE_KEYS.USER_NAME, displayName);
-        localStorage.setItem(
-          STORAGE_KEYS.USER_TECH_ID,
-          pesertaTerupdate.tech_id,
-        );
-        localStorage.setItem(
-          STORAGE_KEYS.USER_KATEGORI,
-          pesertaTerupdate.kategori,
-        );
-        localStorage.setItem(
-          STORAGE_KEYS.SELECTED_EXAM_CATEGORY,
-          pesertaTerupdate.kategori,
-        );
-
-        if (pesertaTerupdate.status !== "selesai") {
-          localStorage.removeItem(STORAGE_KEYS.IS_EXAM_FINISHED);
-          sessionStorage.removeItem("examSubmitted");
-        }
-
-        saveAndRedirect(
-          "peserta",
-          `token-peserta-${pesertaTerupdate.id || pesertaTerupdate.tech_id}`,
-          displayName,
-          pesertaTerupdate.tech_id,
-          pesertaTerupdate.kategori,
-        );
-        return;
+        // Jika tidak ada sesi aktif lain, langsung masuk
+        await eksekusiLoginPeserta(pesertaWithKat);
       } catch (err) {
         console.error("Login Supabase Error:", err);
-        setErrorMsg(
-          "Gagal terhubung ke database Supabase Cloud. Periksa koneksi internet!",
-        );
+        setErrorMsg("Gagal terhubung ke database Supabase Cloud.");
         setIsLoading(false);
-        return;
       }
     }
+  };
+
+  // FUNGSI MEMINDAHKAN SESI & MASUK SISTEM
+  const eksekusiLoginPeserta = async (pesertaData) => {
+    setIsLoading(true);
+    const newSessionToken = `SESS_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    localStorage.setItem("dcc_session_token", newSessionToken);
+
+    try {
+      await supabase
+        .from(TABLES.PESERTA || "peserta")
+        .update({
+          session_token: newSessionToken,
+          status:
+            pesertaData.status === "belum_mulai"
+              ? "berjalan"
+              : pesertaData.status || "berjalan",
+        })
+        .eq("tech_id", pesertaData.tech_id);
+    } catch (e) {
+      console.warn("Gagal update session token:", e);
+    }
+
+    const pesertaTerupdate = {
+      ...pesertaData,
+      session_token: newSessionToken,
+      status:
+        pesertaData.status === "belum_mulai"
+          ? "berjalan"
+          : pesertaData.status || "berjalan",
+    };
+
+    const displayName =
+      pesertaTerupdate.nama || pesertaTerupdate.nama_lengkap || "Peserta Ujian";
+
+    localStorage.setItem(
+      STORAGE_KEYS.CURRENT_USER,
+      JSON.stringify(pesertaTerupdate),
+    );
+    localStorage.setItem(STORAGE_KEYS.USER_NAME, displayName);
+    localStorage.setItem(STORAGE_KEYS.USER_TECH_ID, pesertaTerupdate.tech_id);
+    localStorage.setItem(STORAGE_KEYS.USER_KATEGORI, pesertaTerupdate.kategori);
+    localStorage.setItem(
+      STORAGE_KEYS.SELECTED_EXAM_CATEGORY,
+      pesertaTerupdate.kategori,
+    );
+
+    if (pesertaTerupdate.status !== "selesai") {
+      localStorage.removeItem(STORAGE_KEYS.IS_EXAM_FINISHED);
+      sessionStorage.removeItem("examSubmitted");
+    }
+
+    saveAndRedirect(
+      "peserta",
+      `token-peserta-${pesertaTerupdate.id || pesertaTerupdate.tech_id}`,
+      displayName,
+      pesertaTerupdate.tech_id,
+      pesertaTerupdate.kategori,
+    );
   };
 
   const saveAndRedirect = (
@@ -410,6 +406,55 @@ export default function LoginUjian() {
           </p>
         </div>
       </Card>
+
+      {/* 🚨 MODAL KONFIRMASI PEMINDAHAN SESI */}
+      {showSessionModal && pendingPeserta && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0d1527] border border-amber-500/50 p-6 rounded-2xl max-w-sm w-full text-center space-y-4 shadow-2xl">
+            <div className="w-14 h-14 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mx-auto border border-amber-500/30">
+              <AlertTriangle className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white">
+                Sesi Ujian Masih Aktif!
+              </h3>
+              <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+                Akun{" "}
+                <strong className="text-amber-400">
+                  {pendingPeserta.nama || pendingPeserta.tech_id}
+                </strong>{" "}
+                saat ini terdeteksi sedang aktif di perangkat lain.
+              </p>
+              <p className="text-[11px] text-slate-400 mt-2 bg-[#030712] p-2.5 rounded-xl border border-slate-800">
+                Apakah Anda yakin ingin <strong>memindahkan sesi</strong> ke
+                perangkat ini? Perangkat lama akan otomatis dikeluarkan.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                type="button"
+                onClick={() => {
+                  setShowSessionModal(false);
+                  setPendingPeserta(null);
+                }}
+                className="flex-1 bg-slate-800 text-slate-300 text-xs border-0"
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                onClick={async () => {
+                  setShowSessionModal(false);
+                  await eksekusiLoginPeserta(pendingPeserta);
+                }}
+                className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs border-0"
+              >
+                Ya, Pindahkan Sesi
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

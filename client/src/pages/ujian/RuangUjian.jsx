@@ -73,7 +73,7 @@ export default function RuangUjian() {
   const [examKategori, setExamKategori] = useState("");
   const [logoGagalDimuat, setLogoGagalDimuat] = useState(false);
 
-  // 🔒 State & Modal Deteksi Pindah Tab / Auto-Lock
+  // 🔒 State & Modal Deteksi Pindah Tab / Auto-Lock Faktual
   const [jumlahPindahTab, setJumlahPindahTab] = useState(0);
   const [showTabWarning, setShowTabWarning] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
@@ -81,7 +81,8 @@ export default function RuangUjian() {
   const [pinError, setPinError] = useState("");
 
   const SUPERVISOR_PIN = "123456"; // PIN Default Pengawas
-  const MAX_VIOLATION_LIMIT = 3; // Batas Maksimal Pindah Tab Sebelum Terkunci
+  const MAX_VIOLATION_LIMIT = 3; // Batas Maksimal Awal Pindah Tab
+  const [unlockThreshold, setUnlockThreshold] = useState(MAX_VIOLATION_LIMIT);
 
   const timerRef = useRef(null);
   const fileInputPraktikRef = useRef(null);
@@ -157,16 +158,15 @@ export default function RuangUjian() {
         },
         (payload) => {
           const newServerToken = payload.new?.session_token;
-          // Jika token sesi di cloud berubah dan berbeda dari laptop ini -> AUTO KICK!
           if (
             newServerToken &&
             currentLocalToken &&
             newServerToken !== currentLocalToken
           ) {
             alert(
-              "⚠️ SESI DIALIHKAN!\n\nAkun kamu baru saja di-login-kan di perangkat/tab lain. Kamu akan dikeluarkan dari ujian.",
+              "⚠️ SESI DIALIHKAN!\n\nSesi akun ini telah dipindahkan ke perangkat lain. Kamu akan dikeluarkan dari ujian.",
             );
-            isExamFinishedRef.current = true; // Matikan pop-up dialog beforeunload
+            isExamFinishedRef.current = true;
             localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
             navigate("/");
           }
@@ -243,7 +243,7 @@ export default function RuangUjian() {
       setTechId(realTechId);
       techIdRef.current = realTechId;
 
-      // 🔒 MEMBACA HITUNGAN PINDAH TAB DARI LOCALSTORAGE & SUPABASE (PERSISTEN KETIKA REFRESH F5)
+      // 🔒 MEMBACA HITUNGAN PINDAH TAB DARI LOCALSTORAGE & SUPABASE
       const localViolations =
         Number(localStorage.getItem(`violations_${realTechId}`)) || 0;
       const dbViolations = Number(currentUser.jumlah_pindah_tab) || 0;
@@ -253,6 +253,7 @@ export default function RuangUjian() {
 
       if (maxViolations >= MAX_VIOLATION_LIMIT) {
         setIsLocked(true);
+        setUnlockThreshold(maxViolations);
       }
 
       if (!realTechId) {
@@ -467,26 +468,26 @@ export default function RuangUjian() {
     };
   }, [techId]);
 
-  // 🕵️ DETEKSI PINDAH TAB & AUTO-LOCK PERSISTEN
+  // 🕵️ DETEKSI PINDAH TAB & AUTO-LOCK FAKTUAL PERSISTEN
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden && techIdRef.current && !isExamFinishedRef.current) {
         setJumlahPindahTab((prev) => {
           const next = prev + 1;
 
-          // 1. Simpan Persisten di LocalStorage (Tahan Refresh F5!)
+          // 1. Simpan Persisten Angka Riil di LocalStorage
           localStorage.setItem(`violations_${techIdRef.current}`, next);
 
-          // 2. Kirim ke Supabase Cloud
+          // 2. Kirim Angka Riil ke Supabase Cloud
           supabase
-            .from(TABLES.PESERTA)
+            .from(TABLES.PESERTA || "peserta")
             .update({ jumlah_pindah_tab: next })
             .eq("tech_id", techIdRef.current)
             .then(() => {})
             .catch(() => {});
 
-          // 3. Auto-Lock jika melewati batas
-          if (next >= MAX_VIOLATION_LIMIT) {
+          // 3. Auto-Lock jika mencapai / melebihi threshold aktif
+          if (next >= unlockThreshold) {
             setIsLocked(true);
             setShowTabWarning(false);
           } else {
@@ -500,7 +501,7 @@ export default function RuangUjian() {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () =>
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, []);
+  }, [unlockThreshold]);
 
   // TIMER
   useEffect(() => {
@@ -527,7 +528,7 @@ export default function RuangUjian() {
     }
   }, [timeLeft]);
 
-  // ⚡ THROTTLED MONITORING PROGRESS (Paling cepat terkirim 5 detik sekali biar server ga overload)
+  // ⚡ THROTTLED MONITORING PROGRESS
   const progressThrottleRef = useRef(null);
 
   useEffect(() => {
@@ -545,7 +546,7 @@ export default function RuangUjian() {
           .eq("tech_id", techIdRef.current)
           .then(() => {})
           .catch(() => {});
-      }, 5000); // 5000ms Delay
+      }, 5000);
     }
 
     return () => {
@@ -569,7 +570,6 @@ export default function RuangUjian() {
   const persistJawaban = async (soalId, jawabanValue, raguValue) => {
     setSyncStatus("saving");
 
-    // 1. Simpan ke LocalStorage sebagai Cadangan Offline
     try {
       const savedLocal = JSON.parse(
         localStorage.getItem(jawabanLocalKey(techId)) || "{}",
@@ -578,13 +578,11 @@ export default function RuangUjian() {
       localStorage.setItem(jawabanLocalKey(techId), JSON.stringify(savedLocal));
     } catch (e) {}
 
-    // Cek koneksi internet browser sebelum kirim ke cloud
     if (!navigator.onLine) {
       setSyncStatus("offline");
       return;
     }
 
-    // 2. Kirim ke Supabase Cloud
     try {
       const dbJawabanPayload =
         typeof jawabanValue === "object" && jawabanValue !== null
@@ -706,26 +704,16 @@ export default function RuangUjian() {
     }
   };
 
-  // 🔓 FUNGSI BUKA KUNCI UJIAN OLEH PENGAWAS (STRICT MODE)
+  // 🔓 FUNGSI BUKA KUNCI UJIAN OLEH PENGAWAS (FAKTUAL & TANPA MERESET ANGKA)
   const handleUnlockExam = (e) => {
     e.preventDefault();
     if (supervisorPinInput === SUPERVISOR_PIN) {
       setIsLocked(false);
-
-      // Set ke 2 (Kasih kesempatan TERAKHIR, pindah tab 1x lagi langsung TERKUNCI!)
-      const warningLastChance = MAX_VIOLATION_LIMIT - 1; // Angka 2
-      setJumlahPindahTab(warningLastChance);
       setSupervisorPinInput("");
       setPinError("");
 
-      // Simpan angka 2 ini ke LocalStorage & Supabase
-      localStorage.setItem(`violations_${techId}`, warningLastChance);
-      supabase
-        .from(TABLES.PESERTA)
-        .update({ jumlah_pindah_tab: warningLastChance })
-        .eq("tech_id", techId)
-        .then(() => {})
-        .catch(() => {});
+      // Batas threshold naik ke (angka saat ini + 1). Misal terkunci di 3x -> Pindah 1x lagi (4x) LANGSUNG TERKUNCI LAGI!
+      setUnlockThreshold(jumlahPindahTab + 1);
     } else {
       setPinError("PIN Pengawas salah! Hubungi pengawas ruangan Anda.");
     }
@@ -755,7 +743,6 @@ export default function RuangUjian() {
       console.warn("Gagal eksekusi RPC submit_ujian:", err);
     }
 
-    // Update status lokal
     let listSesiLokal = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.PESERTA) || "[]",
     );
@@ -1174,13 +1161,12 @@ export default function RuangUjian() {
           <div className="bg-[#0d1527] border border-red-500/50 rounded-2xl max-w-sm w-full p-6 space-y-4 text-center">
             <Eye className="w-10 h-10 text-red-500 mx-auto" />
             <h3 className="text-sm font-bold text-white">
-              Perpindahan Tab Terdeteksi ({jumlahPindahTab}/
-              {MAX_VIOLATION_LIMIT})
+              Perpindahan Tab Terdeteksi ({jumlahPindahTab}/{unlockThreshold})
             </h3>
             <p className="text-xs text-slate-300">
               Aktivitas berpindah tab/aplikasi lain telah tercatat. Jika
               mencapai{" "}
-              <strong className="text-red-400">{MAX_VIOLATION_LIMIT}x</strong>,
+              <strong className="text-red-400">{unlockThreshold}x</strong>,
               ujian akan terkunci otomatis!
             </p>
             <Button
