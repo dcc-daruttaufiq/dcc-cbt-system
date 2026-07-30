@@ -18,7 +18,6 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
-  Save,
   Send,
   AlertTriangle,
   HelpCircle,
@@ -107,7 +106,26 @@ export default function RuangUjian() {
     localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || "{}",
   );
 
-  // 🚨 1. PROTEKSI ANTI-REFRESH / CLOSE BROWSER (beforeunload)
+  // 🌐 1. DETEKSI STATUS KONEKSI INTERNET BROWSER SECARA REAL-TIME
+  useEffect(() => {
+    const handleOnline = () => setSyncStatus("synced");
+    const handleOffline = () => setSyncStatus("offline");
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    // Set status awal sesuai koneksi jaringan laptop
+    if (!navigator.onLine) {
+      setSyncStatus("offline");
+    }
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  // 🚨 2. PROTEKSI ANTI-REFRESH / CLOSE BROWSER (beforeunload)
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (!isExamFinishedRef.current) {
@@ -186,9 +204,15 @@ export default function RuangUjian() {
       setTechId(realTechId);
       techIdRef.current = realTechId;
 
-      const initialViolations = Number(currentUser.jumlah_pindah_tab) || 0;
-      setJumlahPindahTab(initialViolations);
-      if (initialViolations >= MAX_VIOLATION_LIMIT) {
+      // 🔒 MEMBACA HITUNGAN PINDAH TAB DARI LOCALSTORAGE & SUPABASE (PERSISTEN KETIKA REFRESH F5)
+      const localViolations =
+        Number(localStorage.getItem(`violations_${realTechId}`)) || 0;
+      const dbViolations = Number(currentUser.jumlah_pindah_tab) || 0;
+      const maxViolations = Math.max(localViolations, dbViolations);
+
+      setJumlahPindahTab(maxViolations);
+
+      if (maxViolations >= MAX_VIOLATION_LIMIT) {
         setIsLocked(true);
       }
 
@@ -352,7 +376,7 @@ export default function RuangUjian() {
         });
         setJawaban(restoredJawaban);
         setRaguRagu(restoredRagu);
-        setSyncStatus("synced");
+        if (navigator.onLine) setSyncStatus("synced");
       } catch (err) {
         const savedJwbStr =
           localStorage.getItem(jawabanLocalKey(realTechId)) ||
@@ -411,14 +435,17 @@ export default function RuangUjian() {
     };
   }, [techId]);
 
-  // 🕵️ DETEKSI PINDAH TAB / AUTO-LOCK
+  // 🕵️ DETEKSI PINDAH TAB & AUTO-LOCK PERSISTEN
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden && techIdRef.current && !isExamFinishedRef.current) {
         setJumlahPindahTab((prev) => {
           const next = prev + 1;
 
-          // Catat ke server
+          // 1. Simpan Persisten di LocalStorage (Tahan Refresh F5!)
+          localStorage.setItem(`violations_${techIdRef.current}`, next);
+
+          // 2. Kirim ke Supabase Cloud
           supabase
             .from(TABLES.PESERTA)
             .update({ jumlah_pindah_tab: next })
@@ -426,7 +453,7 @@ export default function RuangUjian() {
             .then(() => {})
             .catch(() => {});
 
-          // Auto-Lock jika melewati batas
+          // 3. Auto-Lock jika melewati batas
           if (next >= MAX_VIOLATION_LIMIT) {
             setIsLocked(true);
             setShowTabWarning(false);
@@ -506,6 +533,12 @@ export default function RuangUjian() {
       savedLocal[soalId] = { jawaban: jawabanValue, ragu_ragu: raguValue };
       localStorage.setItem(jawabanLocalKey(techId), JSON.stringify(savedLocal));
     } catch (e) {}
+
+    // Cek koneksi internet browser sebelum kirim ke cloud
+    if (!navigator.onLine) {
+      setSyncStatus("offline");
+      return;
+    }
 
     // 2. Kirim ke Supabase Cloud
     try {
@@ -634,8 +667,18 @@ export default function RuangUjian() {
     e.preventDefault();
     if (supervisorPinInput === SUPERVISOR_PIN) {
       setIsLocked(false);
+      setJumlahPindahTab(0);
       setSupervisorPinInput("");
       setPinError("");
+
+      // Reset hitungan di LocalStorage & Supabase
+      localStorage.removeItem(`violations_${techId}`);
+      supabase
+        .from(TABLES.PESERTA)
+        .update({ jumlah_pindah_tab: 0 })
+        .eq("tech_id", techId)
+        .then(() => {})
+        .catch(() => {});
     } else {
       setPinError("PIN Pengawas salah! Hubungi pengawas ruangan Anda.");
     }
