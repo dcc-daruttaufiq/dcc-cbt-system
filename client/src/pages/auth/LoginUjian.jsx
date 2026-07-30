@@ -8,10 +8,13 @@ import Input from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
 import { UserCheck, ShieldCheck, Crown } from "lucide-react";
 
+const AKUN_TABLE = "akun_dcc";
+const AKUN_SESSION_KEY = "dcc_akun_session";
+
 export default function LoginUjian() {
   const navigate = useNavigate();
 
-  const [selectedRole, setSelectedRole] = useState("peserta");
+  const [selectedRole, setSelectedRole] = useState("peserta"); // 'peserta' | 'Pengawas' | 'master_admin'
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
@@ -23,48 +26,105 @@ export default function LoginUjian() {
     setIsLoading(true);
     setErrorMsg("");
 
-    const inputUser = username.trim();
+    const inputUser = username.trim().toLowerCase();
     const inputPass = password.trim();
 
-    // 1. LOGIN SEBAGAI PENGAWAS / LEAD INSTRUCTOR DCC
-    if (selectedRole === "master_admin") {
-      if (
-        inputUser.toLowerCase() === "admin" &&
-        (inputPass === "admin123" || inputPass === "123")
-      ) {
+    // =============================================================
+    // 1. LOGIN PENGAWAS & LEAD INSTRUCTOR (MEMBACA TABEL akun_dcc)
+    // =============================================================
+    if (selectedRole === "master_admin" || selectedRole === "Pengawas") {
+      try {
+        // Query ke tabel akun_dcc berdasarkan username/email custom DCC
+        const { data: akun, error } = await supabase
+          .from(AKUN_TABLE)
+          .select("*")
+          .ilike("username", inputUser)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (!akun) {
+          setErrorMsg(
+            "Username/Email custom DCC tidak ditemukan. Periksa kembali penulisan!",
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        if (akun.password !== inputPass) {
+          setErrorMsg("Password salah. Silakan coba lagi!");
+          setIsLoading(false);
+          return;
+        }
+
+        if (akun.status !== "aktif") {
+          setErrorMsg("Akun DCC ini dinonaktifkan. Hubungi Lead Instructor!");
+          setIsLoading(false);
+          return;
+        }
+
+        // 🔒 Validasi tipe akun dari database dengan tab peran yang dipilih
+        if (selectedRole === "master_admin" && akun.tipe !== "admin") {
+          setErrorMsg(
+            "Akun ini bukan Lead Instructor (Admin). Silakan pilih tab Pengawas.",
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        if (
+          selectedRole === "Pengawas" &&
+          akun.tipe !== "anggota" &&
+          akun.tipe !== "admin"
+        ) {
+          setErrorMsg(
+            "Akun ini bukan Pengawas/Member DCC. Silakan pilih tab yang sesuai.",
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        // Format nama lengkap pengguna dari database
+        const namaLengkap =
+          `${akun.nama_depan || ""} ${akun.nama_belakang || ""}`.trim() ||
+          akun.username;
+
+        const roleKey = akun.tipe === "admin" ? "master_admin" : "Pengawas";
+
+        // Simpan sesi Akun DCC
+        localStorage.setItem(
+          AKUN_SESSION_KEY,
+          JSON.stringify({
+            id: akun.id,
+            nama: namaLengkap,
+            username: akun.username,
+            tipe: akun.tipe,
+          }),
+        );
+
         saveAndRedirect(
-          "master_admin",
-          "token-master-admin-real",
-          "Lead Instructor DCC",
-          "ADMIN-001",
+          roleKey,
+          `token-${roleKey}-${akun.id}`,
+          namaLengkap,
+          akun.username,
           "all",
         );
         return;
-      }
-    } else if (selectedRole === "Pengawas") {
-      if (
-        (inputUser.toLowerCase() === "pengawas" ||
-          inputUser.toLowerCase() === "admin") &&
-        (inputPass === "Pengawas123" ||
-          inputPass === "admin123" ||
-          inputPass === "123")
-      ) {
-        saveAndRedirect(
-          "Pengawas",
-          "token-Pengawas-real",
-          "Pengawas Ujian",
-          "Pengawas-001",
-          "all",
+      } catch (err) {
+        console.error("Login Akun DCC Error:", err);
+        setErrorMsg(
+          "Gagal memverifikasi akun ke database. Periksa koneksi internet!",
         );
+        setIsLoading(false);
         return;
       }
     }
 
-    // 2. LOGIN SEBAGAI PESERTA UJIAN (SUPABASE CLOUD)
+    // =============================================================
+    // 2. LOGIN PESERTA UJIAN (TECHID / NAMA LENGKAP)
+    // =============================================================
     if (selectedRole === "peserta") {
       try {
-        const cleanInput = inputUser.toLowerCase().trim();
-
         const { data: listPeserta, error } = await supabase
           .from(TABLES.PESERTA)
           .select("*");
@@ -81,15 +141,15 @@ export default function LoginUjian() {
 
         const matchedPeserta = listPeserta.find(
           (p) =>
-            (p.tech_id && p.tech_id.toLowerCase().trim() === cleanInput) ||
-            (p.nama && p.nama.toLowerCase().trim() === cleanInput) ||
+            (p.tech_id && p.tech_id.toLowerCase().trim() === inputUser) ||
+            (p.nama && p.nama.toLowerCase().trim() === inputUser) ||
             (p.nama_lengkap &&
-              p.nama_lengkap.toLowerCase().trim() === cleanInput),
+              p.nama_lengkap.toLowerCase().trim() === inputUser),
         );
 
         if (!matchedPeserta) {
           setErrorMsg(
-            `Nama Lengkap/TechID "${inputUser}" tidak ditemukan pada data hasil impor Pengawas. Periksa kembali penulisan!`,
+            `Nama Lengkap/TechID "${username}" tidak ditemukan pada data hasil impor Pengawas. Periksa kembali penulisan!`,
           );
           setIsLoading(false);
           return;
@@ -193,7 +253,6 @@ export default function LoginUjian() {
     if (formattedRole === "master_admin" || formattedRole === "admin") {
       navigate("/dashboard-admin");
     } else if (formattedRole === "pengawas") {
-      // ✅ Mengarah ke route dashboard anggota baru
       navigate("/dashboard-anggota");
     } else {
       navigate("/dashboard-peserta");
@@ -212,6 +271,7 @@ export default function LoginUjian() {
           </p>
         </div>
 
+        {/* SELEKSI PERAN */}
         <div className="grid grid-cols-3 gap-1 bg-background p-1.5 rounded-xl border border-borderCustom/60">
           <button
             type="button"
@@ -262,25 +322,27 @@ export default function LoginUjian() {
           </button>
         </div>
 
+        {/* PESAN ERROR */}
         {errorMsg && (
           <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs text-center font-sans">
             {errorMsg}
           </div>
         )}
 
+        {/* FORM LOGIN */}
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="text-xs font-display font-semibold text-slate-300 mb-1 block uppercase">
               {selectedRole === "peserta"
-                ? "Nama Lengkap"
-                : "Username Admin / Pengawas"}
+                ? "Nama Lengkap / TechID"
+                : "Username / Email Custom DCC"}
             </label>
             <Input
               type="text"
               placeholder={
                 selectedRole === "peserta"
-                  ? "Masukkan Nama Lengkap..."
-                  : "Masukkan username..."
+                  ? "Masukkan Nama Lengkap / TechID..."
+                  : "nama.belakang@dcc.com"
               }
               value={username}
               onChange={(e) => setUsername(e.target.value)}
