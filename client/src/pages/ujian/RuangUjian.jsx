@@ -179,6 +179,38 @@ export default function RuangUjian() {
     };
   }, [techId, navigate]);
 
+  // 🔓 4. REMOTE UNLOCK REALTIME DARI DASHBOARD PENGAWAS
+  useEffect(() => {
+    if (!techId) return;
+
+    const unlockChannel = supabase
+      .channel(`remote_unlock_${techId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: TABLES.PESERTA || "peserta",
+          filter: `tech_id=eq.${techId}`,
+        },
+        (payload) => {
+          // Buka Kunci Otomatis saat Pengawas memperbarui unlock_signal
+          if (payload.new?.unlock_signal !== payload.old?.unlock_signal) {
+            setIsLocked(false);
+            setShowTabWarning(false);
+            const currentViolations =
+              payload.new?.jumlah_pindah_tab || jumlahPindahTab;
+            setUnlockThreshold(currentViolations + 1);
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(unlockChannel);
+    };
+  }, [techId, jumlahPindahTab]);
+
   const fetchDurasiUjianMenit = async (katId) => {
     let defaultDurasiMap = {
       word: 90,

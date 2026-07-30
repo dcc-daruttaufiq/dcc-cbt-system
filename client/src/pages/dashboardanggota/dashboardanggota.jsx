@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase, TABLES } from "../../utils/supabaseClient"; // ✅ Ubah ke ../../
-import { normalizeKategori } from "../../utils/examCategories"; // ✅ Ubah ke ../../
-import { STORAGE_KEYS, jawabanLocalKey } from "../../utils/storageKeys"; // ✅ Ubah ke ../../
-import Button from "../../components/ui/Button"; // ✅ Ubah ke ../../
-import Badge from "../../components/ui/Badge"; // ✅ Ubah ke ../../
-import Sidebar from "../../components/ui/Sidebar"; // ✅ Ubah ke ../../
-import Navbar from "../../components/ui/Navbar"; // ✅ Ubah ke ../../
+import { supabase, TABLES } from "../../utils/supabaseClient";
+import { normalizeKategori } from "../../utils/examCategories";
+import { STORAGE_KEYS, jawabanLocalKey } from "../../utils/storageKeys";
+import Button from "../../components/ui/Button";
+import Badge from "../../components/ui/Badge";
+import Sidebar from "../../components/ui/Sidebar";
+import Navbar from "../../components/ui/Navbar";
 import {
   CheckSquare,
   Square,
@@ -19,7 +19,6 @@ import {
   FileText,
   FileSpreadsheet,
   Trash2,
-  Trash,
   WifiOff,
   AlertCircle,
   Search,
@@ -31,15 +30,15 @@ import {
   Eye,
   BarChart3,
   X,
-  Activity,
   CreditCard,
   Home,
   Database,
   Sliders,
   FileBarChart,
   MonitorCheck,
-  LogIn,
   Clock,
+  Unlock,
+  Lock,
 } from "lucide-react";
 
 const AKUN_SESSION_KEY = "dcc_akun_session";
@@ -53,7 +52,6 @@ const getTanggalHariIni = () => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
-// Helper Generator Token Random Unik Siswa
 const generateRandomTokenSiswa = (prefix = "TS") => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let rand = "";
@@ -63,7 +61,7 @@ const generateRandomTokenSiswa = (prefix = "TS") => {
   return `${prefix}-${rand}`;
 };
 
-export default function DashboardPengawas() {
+export default function DashboardAnggota() {
   const navigate = useNavigate();
   const [sesiStaff, setSesiStaff] = useState(null);
   const [isCheckingSesi, setIsCheckingSesi] = useState(true);
@@ -73,7 +71,7 @@ export default function DashboardPengawas() {
   const [peserta, setPeserta] = useState([]);
   const [bankSoalAll, setBankSoalAll] = useState([]);
   const [katalogMapel, setKatalogMapel] = useState([]);
-  const [modeToken, setModeToken] = useState("mapel"); // 'mapel' | 'siswa'
+  const [modeToken, setModeToken] = useState("mapel");
   const [selectedSiswa, setSelectedSiswa] = useState(null);
   const [soalPraktikList, setSoalPraktikList] = useState([]);
   const [checklistPraktik, setChecklistPraktik] = useState({});
@@ -82,39 +80,30 @@ export default function DashboardPengawas() {
   const [isLoadingPeriksa, setIsLoadingPeriksa] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // State Checkbox Bulk Delete
   const [selectedIds, setSelectedIds] = useState([]);
-
-  // Filter Status (6 Tab Utama)
   const [filterPeserta, setFilterPeserta] = useState("semua");
   const [filterTipeJawaban, setFilterTipeJawaban] = useState("semua");
 
-  // Search & Pagination
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 8;
 
-  // State Analisis Butir Soal
   const [showAnalisisModal, setShowAnalisisModal] = useState(false);
   const [isLoadingAnalisis, setIsLoadingAnalisis] = useState(false);
   const [analisisData, setAnalisisData] = useState([]);
-
-  // State Modal Aktivitas Pindah Tab
   const [showPindahTabModal, setShowPindahTabModal] = useState(false);
 
   const pesertaFileInputRef = useRef(null);
 
-  // Menu Sidebar
   const menuPengawas = [
     { label: "Menu Utama", path: "/", icon: Home },
-    { label: "Koreksi Ujian", path: "/dashboard-Pengawas", icon: CheckSquare },
+    { label: "Koreksi Ujian", path: "/dashboard-anggota", icon: CheckSquare },
     { label: "Repositori Soal", path: "/bank-soal", icon: Database },
     { label: "Pengaturan Ujian", path: "/pengaturan-ujian", icon: Sliders },
     { label: "Laporan Nilai", path: "/laporan", icon: FileBarChart },
     { label: "Fasilitas DCC", path: "/fasilitas-dcc", icon: MonitorCheck },
   ];
 
-  // Load Katalog Mata Ujian & Mode Token
   const loadKatalogPengaturan = async () => {
     try {
       const { data } = await supabase
@@ -132,7 +121,6 @@ export default function DashboardPengawas() {
         }
       }
 
-      // Fetch Mode Token Global dari Cloud
       const { data: dataMode } = await supabase
         .from(TABLES.PENGATURAN_UJIAN || "pengaturan_ujian")
         .select("*")
@@ -148,7 +136,6 @@ export default function DashboardPengawas() {
         localStorage.setItem("dcc_mode_token", mt.mode || "mapel");
       }
     } catch (e) {
-      console.warn("Gagal memuat katalog pengaturan dari cloud...", e);
       const localKatalog = localStorage.getItem("dcc_katalog_mapel");
       if (localKatalog) {
         try {
@@ -170,9 +157,6 @@ export default function DashboardPengawas() {
       if (error) throw error;
 
       let rows = Array.isArray(data) ? data : [];
-
-      // Kalau ada peserta yang belum punya token di Supabase, buatkan & simpan ke Supabase
-      // (WAJIB tersimpan di Supabase supaya laptop peserta manapun bisa membacanya)
       const belumPunyaToken = rows.filter((p) => !p.token);
       for (const p of belumPunyaToken) {
         const generated = generateRandomTokenSiswa();
@@ -182,25 +166,14 @@ export default function DashboardPengawas() {
             .from(TABLES.PESERTA)
             .update({ token: generated })
             .eq("id", p.id);
-        } catch (e) {
-          console.warn(
-            "Gagal menyimpan token baru ke Cloud untuk",
-            p.tech_id,
-            e,
-          );
-        }
+        } catch (e) {}
       }
 
       rows = rows.map((p) => ({ ...p, token_peserta: p.token }));
-
       setPeserta(rows);
       setIsOffline(false);
       localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(rows));
     } catch (err) {
-      console.warn(
-        "Gagal terhubung ke Cloud (peserta), menggunakan cache lokal.",
-        err,
-      );
       setIsOffline(true);
       const localSesi = localStorage.getItem(STORAGE_KEYS.PESERTA);
       if (localSesi) {
@@ -221,10 +194,6 @@ export default function DashboardPengawas() {
       setBankSoalAll(rows);
       localStorage.setItem(STORAGE_KEYS.BANK_SOAL, JSON.stringify(rows));
     } catch (err) {
-      console.warn(
-        "Gagal memuat Repositori Soal dari Cloud, menggunakan cache lokal.",
-        err,
-      );
       const cached = localStorage.getItem(STORAGE_KEYS.BANK_SOAL);
       if (cached) {
         try {
@@ -236,7 +205,6 @@ export default function DashboardPengawas() {
     }
   };
 
-  // 🔐 Proteksi halaman — cuma yang login lewat /akun-login (anggota/admin) yang boleh masuk
   useEffect(() => {
     try {
       const raw = localStorage.getItem(AKUN_SESSION_KEY);
@@ -254,7 +222,6 @@ export default function DashboardPengawas() {
     }
   }, [navigate]);
 
-  // 📋 Cek apakah staff ini sudah presensi hari ini
   const cekPresensiHariIni = async (username) => {
     try {
       const { data } = await supabase
@@ -264,9 +231,7 @@ export default function DashboardPengawas() {
         .eq("tanggal", getTanggalHariIni())
         .maybeSingle();
       setSudahPresensiHariIni(!!data);
-    } catch (e) {
-      console.warn("Gagal cek presensi staff:", e);
-    }
+    } catch (e) {}
   };
 
   const handlePresensiStaff = async () => {
@@ -307,8 +272,6 @@ export default function DashboardPengawas() {
     return () => clearInterval(interval);
   }, [sesiStaff]);
 
-  // 📡 REALTIME: update kartu peserta INSTAN begitu ada perubahan di Supabase
-  // (progress soal, status, jumlah pindah tab, dll) — tanpa perlu menunggu polling atau refresh manual.
   useEffect(() => {
     const channel = supabase
       .channel("realtime_progress_peserta")
@@ -341,7 +304,21 @@ export default function DashboardPengawas() {
     setCurrentPage(1);
   }, [filterPeserta, searchQuery]);
 
-  // Impor Peserta Tanpa Kolom Token (Supabase Aman Bebas Error 400)
+  // 🔓 FITUR REMOTE UNLOCK 1-CLICK DARI PENGAWAS
+  const handleRemoteUnlock = async (techId) => {
+    try {
+      const nowIso = new Date().toISOString();
+      const { error } = await supabase
+        .from(TABLES.PESERTA || "peserta")
+        .update({ unlock_signal: nowIso })
+        .eq("tech_id", techId);
+
+      if (error) throw error;
+    } catch (err) {
+      alert("Gagal melakukan remote unlock: " + err.message);
+    }
+  };
+
   const handleImportPesertaExcelCSV = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -355,9 +332,6 @@ export default function DashboardPengawas() {
       const existingTechIds = new Set(
         peserta.map((p) => (p.tech_id || "").toLowerCase().trim()),
       );
-
-      let duplicateCount = 0;
-      let invalidKategoriCount = 0;
 
       let savedTokenMap = {};
       try {
@@ -392,16 +366,10 @@ export default function DashboardPengawas() {
             cols[1] || `DCC25-${String(index + 1).padStart(3, "0")}`;
           const cleanTechId = techId.toLowerCase().trim();
 
-          if (existingTechIds.has(cleanTechId)) {
-            duplicateCount++;
-            return;
-          }
+          if (existingTechIds.has(cleanTechId)) return;
 
           const finalKat = normalizeKategori(cols[2]);
-          if (!finalKat) {
-            invalidKategoriCount++;
-            return;
-          }
+          if (!finalKat) return;
 
           const uniqueTokenSiswa = generateRandomTokenSiswa();
           savedTokenMap[techId] = uniqueTokenSiswa;
@@ -430,50 +398,37 @@ export default function DashboardPengawas() {
       );
 
       if (importedPesertaArr.length === 0) {
-        if (duplicateCount > 0)
-          alert(`Semua data (${duplicateCount}) sudah terdaftar!`);
-        else if (invalidKategoriCount > 0)
-          alert(`Gagal impor. Kategori mata ujian tidak valid.`);
-        else alert("Format file tidak sesuai!");
+        alert("Format file tidak sesuai atau data sudah ada!");
         e.target.value = "";
         return;
       }
 
-      // Token ikut disimpan ke Supabase supaya bisa dibaca dari laptop peserta manapun
-      const payloadToSupabase = importedPesertaArr;
-
       try {
         const { error } = await supabase
           .from(TABLES.PESERTA)
-          .insert(payloadToSupabase);
+          .insert(importedPesertaArr);
         if (error) throw error;
 
         await loadPeserta();
-        alert(
-          `Berhasil mengimpor ${importedPesertaArr.length} peserta! Token unik siswa telah dibuat permanen.\n\nKlik tombol kartu hijau (Cetak Kartu ID) di pojok kanan atas untuk langsung cetak kartu + QR peserta yang baru diimpor.`,
-        );
+        alert(`Berhasil mengimpor ${importedPesertaArr.length} peserta!`);
       } catch (err) {
-        console.error("Gagal impor peserta:", err);
         const mergedWithToken = [...importedPesertaArr, ...peserta];
         setPeserta(mergedWithToken);
         localStorage.setItem(
           STORAGE_KEYS.PESERTA,
           JSON.stringify(mergedWithToken),
         );
-        alert("Tersimpan di lokal. Token unik siswa berhasil dibuat.");
+        alert("Tersimpan di lokal.");
       } finally {
         e.target.value = "";
       }
     };
-
     reader.readAsText(file);
   };
 
-  // Fitur Download Data Peserta Lengkap Beserta Token Uniknya
   const handleDownloadPesertaToken = () => {
     if (peserta.length === 0)
       return alert("Belum ada data peserta untuk diunduh!");
-
     let csvContent =
       "data:text/csv;charset=utf-8,Nama Lengkap,TechID,Kategori,Token Peserta\n";
     peserta.forEach((p) => {
@@ -483,7 +438,6 @@ export default function DashboardPengawas() {
       const token = p.token || p.token_peserta || generateRandomTokenSiswa();
       csvContent += `"${nama}","${techId}","${kat}","${token}"\n`;
     });
-
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -496,78 +450,58 @@ export default function DashboardPengawas() {
     document.body.removeChild(link);
   };
 
-  // 📈 Fitur Analisis Butir Soal — hitung persentase peserta yang menjawab benar per soal PG
   const handleAnalisisSoal = async () => {
     setShowAnalisisModal(true);
     setIsLoadingAnalisis(true);
-
     try {
       const { data: semuaJawaban, error } = await supabase
         .from(TABLES.JAWABAN_PESERTA)
         .select("soal_id, jawaban");
-
       if (error) throw error;
 
       const soalPGList = bankSoalAll.filter(
         (s) => (s.tipe || "").toLowerCase() === "pg",
       );
-
-      const hasil = soalPGList
-        .map((s) => {
-          const kunciHuruf = (s.jawaban_benar || s.jawabanBenar || "A")
-            .toString()
-            .toUpperCase()
-            .trim();
-          const kunciIdx = kunciHuruf.charCodeAt(0) - 65;
-          const kunciTeks =
-            (Array.isArray(s.opsi) ? s.opsi[kunciIdx] : "") || "";
-
-          const jawabanUntukSoalIni = (semuaJawaban || []).filter(
-            (j) => String(j.soal_id).trim() === String(s.id).trim(),
-          );
-
-          let benar = 0;
-          jawabanUntukSoalIni.forEach((j) => {
-            const jwbTeks = (j.jawaban || "").toString().trim().toLowerCase();
-            if (
-              jwbTeks &&
-              jwbTeks === kunciTeks.toString().trim().toLowerCase()
-            )
-              benar++;
-          });
-
-          const totalDijawab = jawabanUntukSoalIni.length;
-          const persentaseBenar =
-            totalDijawab > 0 ? Math.round((benar / totalDijawab) * 100) : null;
-
-          return {
-            soalId: s.id,
-            pertanyaan: s.pertanyaan || `Soal #${s.id}`,
-            kategori: s.kategori,
-            totalDijawab,
-            benar,
-            salah: totalDijawab - benar,
-            persentaseBenar,
-          };
-        })
-        .sort(
-          (a, b) => (a.persentaseBenar ?? 999) - (b.persentaseBenar ?? 999),
+      const hasil = soalPGList.map((s) => {
+        const kunciHuruf = (s.jawaban_benar || s.jawabanBenar || "A")
+          .toString()
+          .toUpperCase()
+          .trim();
+        const kunciIdx = kunciHuruf.charCodeAt(0) - 65;
+        const kunciTeks = (Array.isArray(s.opsi) ? s.opsi[kunciIdx] : "") || "";
+        const jawabanUntukSoalIni = (semuaJawaban || []).filter(
+          (j) => String(j.soal_id).trim() === String(s.id).trim(),
         );
-
+        let benar = 0;
+        jawabanUntukSoalIni.forEach((j) => {
+          const jwbTeks = (j.jawaban || "").toString().trim().toLowerCase();
+          if (jwbTeks && jwbTeks === kunciTeks.toString().trim().toLowerCase())
+            benar++;
+        });
+        const totalDijawab = jawabanUntukSoalIni.length;
+        const persentaseBenar =
+          totalDijawab > 0 ? Math.round((benar / totalDijawab) * 100) : null;
+        return {
+          soalId: s.id,
+          pertanyaan: s.pertanyaan || `Soal #${s.id}`,
+          kategori: s.kategori,
+          totalDijawab,
+          benar,
+          salah: totalDijawab - benar,
+          persentaseBenar,
+        };
+      });
       setAnalisisData(hasil);
     } catch (err) {
-      console.error("Gagal memuat analisis soal:", err);
       alert("Gagal memuat data analisis butir soal.");
     } finally {
       setIsLoadingAnalisis(false);
     }
   };
 
-  // 🪪 Cetak Kartu ID + QR Code untuk semua peserta (langsung dari TechID, tanpa perlu generate/simpan gambar terpisah)
   const handleCetakKartuID = () => {
     if (filteredPeserta.length === 0)
       return alert("Tidak ada peserta untuk dicetak kartunya!");
-
     const win = window.open("", "_blank");
     const kartuHtml = filteredPeserta
       .map((p) => {
@@ -575,7 +509,6 @@ export default function DashboardPengawas() {
         const techId = p.tech_id || "-";
         const kategori = (p.kategori || "-").toUpperCase();
         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(techId)}`;
-
         return `
         <div class="kartu">
           <div class="kartu-header">
@@ -605,92 +538,36 @@ export default function DashboardPengawas() {
           @page { margin: 12mm; }
           body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: #f1f5f9; }
           .grid { display: flex; flex-wrap: wrap; gap: 14px; padding: 14px; }
-          .kartu {
-            width: 300px; border: 2px solid #0891b2; border-radius: 14px; overflow: hidden;
-            background: #ffffff; break-inside: avoid; page-break-inside: avoid;
-          }
-          .kartu-header {
-            background: #0891b2; color: #fff; padding: 8px 12px; display: flex; align-items: center; gap: 8px;
-          }
-          .logo-text { font-weight: bold; font-size: 14px; letter-spacing: 1px; }
-          .judul { font-size: 9px; font-weight: bold; letter-spacing: 0.5px; }
+          .kartu { width: 300px; border: 2px solid #0891b2; border-radius: 14px; overflow: hidden; background: #ffffff; break-inside: avoid; }
+          .kartu-header { background: #0891b2; color: #fff; padding: 8px 12px; display: flex; align-items: center; gap: 8px; }
+          .logo-text { font-weight: bold; font-size: 14px; }
+          .judul { font-size: 9px; font-weight: bold; }
           .kartu-body { display: flex; align-items: center; justify-content: space-between; padding: 14px; gap: 10px; }
-          .info { flex: 1; min-width: 0; }
+          .info { flex: 1; }
           .nama { font-size: 15px; font-weight: bold; color: #0f172a; margin: 0 0 4px 0; }
           .techid { font-size: 13px; font-weight: bold; color: #0891b2; margin: 0 0 4px 0; font-family: monospace; }
-          .kategori { font-size: 10px; color: #64748b; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; }
-          .qr { width: 80px; height: 80px; shrink: 0; }
-          .kartu-footer { background: #f1f5f9; color: #64748b; font-size: 8px; text-align: center; padding: 4px; letter-spacing: 0.5px; }
-          @media print {
-            body { background: #fff; }
-            .kartu { break-inside: avoid; }
-          }
+          .kategori { font-size: 10px; color: #64748b; margin: 0; text-transform: uppercase; }
+          .qr { width: 80px; height: 80px; }
+          .kartu-footer { background: #f1f5f9; color: #64748b; font-size: 8px; text-align: center; padding: 4px; }
         </style>
       </head>
-      <body onload="window.print()">
-        <div class="grid">${kartuHtml}</div>
-      </body>
+      <body onload="window.print()"><div class="grid">${kartuHtml}</div></body>
       </html>
     `);
     win.document.close();
   };
 
-  const handleRegenerateTokenSiswa = async (pesertaId, techId) => {
-    const newToken = generateRandomTokenSiswa();
-    try {
-      await supabase
-        .from(TABLES.PESERTA)
-        .update({ token: newToken })
-        .eq("id", pesertaId);
-
-      let savedTokenMap = {};
-      try {
-        savedTokenMap = JSON.parse(
-          localStorage.getItem("dcc_persistent_tokens") || "{}",
-        );
-      } catch (e) {}
-
-      savedTokenMap[techId] = newToken;
-      localStorage.setItem(
-        "dcc_persistent_tokens",
-        JSON.stringify(savedTokenMap),
-      );
-
-      const updated = peserta.map((p) =>
-        p.id === pesertaId
-          ? { ...p, token: newToken, token_peserta: newToken }
-          : p,
-      );
-      setPeserta(updated);
-      localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updated));
-      alert(`Token baru untuk TechID ${techId}: ${newToken}`);
-    } catch (e) {
-      alert("Gagal mereset token peserta.");
-    }
-  };
-
   const handleDeleteSingle = async (pesertaId, nama) => {
     if (!confirm(`Hapus data peserta "${nama}"?`)) return;
-
     try {
       const targetPeserta = peserta.find((p) => p.id === pesertaId);
-      const { error } = await supabase
-        .from(TABLES.PESERTA)
-        .delete()
-        .eq("id", pesertaId);
-      if (error) throw error;
-
+      await supabase.from(TABLES.PESERTA).delete().eq("id", pesertaId);
       if (targetPeserta?.tech_id) {
-        try {
-          await supabase
-            .from(TABLES.JAWABAN_PESERTA)
-            .delete()
-            .eq("tech_id", targetPeserta.tech_id);
-        } catch (e) {
-          console.warn("Gagal menghapus jawaban terkait peserta ini.", e);
-        }
+        await supabase
+          .from(TABLES.JAWABAN_PESERTA)
+          .delete()
+          .eq("tech_id", targetPeserta.tech_id);
       }
-
       const updated = peserta.filter((p) => p.id !== pesertaId);
       setPeserta(updated);
       localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updated));
@@ -700,90 +577,23 @@ export default function DashboardPengawas() {
     }
   };
 
-  const handleDeleteSelected = async () => {
-    if (selectedIds.length === 0) return alert("Pilih minimal satu peserta!");
-    if (!confirm(`Hapus ${selectedIds.length} peserta terpilih?`)) return;
-
-    try {
-      const targetTechIds = peserta
-        .filter((p) => selectedIds.includes(p.id))
-        .map((p) => p.tech_id)
-        .filter(Boolean);
-      const { error } = await supabase
-        .from(TABLES.PESERTA)
-        .delete()
-        .in("id", selectedIds);
-      if (error) throw error;
-
-      if (targetTechIds.length > 0) {
-        try {
-          await supabase
-            .from(TABLES.JAWABAN_PESERTA)
-            .delete()
-            .in("tech_id", targetTechIds);
-        } catch (e) {
-          console.warn("Gagal menghapus jawaban terkait peserta terpilih.", e);
-        }
-      }
-
-      const updated = peserta.filter((p) => !selectedIds.includes(p.id));
-      setPeserta(updated);
-      localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updated));
-      setSelectedIds([]);
-      if (selectedIds.includes(selectedSiswa)) setSelectedSiswa(null);
-    } catch (err) {
-      alert("Gagal menghapus peserta terpilih.");
-    }
-  };
-
   const handleDeleteAll = async () => {
     if (!confirm("HAPUS SEMUA PESERTA?")) return;
-    if (
-      !confirm(
-        `Konfirmasi terakhir: ${peserta.length} data peserta akan dihapus PERMANEN.`,
-      )
-    )
-      return;
-
     try {
       const idsToDelete = peserta.map((p) => p.id).filter(Boolean);
       const techIdsToDelete = peserta.map((p) => p.tech_id).filter(Boolean);
-      if (idsToDelete.length > 0) {
+      if (idsToDelete.length > 0)
         await supabase.from(TABLES.PESERTA).delete().in("id", idsToDelete);
-      }
-      if (techIdsToDelete.length > 0) {
-        try {
-          await supabase
-            .from(TABLES.JAWABAN_PESERTA)
-            .delete()
-            .in("tech_id", techIdsToDelete);
-        } catch (e) {
-          console.warn("Gagal menghapus jawaban terkait semua peserta.", e);
-        }
-      }
+      if (techIdsToDelete.length > 0)
+        await supabase
+          .from(TABLES.JAWABAN_PESERTA)
+          .delete()
+          .in("tech_id", techIdsToDelete);
       setPeserta([]);
       localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify([]));
-      localStorage.removeItem("dcc_persistent_tokens");
       setSelectedSiswa(null);
-      setSelectedIds([]);
     } catch (err) {
       alert("Gagal mereset data peserta.");
-    }
-  };
-
-  const toggleSelectPeserta = (pesertaId) => {
-    setSelectedIds((prev) =>
-      prev.includes(pesertaId)
-        ? prev.filter((id) => id !== pesertaId)
-        : [...prev, pesertaId],
-    );
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedIds.length === filteredPeserta.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(filteredPeserta.map((p) => p.id));
     }
   };
 
@@ -802,12 +612,10 @@ export default function DashboardPengawas() {
     let detailJawaban = [];
 
     try {
-      const { data: jawabanRows, error } = await supabase
+      const { data: jawabanRows } = await supabase
         .from(TABLES.JAWABAN_PESERTA)
         .select("*")
         .ilike("tech_id", cleanTechId);
-
-      if (error) throw error;
 
       if (jawabanRows && jawabanRows.length > 0) {
         detailJawaban = jawabanRows.map((row) => {
@@ -823,9 +631,7 @@ export default function DashboardPengawas() {
               if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
                 parsedJwb = JSON.parse(trimmed);
               }
-            } catch (e) {
-              parsedJwb = row.jawaban;
-            }
+            } catch (e) {}
           }
 
           const isObj = typeof parsedJwb === "object" && parsedJwb !== null;
@@ -851,60 +657,7 @@ export default function DashboardPengawas() {
           };
         });
       }
-    } catch (err) {
-      console.warn(
-        "Gagal fetch dari Cloud, membaca fallback LocalStorage...",
-        err,
-      );
-    }
-
-    if (detailJawaban.length === 0) {
-      const savedJawabanStr =
-        localStorage.getItem(jawabanLocalKey(cleanTechId)) ||
-        localStorage.getItem(STORAGE_KEYS.JAWABAN_LOCAL_LEGACY);
-
-      if (savedJawabanStr) {
-        try {
-          const parsedJwb = JSON.parse(savedJawabanStr);
-          detailJawaban = Object.keys(parsedJwb).map((soalId) => {
-            const matchedSoal =
-              bankSoalAll.find(
-                (s) => String(s.id).trim() === String(soalId).trim(),
-              ) || {};
-            const entry = parsedJwb[soalId];
-            const isWrapped =
-              entry && typeof entry === "object" && "jawaban" in entry;
-            const actualJwb = isWrapped ? entry.jawaban : entry;
-
-            const rawTipeLokal = (matchedSoal.tipe || "").toLowerCase();
-            const isObjLokal = actualJwb && typeof actualJwb === "object";
-            const tipeFinalLokal =
-              rawTipeLokal.includes("prak") ||
-              rawTipeLokal.includes("essay") ||
-              isObjLokal
-                ? "praktik"
-                : "pg";
-
-            return {
-              soal_id: soalId,
-              tipe: tipeFinalLokal,
-              pertanyaan: matchedSoal.pertanyaan || `Butir Soal #${soalId}`,
-              jawaban: actualJwb,
-              ragu_ragu: isWrapped ? !!entry.ragu_ragu : false,
-              checklist:
-                tipeFinalLokal === "praktik"
-                  ? matchedSoal.checklist || [
-                      "Instruksi pengerjaan terpenuhi",
-                      "Format berkas valid",
-                    ]
-                  : null,
-            };
-          });
-        } catch (e) {
-          detailJawaban = [];
-        }
-      }
-    }
+    } catch (err) {}
 
     setFilterTipeJawaban("semua");
     setSoalPraktikList(detailJawaban);
@@ -941,7 +694,6 @@ export default function DashboardPengawas() {
     return Math.round((dicentang / keys.length) * 100);
   };
 
-  // Perhitungan Nilai Akhir dengan Bobot Dinamis & Fallback Soal PG Saja
   const submitSimpanNilaiPraktik = async () => {
     const targetUser = peserta.find((p) => p.id === selectedSiswa);
     if (!targetUser) return;
@@ -1019,7 +771,6 @@ export default function DashboardPengawas() {
     }
   };
 
-  // Filter Peserta
   const filteredPeserta = peserta.filter((p) => {
     const statusP = p.status || "belum_mulai";
     const isDikoreksi =
@@ -1060,14 +811,6 @@ export default function DashboardPengawas() {
       p.status === "selesai" &&
       p.status_koreksi !== "dikoreksi" &&
       p.status_koreksi !== "SELESAI",
-  ).length;
-  const countSelesaiDikoreksi = peserta.filter(
-    (p) =>
-      p.status === "selesai" &&
-      (p.status_koreksi === "dikoreksi" || p.status_koreksi === "SELESAI"),
-  ).length;
-  const countSelesaiUjian = peserta.filter(
-    (p) => p.status === "selesai",
   ).length;
 
   const totalPages = Math.max(
@@ -1156,6 +899,7 @@ export default function DashboardPengawas() {
                       : "Presensi Masuk Hari Ini"}
                   </Button>
                 ))}
+
               <input
                 type="file"
                 ref={pesertaFileInputRef}
@@ -1168,7 +912,7 @@ export default function DashboardPengawas() {
                 onClick={() => pesertaFileInputRef.current.click()}
                 className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-display font-bold border-0"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Import Data
+                <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Import
                 Peserta
               </Button>
 
@@ -1242,43 +986,13 @@ export default function DashboardPengawas() {
 
         <main className="p-6 md:p-8 flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
-            {/* BILAH KIRI: ANTREAN PESERTA (4 KOLOM GRID) */}
+            {/* BILAH KIRI: ANTREAN PESERTA */}
             <div className="lg:col-span-5 xl:col-span-4 space-y-4">
               <div className="flex flex-col gap-2 px-1">
                 <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
-                      Daftar Peserta ({filteredPeserta.length})
-                    </h2>
-                    <span className="text-[9px] px-2 py-0.5 rounded font-display font-bold uppercase bg-cyan-400/10 text-cyan-400 border border-cyan-400/20">
-                      {modeToken === "siswa"
-                        ? "Mode: Token Siswa"
-                        : "Mode: Token Mapel"}
-                    </span>
-                  </div>
-
-                  {filteredPeserta.length > 0 && (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={toggleSelectAll}
-                        className="text-[11px] text-cyan-400 hover:underline font-mono"
-                      >
-                        {selectedIds.length === filteredPeserta.length
-                          ? "Batal Pilih"
-                          : "Pilih Semua"}
-                      </button>
-
-                      {selectedIds.length > 0 && (
-                        <button
-                          onClick={handleDeleteSelected}
-                          className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 text-[10px] font-bold flex items-center gap-1 hover:bg-rose-500/40 transition"
-                        >
-                          <Trash className="w-3 h-3" /> Hapus (
-                          {selectedIds.length})
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider">
+                    Daftar Peserta ({filteredPeserta.length})
+                  </h2>
                 </div>
 
                 <div className="relative">
@@ -1303,7 +1017,6 @@ export default function DashboardPengawas() {
                   >
                     Semua ({peserta.length})
                   </button>
-
                   <button
                     onClick={() => setFilterPeserta("belum_mulai")}
                     className={`py-1.5 px-2 rounded-lg text-left transition-all ${
@@ -1314,7 +1027,6 @@ export default function DashboardPengawas() {
                   >
                     Belum ({countBelumUjian})
                   </button>
-
                   <button
                     onClick={() => setFilterPeserta("berjalan")}
                     className={`py-1.5 px-2 rounded-lg text-left transition-all ${
@@ -1325,7 +1037,6 @@ export default function DashboardPengawas() {
                   >
                     Sedang ({countSedangUjian})
                   </button>
-
                   <button
                     onClick={() => setFilterPeserta("perlu_dikoreksi")}
                     className={`py-1.5 px-2 rounded-lg text-left transition-all ${
@@ -1334,34 +1045,11 @@ export default function DashboardPengawas() {
                         : "text-slate-400 hover:text-white"
                     }`}
                   >
-                    Perlu Koreksi ({countPerluDikoreksi})
-                  </button>
-
-                  <button
-                    onClick={() => setFilterPeserta("selesai_dikoreksi")}
-                    className={`py-1.5 px-2 rounded-lg text-left transition-all ${
-                      filterPeserta === "selesai_dikoreksi"
-                        ? "bg-emerald-400 text-slate-950"
-                        : "text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    Terkoreksi ({countSelesaiDikoreksi})
-                  </button>
-
-                  <button
-                    onClick={() => setFilterPeserta("selesai_ujian")}
-                    className={`py-1.5 px-2 rounded-lg text-left transition-all ${
-                      filterPeserta === "selesai_ujian"
-                        ? "bg-cyan-400 text-slate-950"
-                        : "text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    Selesai ({countSelesaiUjian})
+                    Koreksi ({countPerluDikoreksi})
                   </button>
                 </div>
               </div>
 
-              {/* DAFTAR CARD PESERTA */}
               {filteredPeserta.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
                   Tidak ada peserta pada status ini.
@@ -1371,15 +1059,13 @@ export default function DashboardPengawas() {
                   {paginatedPeserta.map((p, idx) => {
                     const statusInfo = getBadgeStatus(p);
                     const isSelected = selectedSiswa === p.id;
-                    const isChecked = selectedIds.includes(p.id);
                     const nilaiDisplay =
                       p.nilai_akhir !== undefined && p.nilai_akhir !== null
                         ? p.nilai_akhir
                         : p.nilai_praktik || p.nilai_pg || "-";
 
-                    const tokenSiswaReal =
-                      p.token || p.token_peserta || generateRandomTokenSiswa();
-                    const isSedangUjian = p.status === "berjalan";
+                    const isTerkunci =
+                      (p.jumlah_pindah_tab ?? 0) >= 3 && p.status !== "selesai";
                     const progressSoal = p.soal_terakhir || 0;
                     const totalSoalUjian = p.total_soal_ujian || 0;
                     const progressPercent =
@@ -1394,36 +1080,20 @@ export default function DashboardPengawas() {
                       <div
                         key={p.id || idx}
                         className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col gap-3 ${
-                          isSelected
-                            ? "bg-cyan-950/30 border-cyan-400"
-                            : "bg-[#0d1527]/70 border-slate-800/80 hover:border-slate-700"
+                          isTerkunci
+                            ? "bg-red-950/20 border-red-500/60 shadow-md shadow-red-500/10"
+                            : isSelected
+                              ? "bg-cyan-950/30 border-cyan-400"
+                              : "bg-[#0d1527]/70 border-slate-800/80 hover:border-slate-700"
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2 border-b border-slate-800/50 pb-2.5">
                           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <button
-                              type="button"
-                              onClick={() => toggleSelectPeserta(p.id)}
-                              className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-all ${
-                                isChecked
-                                  ? "bg-cyan-400 border-cyan-400"
-                                  : "bg-transparent border-slate-700"
-                              }`}
-                            >
-                              {isChecked && (
-                                <CheckCircle2
-                                  className="w-3 h-3 text-slate-950"
-                                  strokeWidth={3}
-                                />
-                              )}
-                            </button>
-
                             <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-cyan-400 font-bold text-xs shrink-0">
                               {(p.nama || p.nama_lengkap || "P")
                                 .charAt(0)
                                 .toUpperCase()}
                             </div>
-
                             <div className="min-w-0 flex-1">
                               <h4
                                 className="font-display font-bold text-xs text-white truncate"
@@ -1448,46 +1118,30 @@ export default function DashboardPengawas() {
                           </button>
                         </div>
 
-                        {/* ROW TOKEN UNIK SISWA (DIJAMIN STABIL PERMANEN) */}
                         {modeToken === "siswa" && (
                           <div className="flex items-center justify-between bg-[#030712] px-2.5 py-1 rounded-lg border border-purple-500/30 text-[10px]">
                             <span className="text-purple-300 font-display font-bold flex items-center gap-1">
-                              <Key className="w-3 h-3 text-purple-400" /> TOKEN
-                              PESERTA:
+                              <Key className="w-3 h-3 text-purple-400" /> TOKEN:
                             </span>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-mono font-bold text-white tracking-widest">
-                                {tokenSiswaReal}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleRegenerateTokenSiswa(p.id, p.tech_id)
-                                }
-                                className="p-0.5 text-slate-400 hover:text-cyan-400 transition"
-                                title="Reset / Buat Token Baru"
-                              >
-                                <RefreshCw className="w-3 h-3" />
-                              </button>
-                            </div>
+                            <span className="font-mono font-bold text-white tracking-widest">
+                              {p.token || p.token_peserta || "-"}
+                            </span>
                           </div>
                         )}
 
-                        {/* 📡 LIVE MONITORING PROGRESS SAAT PESERTA SEDANG UJIAN */}
-                        {isSedangUjian && totalSoalUjian > 0 && (
+                        {p.status === "berjalan" && totalSoalUjian > 0 && (
                           <div className="space-y-1 bg-[#030712] px-2.5 py-2 rounded-lg border border-cyan-500/20">
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-cyan-300 font-display font-bold flex items-center gap-1">
-                                <Activity className="w-3 h-3 text-cyan-400" />{" "}
-                                Sedang di soal {progressSoal} / {totalSoalUjian}
+                              <span className="text-cyan-300 font-bold">
+                                Soal {progressSoal} / {totalSoalUjian}
                               </span>
                               <span className="text-cyan-400 font-mono font-bold">
                                 {progressPercent}%
                               </span>
                             </div>
-                            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                            <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
                               <div
-                                className="h-full bg-cyan-400 rounded-full transition-all"
+                                className="h-full bg-cyan-400 rounded-full"
                                 style={{ width: `${progressPercent}%` }}
                               />
                             </div>
@@ -1496,12 +1150,19 @@ export default function DashboardPengawas() {
 
                         <div className="flex items-center justify-between gap-2 pt-0.5 flex-wrap">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <Badge
-                              variant={statusInfo.variant}
-                              className="text-[9px] px-2 py-0.5 rounded-md font-sans"
-                            >
-                              {statusInfo.text}
-                            </Badge>
+                            {isTerkunci ? (
+                              <Badge className="bg-red-500/20 text-red-400 border-red-500/40 text-[9px] px-2 py-0.5 font-bold flex items-center gap-1 animate-pulse">
+                                <Lock className="w-3 h-3" /> TERKUNCI
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant={statusInfo.variant}
+                                className="text-[9px] px-2 py-0.5 rounded-md font-sans"
+                              >
+                                {statusInfo.text}
+                              </Badge>
+                            )}
+
                             {(p.jumlah_pindah_tab ?? 0) > 0 && (
                               <span className="flex items-center gap-1 text-[9px] font-bold text-red-500 bg-red-500/15 border border-red-500/40 px-1.5 py-0.5 rounded-md">
                                 <Eye className="w-2.5 h-2.5" />{" "}
@@ -1511,17 +1172,6 @@ export default function DashboardPengawas() {
                           </div>
 
                           <div className="flex items-center gap-2">
-                            {p.jumlah_benar !== undefined &&
-                              p.jumlah_benar !== null && (
-                                <div className="flex items-center gap-1.5 bg-[#030712] px-2 py-0.5 rounded border border-slate-800 text-[9px] font-mono font-bold">
-                                  <span className="text-emerald-400">
-                                    ✓{p.jumlah_benar}
-                                  </span>
-                                  <span className="text-rose-400">
-                                    ✗{p.jumlah_salah ?? 0}
-                                  </span>
-                                </div>
-                              )}
                             <div className="flex items-center gap-1 bg-[#030712] px-2 py-0.5 rounded border border-slate-800">
                               <span className="text-[9px] text-slate-500 font-bold">
                                 SKOR:
@@ -1531,49 +1181,34 @@ export default function DashboardPengawas() {
                               </span>
                             </div>
 
-                            <Button
-                              size="sm"
-                              onClick={() => handlePeriksa(p.id)}
-                              className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold px-3 py-1 rounded-lg text-[11px] border-0"
-                            >
-                              Periksa
-                            </Button>
+                            {/* 🔓 TOMBOL REMOTE UNLOCK 1-CLICK */}
+                            {isTerkunci ? (
+                              <Button
+                                size="sm"
+                                onClick={() => handleRemoteUnlock(p.tech_id)}
+                                className="bg-red-600 hover:bg-red-500 text-white font-bold px-3 py-1 rounded-lg text-[11px] border-0 flex items-center gap-1"
+                              >
+                                <Unlock className="w-3 h-3" /> Buka Kunci
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                onClick={() => handlePeriksa(p.id)}
+                                className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold px-3 py-1 rounded-lg text-[11px] border-0"
+                              >
+                                Periksa
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </div>
                     );
                   })}
-
-                  {filteredPeserta.length > ITEMS_PER_PAGE && (
-                    <div className="flex items-center justify-between pt-2">
-                      <button
-                        onClick={() =>
-                          setCurrentPage((p) => Math.max(1, p - 1))
-                        }
-                        disabled={currentPage === 1}
-                        className="p-1.5 rounded-lg bg-[#0d1527] border border-slate-800 text-xs text-slate-300 disabled:opacity-40"
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </button>
-                      <span className="text-[11px] text-slate-500 font-mono">
-                        Halaman {currentPage} / {totalPages}
-                      </span>
-                      <button
-                        onClick={() =>
-                          setCurrentPage((p) => Math.min(totalPages, p + 1))
-                        }
-                        disabled={currentPage === totalPages}
-                        className="p-1.5 rounded-lg bg-[#0d1527] border border-slate-800 text-xs text-slate-300 disabled:opacity-40"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
 
-            {/* BILAH KANAN: LEMBAR KOREKSI JAWABAN REALTIME */}
+            {/* BILAH KANAN: LEMBAR KOREKSI JAWABAN */}
             <div className="lg:col-span-7 xl:col-span-8 space-y-6">
               {selectedSiswa ? (
                 <div className="space-y-6">
@@ -1581,54 +1216,7 @@ export default function DashboardPengawas() {
                     <h2 className="text-xs font-display font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                       <FileCode className="text-cyan-400 w-4 h-4" /> LEMBAR
                       JAWABAN PESERTA #{selectedSiswa}
-                      {infoSiswaTerpilih?.jumlah_benar !== undefined &&
-                        infoSiswaTerpilih?.jumlah_benar !== null && (
-                          <span className="text-[10px] font-mono font-bold normal-case tracking-normal">
-                            (
-                            <span className="text-emerald-400">
-                              {infoSiswaTerpilih.jumlah_benar} benar
-                            </span>{" "}
-                            /{" "}
-                            <span className="text-rose-400">
-                              {infoSiswaTerpilih.jumlah_salah ?? 0} salah
-                            </span>
-                            )
-                          </span>
-                        )}
                     </h2>
-
-                    <div className="flex gap-1.5 bg-[#0d1527] p-1.5 rounded-xl border border-slate-800 text-xs font-display font-bold">
-                      <button
-                        onClick={() => setFilterTipeJawaban("semua")}
-                        className={`px-3 py-1 rounded-lg transition-all ${
-                          filterTipeJawaban === "semua"
-                            ? "bg-cyan-400 text-slate-950"
-                            : "text-slate-400 hover:text-white"
-                        }`}
-                      >
-                        Semua
-                      </button>
-                      <button
-                        onClick={() => setFilterTipeJawaban("praktik")}
-                        className={`px-3 py-1 rounded-lg transition-all ${
-                          filterTipeJawaban === "praktik"
-                            ? "bg-cyan-400 text-slate-950"
-                            : "text-slate-400 hover:text-white"
-                        }`}
-                      >
-                        Praktik
-                      </button>
-                      <button
-                        onClick={() => setFilterTipeJawaban("pg")}
-                        className={`px-3 py-1 rounded-lg transition-all ${
-                          filterTipeJawaban === "pg"
-                            ? "bg-cyan-400 text-slate-950"
-                            : "text-slate-400 hover:text-white"
-                        }`}
-                      >
-                        PG
-                      </button>
-                    </div>
                   </div>
 
                   {isLoadingPeriksa ? (
@@ -1640,130 +1228,65 @@ export default function DashboardPengawas() {
                       Peserta belum mengisikan jawaban untuk kategori ini.
                     </div>
                   ) : (
-                    filteredJawabanList.map((j, idx) => {
-                      const isPraktikObj =
-                        typeof j.jawaban === "object" && j.jawaban !== null;
-                      const isPGString = typeof j.jawaban === "string";
-
-                      const teksJawaban = isPraktikObj
-                        ? j.jawaban.teks
-                        : isPGString && j.jawaban.startsWith("{")
-                          ? JSON.parse(j.jawaban).teks
-                          : j.jawaban;
-
-                      const fileAttachmentName = isPraktikObj
-                        ? j.jawaban.fileName
-                        : isPGString && j.jawaban.includes("fileName")
-                          ? JSON.parse(j.jawaban).fileName
-                          : null;
-
-                      const fileAttachmentUrl = isPraktikObj
-                        ? j.jawaban.fileUrl
-                        : isPGString && j.jawaban.includes("fileUrl")
-                          ? JSON.parse(j.jawaban).fileUrl
-                          : null;
-
-                      return (
-                        <div
-                          key={idx}
-                          className="p-6 bg-[#0d1527]/60 border border-slate-800/60 rounded-2xl space-y-5"
-                        >
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge className="bg-cyan-400/10 text-cyan-400 text-[10px] uppercase font-bold">
-                              SOAL #{idx + 1} (
-                              {j.tipe === "pg" ? "PILIHAN GANDA" : "PRAKTIK"})
-                            </Badge>
-                            {j.ragu_ragu && (
-                              <Badge className="bg-amber-400/10 text-amber-400 border-amber-400/30 text-[10px] uppercase font-bold flex items-center gap-1">
-                                <AlertCircle className="w-3 h-3" /> Ragu-ragu
-                              </Badge>
-                            )}
-                          </div>
-
-                          <p className="text-sm text-slate-200 font-medium leading-relaxed">
-                            {j.pertanyaan}
+                    filteredJawabanList.map((j, idx) => (
+                      <div
+                        key={idx}
+                        className="p-6 bg-[#0d1527]/60 border border-slate-800/60 rounded-2xl space-y-5"
+                      >
+                        <p className="text-sm text-slate-200 font-medium leading-relaxed">
+                          {j.pertanyaan}
+                        </p>
+                        <div className="p-4 bg-[#030712]/80 border border-slate-800 rounded-xl text-sm space-y-3">
+                          <p className="text-xs text-slate-400 font-display font-bold uppercase tracking-wider">
+                            Jawaban Peserta:
                           </p>
-
-                          <div className="p-4 bg-[#030712]/80 border border-slate-800 rounded-xl text-sm space-y-3">
-                            <p className="text-xs text-slate-400 font-display font-bold uppercase tracking-wider">
-                              Jawaban Peserta:
-                            </p>
-
-                            <div className="text-emerald-400 font-mono text-xs break-words bg-black/40 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">
-                              {teksJawaban ||
-                                (isPGString
-                                  ? `Opsi Terpilih: ${j.jawaban}`
-                                  : "Belum ada teks dimasukkan.")}
-                            </div>
-
-                            {fileAttachmentName && (
-                              <div className="pt-2 flex items-center justify-between gap-2 text-xs text-cyan-400 font-mono bg-cyan-400/10 p-3 rounded-lg border border-cyan-400/20">
-                                <div className="flex items-center gap-2 truncate">
-                                  <FileText className="w-4 h-4 shrink-0" />
-                                  <span className="truncate">
-                                    {fileAttachmentName}
-                                  </span>
-                                </div>
-                                {fileAttachmentUrl ? (
-                                  <a
-                                    href={fileAttachmentUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1 bg-cyan-400 text-slate-950 px-3 py-1 rounded-md font-bold text-xs shrink-0 hover:bg-cyan-300 transition"
-                                  >
-                                    <ExternalLink className="w-3.5 h-3.5" />{" "}
-                                    Buka / Unduh Berkas
-                                  </a>
-                                ) : (
-                                  <span className="text-xs text-slate-500 italic">
-                                    Berkas terlampir
-                                  </span>
-                                )}
-                              </div>
-                            )}
+                          <div className="text-emerald-400 font-mono text-xs break-words bg-black/40 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">
+                            {typeof j.jawaban === "object"
+                              ? j.jawaban.teks
+                              : j.jawaban}
                           </div>
-
-                          {j.checklist && (
-                            <div className="p-4 bg-[#030712]/40 border border-slate-800 rounded-xl space-y-3">
-                              <p className="text-xs font-display font-bold text-cyan-400 uppercase tracking-wider">
-                                Checklist Penilaian:
-                              </p>
-                              <div className="space-y-2">
-                                {(typeof j.checklist === "string"
-                                  ? JSON.parse(j.checklist)
-                                  : j.checklist
-                                ).map((kriteria, kIdx) => {
-                                  const key = `${j.soal_id}-${kIdx}`;
-                                  const isChecked = checklistPraktik[key];
-                                  return (
-                                    <div
-                                      key={kIdx}
-                                      onClick={() => toggleChecklist(key)}
-                                      className="flex items-center gap-3 p-3 bg-[#0d1527]/40 border border-slate-800/40 rounded-xl cursor-pointer hover:bg-slate-800/50 transition text-sm select-none"
-                                    >
-                                      {isChecked ? (
-                                        <CheckSquare className="w-5 h-5 text-cyan-400 shrink-0" />
-                                      ) : (
-                                        <Square className="w-5 h-5 text-slate-600 shrink-0" />
-                                      )}
-                                      <span
-                                        className={
-                                          isChecked
-                                            ? "text-slate-200 font-medium"
-                                            : "text-slate-500"
-                                        }
-                                      >
-                                        {kriteria}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
                         </div>
-                      );
-                    })
+
+                        {j.checklist && (
+                          <div className="p-4 bg-[#030712]/40 border border-slate-800 rounded-xl space-y-3">
+                            <p className="text-xs font-display font-bold text-cyan-400 uppercase tracking-wider">
+                              Checklist Penilaian:
+                            </p>
+                            <div className="space-y-2">
+                              {(typeof j.checklist === "string"
+                                ? JSON.parse(j.checklist)
+                                : j.checklist
+                              ).map((kriteria, kIdx) => {
+                                const key = `${j.soal_id}-${kIdx}`;
+                                const isChecked = checklistPraktik[key];
+                                return (
+                                  <div
+                                    key={kIdx}
+                                    onClick={() => toggleChecklist(key)}
+                                    className="flex items-center gap-3 p-3 bg-[#0d1527]/40 border border-slate-800/40 rounded-xl cursor-pointer hover:bg-slate-800/50 transition text-sm select-none"
+                                  >
+                                    {isChecked ? (
+                                      <CheckSquare className="w-5 h-5 text-cyan-400 shrink-0" />
+                                    ) : (
+                                      <Square className="w-5 h-5 text-slate-600 shrink-0" />
+                                    )}
+                                    <span
+                                      className={
+                                        isChecked
+                                          ? "text-slate-200 font-medium"
+                                          : "text-slate-500"
+                                      }
+                                    >
+                                      {kriteria}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
                   )}
 
                   <div className="p-6 bg-gradient-to-r from-cyan-950/40 to-[#0d1527] border border-cyan-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -1802,14 +1325,13 @@ export default function DashboardPengawas() {
         </main>
       </div>
 
-      {/* 📈 MODAL ANALISIS BUTIR SOAL */}
+      {/* MODAL ANALISIS SOAL */}
       {showAnalisisModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#0d1527] border border-slate-800 rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between p-5 border-b border-slate-800 shrink-0">
               <h3 className="text-sm font-display font-bold text-amber-400 flex items-center gap-2">
-                <BarChart3 className="w-4 h-4" /> Analisis Butir Soal (Pilihan
-                Ganda)
+                <BarChart3 className="w-4 h-4" /> Analisis Butir Soal (PG)
               </h3>
               <button
                 onClick={() => setShowAnalisisModal(false)}
@@ -1818,15 +1340,10 @@ export default function DashboardPengawas() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-5 overflow-y-auto flex-1 space-y-2">
               {isLoadingAnalisis ? (
                 <p className="text-xs text-slate-500 text-center py-8">
-                  Menghitung statistik jawaban peserta...
-                </p>
-              ) : analisisData.length === 0 ? (
-                <p className="text-xs text-slate-500 text-center py-8">
-                  Belum ada data jawaban PG untuk dianalisis.
+                  Menghitung statistik...
                 </p>
               ) : (
                 analisisData.map((item) => (
@@ -1834,36 +1351,17 @@ export default function DashboardPengawas() {
                     key={item.soalId}
                     className="p-3 bg-[#030712]/60 border border-slate-800 rounded-xl flex items-center justify-between gap-4"
                   >
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className="text-xs text-slate-200 truncate"
-                        title={item.pertanyaan}
-                      >
+                    <div>
+                      <p className="text-xs text-slate-200">
                         {item.pertanyaan}
                       </p>
-                      <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                        Kategori: {item.kategori} • Dijawab {item.totalDijawab}{" "}
-                        peserta
+                      <p className="text-[10px] text-slate-500 font-mono">
+                        Benar: {item.benar} dari {item.totalDijawab} peserta
                       </p>
                     </div>
-                    <div className="text-right shrink-0">
-                      {item.persentaseBenar === null ? (
-                        <span className="text-[10px] text-slate-500">
-                          Belum ada data
-                        </span>
-                      ) : (
-                        <>
-                          <span
-                            className={`text-lg font-display font-bold ${item.persentaseBenar < 50 ? "text-rose-400" : item.persentaseBenar < 75 ? "text-amber-400" : "text-emerald-400"}`}
-                          >
-                            {item.persentaseBenar}%
-                          </span>
-                          <p className="text-[9px] text-slate-500">
-                            benar dari total dijawab
-                          </p>
-                        </>
-                      )}
-                    </div>
+                    <span className="text-lg font-bold text-emerald-400">
+                      {item.persentaseBenar ?? 0}%
+                    </span>
                   </div>
                 ))
               )}
@@ -1872,13 +1370,13 @@ export default function DashboardPengawas() {
         </div>
       )}
 
-      {/* 👁 MODAL AKTIVITAS PINDAH TAB — daftar peserta yang terdeteksi berpindah tab/aplikasi lain */}
+      {/* MODAL PINDAH TAB */}
       {showPindahTabModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#0d1527] border border-slate-800 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between p-5 border-b border-slate-800 shrink-0">
               <h3 className="text-sm font-display font-bold text-red-500 flex items-center gap-2">
-                <Eye className="w-4 h-4" /> Aktivitas Pindah Tab / Aplikasi Lain
+                <Eye className="w-4 h-4" /> Aktivitas Pindah Tab Peserta
               </h3>
               <button
                 onClick={() => setShowPindahTabModal(false)}
@@ -1887,34 +1385,29 @@ export default function DashboardPengawas() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-5 overflow-y-auto flex-1 space-y-2">
               {peserta.filter((p) => (p.jumlah_pindah_tab ?? 0) > 0).length ===
               0 ? (
                 <p className="text-xs text-slate-500 text-center py-8">
-                  Belum ada peserta yang terdeteksi pindah tab.
+                  Tidak ada catatan pindah tab.
                 </p>
               ) : (
                 peserta
                   .filter((p) => (p.jumlah_pindah_tab ?? 0) > 0)
-                  .sort(
-                    (a, b) =>
-                      (b.jumlah_pindah_tab ?? 0) - (a.jumlah_pindah_tab ?? 0),
-                  )
                   .map((p) => (
                     <div
                       key={p.id}
-                      className="p-3 bg-[#030712]/60 border border-slate-800 rounded-xl flex items-center justify-between gap-4"
+                      className="p-3 bg-[#030712]/60 border border-slate-800 rounded-xl flex items-center justify-between"
                     >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-display font-bold text-white truncate">
-                          {p.nama || p.nama_lengkap || `Peserta #${p.id}`}
+                      <div>
+                        <p className="text-xs font-bold text-white">
+                          {p.nama || p.nama_lengkap}
                         </p>
-                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                          {p.tech_id} • {p.kategori}
+                        <p className="text-[10px] text-slate-500 font-mono">
+                          {p.tech_id}
                         </p>
                       </div>
-                      <span className="text-lg font-display font-bold text-red-500 shrink-0">
+                      <span className="text-lg font-bold text-red-500">
                         {p.jumlah_pindah_tab}x
                       </span>
                     </div>
