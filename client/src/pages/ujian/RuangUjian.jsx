@@ -28,7 +28,7 @@ import {
   Eye,
   Lock,
   WifiOff,
-  CloudCheck,
+  Cloud,
   RefreshCw,
 } from "lucide-react";
 
@@ -844,7 +844,7 @@ export default function RuangUjian() {
             <div className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-800 bg-[#030712]/80">
               {syncStatus === "synced" && (
                 <span className="text-emerald-400 flex items-center gap-1.5">
-                  <CloudCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <Cloud className="w-3.5 h-3.5 text-emerald-400" />
                   Tersinkron ke Server
                 </span>
               )}
