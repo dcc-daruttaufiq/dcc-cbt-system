@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useDocumentTitle } from "../../hooks/useDocumentTitle"; // ✅ Ubah ke ../../
-import { supabase, TABLES } from "../../utils/supabaseClient"; // ✅ Ubah ke ../../
+import { useDocumentTitle } from "../../hooks/useDocumentTitle";
+import { supabase, TABLES } from "../../utils/supabaseClient";
 import {
   normalizeKategori,
   getLabelKategori,
-} from "../../utils/examCategories"; // ✅ Ubah ke ../../
-import { STORAGE_KEYS } from "../../utils/storageKeys"; // ✅ Ubah ke ../../
-import { LOGO_URL } from "../../config/brand"; // ✅ Ubah ke ../../
-import Button from "../../components/ui/Button"; // ✅ Ubah ke ../../
-import Input from "../../components/ui/Input"; // ✅ Ubah ke ../../
-import Badge from "../../components/ui/Badge"; // ✅ Ubah ke ../../
+} from "../../utils/examCategories";
+import { STORAGE_KEYS } from "../../utils/storageKeys";
+import { LOGO_URL } from "../../config/brand";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
+import Badge from "../../components/ui/Badge";
 import {
   CreditCard,
   Key,
@@ -25,6 +25,7 @@ import {
   XCircle,
   ShieldCheck,
 } from "lucide-react";
+
 const DEFAULT_KATALOG = [
   {
     id: "word",
@@ -299,7 +300,7 @@ export default function DashboardPeserta() {
         } catch (e) {}
       }
 
-      // Fallback buat token darurat jika masih kosong melompong
+      // Fallback buat token darurat jika masih kosong
       if (!tokenIndividuToDisplay) {
         tokenIndividuToDisplay = `TS-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
       }
@@ -344,7 +345,7 @@ export default function DashboardPeserta() {
 
         try {
           const { data: dataSoal } = await supabase
-            .from(TABLES.BANK_SOAL || "bank_soal")
+            .from("bank_soal_ujian")
             .select("id, kategori");
 
           if (dataSoal && Array.isArray(dataSoal)) {
@@ -526,7 +527,7 @@ export default function DashboardPeserta() {
 
     const inputUpper = tokenInput.trim().toUpperCase();
 
-    // 🛑 VALIDASI MUTLAK DUAL-MODE TOKEN (AMBIL LANGSUNG DARI SUMBER LOCALSTORAGE/STATE)
+    // 🛑 VALIDASI TOKEN HANYA DARI TOKEN RESMI DATABASE (BEBAS HARDCODED BACKDOOR)
     let isTokenValid = false;
 
     if (modeToken === "siswa") {
@@ -549,24 +550,16 @@ export default function DashboardPeserta() {
         ? realSiswaToken.toUpperCase().trim()
         : "";
 
-      // HANYA COCOK DENGAN TOKEN UNIK SISWA TERSEBUT
+      // HANYA COCOK DENGAN TOKEN UNIK SISWA
       if (validIndividuToken && inputUpper === validIndividuToken) {
         isTokenValid = true;
-      } else {
-        isTokenValid = false;
       }
     } else {
-      // 🟢 MODE MAPEL: BOLEH PAKAI TOKEN MAPEL / EMERGENCY
+      // 🟢 MODE MAPEL: HANYA COCOK DENGAN TOKEN RESMI KATALOG
       const tokenMapelAktif = activeExamDetail.tokenDefault
         ? activeExamDetail.tokenDefault.toUpperCase().trim()
         : "";
-      if (
-        (tokenMapelAktif && inputUpper === tokenMapelAktif) ||
-        inputUpper === "WORD2026" ||
-        inputUpper === "DCC2026" ||
-        inputUpper === "12345" ||
-        inputUpper === "1234"
-      ) {
+      if (tokenMapelAktif && inputUpper === tokenMapelAktif) {
         isTokenValid = true;
       }
     }
@@ -640,7 +633,7 @@ export default function DashboardPeserta() {
         );
       } else {
         setTokenError(
-          `Token untuk ujian ${activeExamDetail.nama} tidak valid! Gunakan token resmi mapel atau hubungi Pengawas.`,
+          `Token untuk ujian ${activeExamDetail.nama} tidak valid! Gunakan token resmi mapel dari Pengawas.`,
         );
       }
     }

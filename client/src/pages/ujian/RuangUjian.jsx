@@ -287,11 +287,11 @@ export default function RuangUjian() {
 
       setIsTimerReady(true);
 
-      // AMBIL REPOSITORI SOAL
+      // 🛡️ AMBIL REPOSITORI SOAL DARI VIEW 'bank_soal_ujian' (TANPA KOLOM JAWABAN_BENAR)
       let bankSoalImpor = [];
       try {
         const { data, error } = await supabase
-          .from(TABLES.BANK_SOAL)
+          .from("bank_soal_ujian")
           .select("*");
         if (error) throw error;
         bankSoalImpor = Array.isArray(data) ? data : [];
@@ -326,18 +326,11 @@ export default function RuangUjian() {
       // 🔀 ACAK OPSI PG PER SISWA
       const soalDenganOpsiTeracak = filteredSoal.map((s) => {
         if (s.tipe === "pg" && Array.isArray(s.opsi) && s.opsi.length > 0) {
-          const kunciHuruf = (s.jawaban_benar || s.jawabanBenar || "A")
-            .toString()
-            .toUpperCase()
-            .trim();
-          const kunciIdx = kunciHuruf.charCodeAt(0) - 65;
-          const kunciTeksAsli =
-            s.opsi[kunciIdx] !== undefined ? s.opsi[kunciIdx] : s.opsi[0];
           const opsiTeracak = seededShuffle(
             s.opsi,
             `${realTechId}-opsi-${s.id}`,
           );
-          return { ...s, opsi: opsiTeracak, _kunciTeksAsli: kunciTeksAsli };
+          return { ...s, opsi: opsiTeracak };
         }
         return s;
       });
@@ -662,20 +655,23 @@ export default function RuangUjian() {
     }
   };
 
-  // 🔓 FUNGSI BUKA KUNCI UJIAN OLEH PENGAWAS
+  // 🔓 FUNGSI BUKA KUNCI UJIAN OLEH PENGAWAS (STRICT MODE)
   const handleUnlockExam = (e) => {
     e.preventDefault();
     if (supervisorPinInput === SUPERVISOR_PIN) {
       setIsLocked(false);
-      setJumlahPindahTab(0);
+
+      // Set ke 2 (Kasih kesempatan TERAKHIR, pindah tab 1x lagi langsung TERKUNCI!)
+      const warningLastChance = MAX_VIOLATION_LIMIT - 1; // Angka 2
+      setJumlahPindahTab(warningLastChance);
       setSupervisorPinInput("");
       setPinError("");
 
-      // Reset hitungan di LocalStorage & Supabase
-      localStorage.removeItem(`violations_${techId}`);
+      // Simpan angka 2 ini ke LocalStorage & Supabase
+      localStorage.setItem(`violations_${techId}`, warningLastChance);
       supabase
         .from(TABLES.PESERTA)
-        .update({ jumlah_pindah_tab: 0 })
+        .update({ jumlah_pindah_tab: warningLastChance })
         .eq("tech_id", techId)
         .then(() => {})
         .catch(() => {});
@@ -684,7 +680,7 @@ export default function RuangUjian() {
     }
   };
 
-  // PROSES SUBMIT OTOMATIS
+  // 🛡️ PROSES SUBMIT OTOMATIS (SERVER-SIDE GRADING VIA SUPABASE RPC)
   const handleAutoSubmit = async () => {
     isExamFinishedRef.current = true;
     if (timerRef.current) clearInterval(timerRef.current);
@@ -693,50 +689,23 @@ export default function RuangUjian() {
     localStorage.setItem(STORAGE_KEYS.IS_EXAM_FINISHED, "true");
     localStorage.setItem(`endTime_${techId}`, nowIso);
 
-    const currentListSoal =
-      listSoalRef.current.length > 0 ? listSoalRef.current : listSoal;
-    const currentJawaban = jawabanRef.current;
-
-    let soalPG = currentListSoal.filter((s) => s.tipe === "pg");
-    let benarCount = 0;
-
-    soalPG.forEach((s) => {
-      const jwbSiswa = (currentJawaban[s.id] || "")
-        .toString()
-        .trim()
-        .toLowerCase();
-      const kunciTeks = (
-        s._kunciTeksAsli !== undefined
-          ? s._kunciTeksAsli
-          : s.jawaban_benar || s.jawabanBenar || "A"
-      )
-        .toString()
-        .trim()
-        .toLowerCase();
-      if (jwbSiswa && jwbSiswa === kunciTeks) benarCount++;
-    });
-
-    const salahCount = soalPG.length - benarCount;
-    const calculatedSkorPG =
-      soalPG.length > 0 ? Math.round((benarCount / soalPG.length) * 100) : 0;
-
     try {
-      await supabase
-        .from(TABLES.PESERTA)
-        .update({
-          status: "selesai",
-          status_koreksi: "belum_dikoreksi",
-          nilai_pg: calculatedSkorPG,
-          nilai_akhir: calculatedSkorPG,
-          jumlah_benar: benarCount,
-          jumlah_salah: salahCount,
-          waktu_selesai: nowIso,
-        })
-        .eq("tech_id", techId);
+      // Panggil Stored Procedure Postgres `submit_ujian` untuk menghitung nilai di Server
+      const { data, error } = await supabase.rpc("submit_ujian", {
+        p_tech_id: techId,
+      });
+
+      if (error) {
+        console.warn(
+          "⚠️ Gagal submit via RPC server, status tetap diset lokal:",
+          error,
+        );
+      }
     } catch (err) {
-      console.warn("Gagal update status di Cloud:", err);
+      console.warn("Gagal eksekusi RPC submit_ujian:", err);
     }
 
+    // Update status lokal
     let listSesiLokal = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.PESERTA) || "[]",
     );
@@ -746,8 +715,6 @@ export default function RuangUjian() {
           ...p,
           status: "selesai",
           status_koreksi: "belum_dikoreksi",
-          nilai_pg: calculatedSkorPG,
-          nilai_akhir: calculatedSkorPG,
           waktu_selesai: nowIso,
         };
       }
@@ -765,8 +732,6 @@ export default function RuangUjian() {
             ...cu,
             status: "selesai",
             status_koreksi: "belum_dikoreksi",
-            nilai_pg: calculatedSkorPG,
-            nilai_akhir: calculatedSkorPG,
             waktu_selesai: nowIso,
           }),
         );
