@@ -66,7 +66,7 @@ export default function BankSoal() {
 
   const menuPengawas = [
     { label: "Menu Utama", path: "/", icon: Home },
-    { label: "Koreksi Ujian", path: "/dashboard-Pengawas", icon: CheckSquare },
+    { label: "Koreksi Ujian", path: "/dashboard-anggota", icon: CheckSquare },
     { label: "Repositori Soal", path: "/bank-soal", icon: Database },
     { label: "Pengaturan Ujian", path: "/pengaturan-ujian", icon: Sliders },
     { label: "Laporan Nilai", path: "/laporan", icon: FileBarChart },
