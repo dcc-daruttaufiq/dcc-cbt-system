@@ -49,7 +49,7 @@ export default function DashboardAdmin() {
 
   const menuAdmin = [
     { label: "Menu Utama", path: "/", icon: Home },
-    { label: "Sistem Ujian", path: "/dashboard-pengawas", icon: ClipboardList },
+    { label: "Sistem Ujian", path: "/dashboard-anggota", icon: ClipboardList },
     { label: "Presensi Harian", path: "/absensi-scan", icon: ScanLine },
     { label: "Kelola Akun DCC", path: "/kelola-akun", icon: Users },
   ];
