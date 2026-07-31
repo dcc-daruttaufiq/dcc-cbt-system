@@ -94,6 +94,7 @@ export default function DashboardPengawas() {
 
   // Search & Pagination
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState("terbaru");
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 8;
 
@@ -106,6 +107,21 @@ export default function DashboardPengawas() {
   const [showPindahTabModal, setShowPindahTabModal] = useState(false);
 
   const pesertaFileInputRef = useRef(null);
+  const isLeadInstruktur = sesiStaff?.tipe === "admin";
+  const roleLabel = isLeadInstruktur ? "Lead Instruktur" : "Pengawas";
+  const audioAlertRef = useRef(null);
+
+  const playAlertSound = () => {
+    try {
+      if (!audioAlertRef.current) {
+        audioAlertRef.current = new Audio(
+          "https://actions.google.com/sounds/v1/alarms/beep_short.ogg",
+        );
+      }
+      audioAlertRef.current.currentTime = 0;
+      audioAlertRef.current.play().catch(() => {});
+    } catch (e) {}
+  };
 
   // 🔔 Sistem Toast Notification (pengganti alert() browser)
   const showToast = (message, type = "info") => {
@@ -117,6 +133,18 @@ export default function DashboardPengawas() {
     const timer = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  const logAudit = async (aksi, detail = "") => {
+    try {
+      await supabase.from("audit_log").insert({
+        username: sesiStaff?.username || "unknown",
+        aksi,
+        detail,
+      });
+    } catch (e) {
+      console.warn("Gagal mencatat audit log:", e);
+    }
+  };
 
   // Menu Sidebar
   const menuPengawas = [
@@ -334,8 +362,18 @@ export default function DashboardPengawas() {
         { event: "UPDATE", schema: "public", table: TABLES.PESERTA },
         (payload) => {
           if (!payload.new) return;
-          setPeserta((prev) =>
-            prev.map((p) =>
+          setPeserta((prev) => {
+            const before = prev.find((p) => p.id === payload.new.id);
+            const before_tab = before?.jumlah_pindah_tab ?? 0;
+            const after_tab = payload.new.jumlah_pindah_tab ?? 0;
+            if (after_tab > before_tab) {
+              playAlertSound();
+              showToast(
+                `⚠️ ${payload.new.nama || payload.new.nama_lengkap || "Peserta"} pindah tab! (${after_tab}x)`,
+                "warning",
+              );
+            }
+            return prev.map((p) =>
               p.id === payload.new.id
                 ? {
                     ...p,
@@ -343,8 +381,8 @@ export default function DashboardPengawas() {
                     token_peserta: payload.new.token || p.token_peserta,
                   }
                 : p,
-            ),
-          );
+            );
+          });
         },
       )
       .subscribe();
@@ -657,6 +695,32 @@ export default function DashboardPengawas() {
     `);
     win.document.close();
   };
+  // 📤 Export Daftar Pelanggaran (Pindah Tab) ke CSV
+  const handleExportPelanggaran = () => {
+    const dataPelanggaran = peserta.filter((p) => (p.jumlah_pindah_tab ?? 0) > 0);
+    if (dataPelanggaran.length === 0) {
+      return showToast("Tidak ada data pelanggaran untuk diekspor!", "warning");
+    }
+    let csvContent =
+      "data:text/csv;charset=utf-8,Nama,TechID,Kategori,Jumlah Pindah Tab,Status\n";
+    dataPelanggaran
+      .sort((a, b) => (b.jumlah_pindah_tab ?? 0) - (a.jumlah_pindah_tab ?? 0))
+      .forEach((p) => {
+        const nama = p.nama || p.nama_lengkap || "-";
+        csvContent += `"${nama}","${p.tech_id || "-"}","${p.kategori || "-"}","${p.jumlah_pindah_tab}","${p.status || "-"}"\n`;
+      });
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute(
+      "download",
+      `Laporan_Pelanggaran_${new Date().toISOString().slice(0, 10)}.csv`,
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // ⚡ REMOTE UNLOCK 1-CLICK — kirim sinyal buka kunci ke laptop peserta via Supabase Realtime
   const handleRemoteUnlock = async (pesertaId, nama) => {
     try {
@@ -666,6 +730,7 @@ export default function DashboardPengawas() {
         .eq("id", pesertaId);
 
       if (error) throw error;
+      logAudit("REMOTE_UNLOCK", `Membuka kunci layar peserta: ${nama}`);
       showToast(
         `Sinyal Buka Kunci berhasil dikirim ke laptop ${nama}!`,
         "success",
@@ -705,6 +770,7 @@ export default function DashboardPengawas() {
       );
       setPeserta(updated);
       localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updated));
+      logAudit("RESET_TOKEN", `Reset token untuk TechID: ${techId}`);
       showToast(`Token baru untuk TechID ${techId}: ${newToken}`, "success");
     } catch (e) {
       showToast("Gagal mereset token peserta.", "error");
@@ -737,12 +803,16 @@ export default function DashboardPengawas() {
       setPeserta(updated);
       localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify(updated));
       if (selectedSiswa === pesertaId) setSelectedSiswa(null);
+      logAudit("HAPUS_PESERTA", `Menghapus peserta: ${nama}`);
     } catch (err) {
       showToast("Gagal menghapus peserta.", "error");
     }
   };
 
   const handleDeleteSelected = async () => {
+    if (!isLeadInstruktur) {
+      return showToast("Hanya Lead Instruktur yang boleh menghapus peserta!", "error");
+    }
     if (selectedIds.length === 0)
       return showToast("Pilih minimal satu peserta!", "warning");
     if (!confirm(`Hapus ${selectedIds.length} peserta terpilih?`)) return;
@@ -780,6 +850,9 @@ export default function DashboardPengawas() {
   };
 
   const handleDeleteAll = async () => {
+    if (!isLeadInstruktur) {
+      return showToast("Hanya Lead Instruktur yang boleh menghapus semua data!", "error");
+    }
     if (!confirm("HAPUS SEMUA PESERTA?")) return;
     if (
       !confirm(
@@ -1114,11 +1187,26 @@ export default function DashboardPengawas() {
     (p) => p.status === "selesai",
   ).length;
 
+  const sortedPeserta = [...filteredPeserta].sort((a, b) => {
+    if (sortBy === "nama") {
+      return (a.nama || a.nama_lengkap || "").localeCompare(
+        b.nama || b.nama_lengkap || "",
+      );
+    }
+    if (sortBy === "pelanggaran") {
+      return (b.jumlah_pindah_tab ?? 0) - (a.jumlah_pindah_tab ?? 0);
+    }
+    if (sortBy === "nilai") {
+      return (b.nilai_akhir ?? 0) - (a.nilai_akhir ?? 0);
+    }
+    return 0; // "terbaru" = urutan default dari database
+  });
+
   const totalPages = Math.max(
     1,
-    Math.ceil(filteredPeserta.length / ITEMS_PER_PAGE),
+    Math.ceil(sortedPeserta.length / ITEMS_PER_PAGE),
   );
-  const paginatedPeserta = filteredPeserta.slice(
+  const paginatedPeserta = sortedPeserta.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE,
   );
@@ -1285,6 +1373,15 @@ export default function DashboardPengawas() {
                   Pemeriksaan Realtime Hasil Pengerjaan Siswa
                 </p>
               </div>
+              <span
+                className={`text-[10px] font-display font-bold px-2 py-1 rounded-lg border ${
+                  isLeadInstruktur
+                    ? "text-purple-300 bg-purple-400/10 border-purple-400/30"
+                    : "text-slate-300 bg-slate-500/10 border-slate-500/30"
+                }`}
+              >
+                {roleLabel}
+              </span>
               {isOffline && (
                 <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-1 rounded-lg">
                   <WifiOff className="w-3 h-3" /> Mode Offline
@@ -1367,16 +1464,15 @@ export default function DashboardPengawas() {
                 </Button>
               )}
 
-              {peserta.length > 0 && (
+              {peserta.length > 0 && isLeadInstruktur && (
                 <Button
                   onClick={handleDeleteAll}
                   className="bg-rose-500/20 hover:bg-rose-500 text-rose-300 border border-rose-500/30 p-2"
-                  title="Reset All"
+                  title="Reset All (khusus Lead Instruktur)"
                 >
                   <Trash2 className="w-4 h-4" />
                 </Button>
               )}
-
               <Button
                 size="sm"
                 onClick={async () => {
@@ -1396,7 +1492,30 @@ export default function DashboardPengawas() {
         </Navbar>
 
         <main className="p-6 md:p-8 flex-1 overflow-y-auto">
-          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="max-w-7xl mx-auto space-y-6">
+            {/* 📊 SUMMARY CARDS */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="p-4 bg-[#0d1527]/70 border border-slate-800 rounded-2xl">
+                <p className="text-[10px] text-slate-500 font-display font-bold uppercase">Total Peserta</p>
+                <p className="text-2xl font-display font-bold text-white mt-1">{peserta.length}</p>
+              </div>
+              <div className="p-4 bg-[#0d1527]/70 border border-slate-800 rounded-2xl">
+                <p className="text-[10px] text-slate-500 font-display font-bold uppercase">Sedang Ujian</p>
+                <p className="text-2xl font-display font-bold text-cyan-400 mt-1">{countSedangUjian}</p>
+              </div>
+              <div className="p-4 bg-[#0d1527]/70 border border-slate-800 rounded-2xl">
+                <p className="text-[10px] text-slate-500 font-display font-bold uppercase">Perlu Dikoreksi</p>
+                <p className="text-2xl font-display font-bold text-amber-400 mt-1">{countPerluDikoreksi}</p>
+              </div>
+              <div className="p-4 bg-[#0d1527]/70 border border-slate-800 rounded-2xl">
+                <p className="text-[10px] text-slate-500 font-display font-bold uppercase">Pelanggaran (Pindah Tab)</p>
+                <p className="text-2xl font-display font-bold text-rose-400 mt-1">
+                  {peserta.filter((p) => (p.jumlah_pindah_tab ?? 0) > 0).length}
+                </p>
+              </div>
+            </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* BILAH KIRI: ANTREAN PESERTA (4 KOLOM GRID) */}
             <div className="lg:col-span-5 xl:col-span-4 space-y-4">
               <div className="flex flex-col gap-2 px-1">
@@ -1423,7 +1542,7 @@ export default function DashboardPengawas() {
                           : "Pilih Semua"}
                       </button>
 
-                      {selectedIds.length > 0 && (
+                      {selectedIds.length > 0 && isLeadInstruktur && (
                         <button
                           onClick={handleDeleteSelected}
                           className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 text-[10px] font-bold flex items-center gap-1 hover:bg-rose-500/40 transition"
@@ -1446,6 +1565,17 @@ export default function DashboardPengawas() {
                   />
                   <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 </div>
+
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full bg-[#0d1527] border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-400"
+                >
+                  <option value="terbaru">Urutkan: Terbaru</option>
+                  <option value="nama">Urutkan: Nama (A-Z)</option>
+                  <option value="pelanggaran">Urutkan: Pelanggaran Terbanyak</option>
+                  <option value="nilai">Urutkan: Nilai Tertinggi</option>
+                </select>
 
                 <div className="grid grid-cols-2 gap-1.5 bg-[#0d1527] p-2 rounded-xl border border-slate-800 text-xs font-display font-bold">
                   <button
@@ -1592,15 +1722,17 @@ export default function DashboardPengawas() {
                             </div>
                           </div>
 
-                          <button
-                            onClick={() =>
-                              handleDeleteSingle(p.id, p.nama || p.nama_lengkap)
-                            }
-                            className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition"
-                            title="Hapus Peserta"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {isLeadInstruktur && (
+                            <button
+                              onClick={() =>
+                                handleDeleteSingle(p.id, p.nama || p.nama_lengkap)
+                              }
+                              className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                              title="Hapus Peserta (khusus Lead Instruktur)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
 
                         {/* ROW TOKEN UNIK SISWA (DIJAMIN STABIL PERMANEN) */}
@@ -1614,16 +1746,18 @@ export default function DashboardPengawas() {
                               <span className="font-mono font-bold text-white tracking-widest">
                                 {tokenSiswaReal}
                               </span>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleRegenerateTokenSiswa(p.id, p.tech_id)
-                                }
-                                className="p-0.5 text-slate-400 hover:text-cyan-400 transition"
-                                title="Reset / Buat Token Baru"
-                              >
-                                <RefreshCw className="w-3 h-3" />
-                              </button>
+                              {isLeadInstruktur && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleRegenerateTokenSiswa(p.id, p.tech_id)
+                                  }
+                                  className="p-0.5 text-slate-400 hover:text-cyan-400 transition"
+                                  title="Reset / Buat Token Baru (khusus Lead Instruktur)"
+                                >
+                                  <RefreshCw className="w-3 h-3" />
+                                </button>
+                              )}
                             </div>
                           </div>
                         )}
@@ -1804,8 +1938,17 @@ export default function DashboardPengawas() {
                   </div>
 
                   {isLoadingPeriksa ? (
-                    <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
-                      Memuat jawaban peserta dari Supabase Cloud...
+                    <div className="space-y-4">
+                      {[1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className="p-6 bg-[#0d1527]/60 border border-slate-800/60 rounded-2xl space-y-4 animate-pulse"
+                        >
+                          <div className="h-3 w-24 bg-slate-800 rounded" />
+                          <div className="h-4 w-3/4 bg-slate-800 rounded" />
+                          <div className="h-16 w-full bg-slate-800/60 rounded-xl" />
+                        </div>
+                      ))}
                     </div>
                   ) : filteredJawabanList.length === 0 ? (
                     <div className="p-12 text-center text-slate-500 bg-[#0d1527]/40 rounded-2xl border border-slate-800 text-xs">
@@ -1971,6 +2114,7 @@ export default function DashboardPengawas() {
               )}
             </div>
           </div>
+          </div>
         </main>
       </div>
 
@@ -2033,6 +2177,16 @@ export default function DashboardPengawas() {
                           <p className="text-[9px] text-slate-500">
                             benar dari total dijawab
                           </p>
+                          {item.persentaseBenar >= 95 && (
+                            <p className="text-[9px] text-amber-400 font-bold mt-0.5">
+                              ⚠️ Terlalu mudah, pertimbangkan revisi
+                            </p>
+                          )}
+                          {item.persentaseBenar < 20 && (
+                            <p className="text-[9px] text-rose-400 font-bold mt-0.5">
+                              ⚠️ Terlalu sulit, cek validitas soal/kunci jawaban
+                            </p>
+                          )}
                         </>
                       )}
                     </div>
@@ -2052,12 +2206,20 @@ export default function DashboardPengawas() {
               <h3 className="text-sm font-display font-bold text-red-500 flex items-center gap-2">
                 <Eye className="w-4 h-4" /> Aktivitas Pindah Tab / Aplikasi Lain
               </h3>
-              <button
-                onClick={() => setShowPindahTabModal(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleExportPelanggaran}
+                  className="flex items-center gap-1 text-[10px] font-bold bg-cyan-400/10 text-cyan-400 border border-cyan-400/30 px-2 py-1 rounded-lg hover:bg-cyan-400/20 transition"
+                >
+                  <Download className="w-3 h-3" /> Export CSV
+                </button>
+                <button
+                  onClick={() => setShowPindahTabModal(false)}
+                  className="text-slate-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             <div className="p-5 overflow-y-auto flex-1 space-y-2">
