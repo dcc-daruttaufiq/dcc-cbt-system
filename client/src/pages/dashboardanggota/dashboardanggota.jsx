@@ -1830,11 +1830,7 @@ export default function DashboardPengawas() {
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <Badge
                               variant={statusInfo.variant}
-                              className={`text-[9px] px-2 py-0.5 rounded-md font-sans ${
-                                statusInfo.text === "Perlu Dikoreksi"
-                                  ? "!bg-transparent !border-0 !text-cyan-400 !px-1"
-                                  : ""
-                              }`}
+                              className="text-[9px] px-2 py-0.5 rounded-md font-sans"
                             >
                               {statusInfo.text}
                             </Badge>
