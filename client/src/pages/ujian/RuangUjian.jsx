@@ -763,6 +763,8 @@ export default function RuangUjian() {
     localStorage.setItem(STORAGE_KEYS.IS_EXAM_FINISHED, "true");
     localStorage.setItem(`endTime_${techId}`, nowIso);
 
+    let rpcData = null;
+
     try {
       const { data, error } = await supabase.rpc("submit_ujian", {
         p_tech_id: techId,
@@ -773,6 +775,8 @@ export default function RuangUjian() {
           "⚠️ Gagal submit via RPC server, status tetap diset lokal:",
           error,
         );
+      } else {
+        rpcData = data;
       }
     } catch (err) {
       console.warn("Gagal eksekusi RPC submit_ujian:", err);
@@ -780,8 +784,8 @@ export default function RuangUjian() {
 
     let hasilNilai = { jumlah_benar: 0, jumlah_salah: 0, nilai_pg: 0 };
 
-    if (data && data.length > 0) {
-      hasilNilai = data[0];
+    if (rpcData && rpcData.length > 0) {
+      hasilNilai = rpcData[0];
       console.log("✅ Nilai PG dari server:", hasilNilai);
     }
 
