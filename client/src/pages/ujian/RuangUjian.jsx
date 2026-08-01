@@ -12,7 +12,7 @@ import {
 } from "../../utils/examCategories";
 import { STORAGE_KEYS, jawabanLocalKey } from "../../utils/storageKeys";
 import { LOGO_URL } from "../../config/brand";
-import soundKetahuan from "../../assets/sound/ketahuan.mp3";d";
+import soundKetahuan from "../../assets/sound/ketahuan.mp3";
 import Button from "../../components/ui/Button";
 import Badge from "../../components/ui/Badge";
 import {
