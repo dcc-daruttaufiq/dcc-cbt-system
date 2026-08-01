@@ -12,11 +12,8 @@ import {
   Camera,
   User,
   ListChecks,
-  Home,
-  CalendarDays,
 } from "lucide-react";
 
-// ✅ Nama tabel diselaraskan dengan SQL Supabase
 const PRESENSI_TABLE = "presensi_siswa";
 
 const playBeep = (sukses = true) => {
@@ -134,23 +131,27 @@ export default function AbsensiScan() {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
 
+    console.log("📷 RAW QR Code Terbaca:", decodedText);
+
     const techId = ekstrakTechId(decodedText);
 
     if (!techId) {
       playBeep(false);
       setHasilScan({
         tipe: "tidak_ditemukan",
-        pesan: "QR tidak dapat dibaca / format tidak valid.",
+        pesan: "Format QR tidak dapat dibaca.",
       });
       scheduleReset();
       return;
     }
 
     try {
+      const cleanTechId = techId.trim();
+
       const { data: pesertaData, error: errPeserta } = await supabase
         .from(TABLES.PESERTA || "peserta")
         .select("*")
-        .ilike("tech_id", techId)
+        .ilike("tech_id", cleanTechId)
         .maybeSingle();
 
       if (errPeserta) throw errPeserta;
@@ -159,7 +160,7 @@ export default function AbsensiScan() {
         playBeep(false);
         setHasilScan({
           tipe: "tidak_ditemukan",
-          pesan: `TechID Tidak Ditemukan (${techId})`,
+          pesan: `TechID "${cleanTechId}" Tidak Ditemukan`,
         });
         scheduleReset();
         return;
@@ -188,7 +189,6 @@ export default function AbsensiScan() {
         return;
       }
 
-      // ✅ Penentuan status KAPITAL: HADIR / TERLAMBAT
       let statusPresensi = "HADIR";
       if (jamBatasMasuk) {
         const now = new Date();
@@ -206,7 +206,7 @@ export default function AbsensiScan() {
         waktu_masuk: nowIso,
         status: statusPresensi,
         metode: "SCAN_QR",
-        pencatat: "SCANNER_KAMERA"
+        pencatat: "SCANNER_KAMERA",
       });
 
       if (errInsert) throw errInsert;
@@ -225,7 +225,7 @@ export default function AbsensiScan() {
       playBeep(false);
       setHasilScan({
         tipe: "tidak_ditemukan",
-        pesan: "Gagal menyimpan presensi. Periksa koneksi internet.",
+        pesan: "Gagal menyimpan presensi ke database.",
       });
       scheduleReset();
     }
@@ -244,30 +244,53 @@ export default function AbsensiScan() {
     const html5QrCode = new Html5Qrcode(regionId);
     scannerRef.current = html5QrCode;
 
-    Html5Qrcode.getCameras()
-      .then((devices) => {
-        if (!devices || devices.length === 0) {
-          setStatusKamera("error");
-          setErrorKamera("Tidak ada kamera yang terdeteksi.");
-          return;
-        }
-        const cameraId = devices[0].id;
-        html5QrCode
-          .start(
-            cameraId,
-            { fps: 10, qrbox: { width: 280, height: 280 } },
-            (decodedText) => handleScanSuccess(decodedText),
-            () => {}
-          )
-          .then(() => setStatusKamera("aktif"))
+    // Konfigurasi scan dinamis & responsif
+    const config = {
+      fps: 15,
+      qrbox: (viewfinderWidth, viewfinderHeight) => {
+        const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+        return {
+          width: Math.floor(minEdge * 0.75),
+          height: Math.floor(minEdge * 0.75),
+        };
+      },
+      aspectRatio: 1.0,
+    };
+
+    html5QrCode
+      .start(
+        { facingMode: "environment" },
+        config,
+        (decodedText) => handleScanSuccess(decodedText),
+        () => {}
+      )
+      .then(() => setStatusKamera("aktif"))
+      .catch(() => {
+        // Fallback ke kamera pertama jika facingMode tidak didukung
+        Html5Qrcode.getCameras()
+          .then((devices) => {
+            if (!devices || devices.length === 0) {
+              setStatusKamera("error");
+              setErrorKamera("Tidak ada kamera terdeteksi di perangkat ini.");
+              return;
+            }
+            html5QrCode
+              .start(
+                devices[0].id,
+                config,
+                (decodedText) => handleScanSuccess(decodedText),
+                () => {}
+              )
+              .then(() => setStatusKamera("aktif"))
+              .catch(() => {
+                setStatusKamera("error");
+                setErrorKamera("Gagal mengaktifkan kamera.");
+              });
+          })
           .catch(() => {
             setStatusKamera("error");
-            setErrorKamera("Gagal mengaktifkan kamera.");
+            setErrorKamera("Izin akses kamera ditolak oleh browser.");
           });
-      })
-      .catch(() => {
-        setStatusKamera("error");
-        setErrorKamera("Tidak dapat mengakses daftar kamera.");
       });
 
     return () => {
@@ -379,6 +402,12 @@ export default function AbsensiScan() {
                   </div>
                 )}
               </div>
+
+              {!hasilScan && statusKamera === "aktif" && (
+                <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
+                  <User className="w-3.5 h-3.5" /> Posisikan QR Code Kartu ID di tengah area kamera
+                </div>
+              )}
             </div>
 
             <div className="lg:col-span-2 bg-[#0d1527]/60 border border-slate-800 rounded-2xl flex flex-col max-h-[640px]">
