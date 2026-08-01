@@ -195,7 +195,10 @@ export default function RuangUjian() {
         },
         (payload) => {
           // Buka Kunci Otomatis saat Pengawas memperbarui unlock_signal
-          if (payload.new?.unlock_signal !== payload.old?.unlock_signal) {
+          if (
+            payload.new?.unlock_signal &&
+            payload.new.unlock_signal !== payload.old?.unlock_signal
+          ) {
             setIsLocked(false);
             setShowTabWarning(false);
             const currentViolations =
@@ -775,6 +778,13 @@ export default function RuangUjian() {
       console.warn("Gagal eksekusi RPC submit_ujian:", err);
     }
 
+    let hasilNilai = { jumlah_benar: 0, jumlah_salah: 0, nilai_pg: 0 };
+
+    if (data && data.length > 0) {
+      hasilNilai = data[0];
+      console.log("✅ Nilai PG dari server:", hasilNilai);
+    }
+
     let listSesiLokal = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.PESERTA) || "[]",
     );
@@ -785,6 +795,10 @@ export default function RuangUjian() {
           status: "selesai",
           status_koreksi: "belum_dikoreksi",
           waktu_selesai: nowIso,
+          jumlah_benar: hasilNilai.jumlah_benar,
+          jumlah_salah: hasilNilai.jumlah_salah,
+          nilai_pg: hasilNilai.nilai_pg,
+          nilai_akhir: hasilNilai.nilai_pg,
         };
       }
       return p;
@@ -802,6 +816,10 @@ export default function RuangUjian() {
             status: "selesai",
             status_koreksi: "belum_dikoreksi",
             waktu_selesai: nowIso,
+            jumlah_benar: hasilNilai.jumlah_benar,
+            jumlah_salah: hasilNilai.jumlah_salah,
+            nilai_pg: hasilNilai.nilai_pg,
+            nilai_akhir: hasilNilai.nilai_pg,
           }),
         );
       } catch (e) {}
