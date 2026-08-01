@@ -105,6 +105,10 @@ export default function DashboardPeserta() {
   const [daftarUjianDinamis, setDaftarUjianDinamis] = useState(DEFAULT_KATALOG);
   const [dataError, setDataError] = useState("");
 
+  // State Gatekeeper Kehadiran (Langkah 4)
+  const [persentaseKehadiran, setPersentaseKehadiran] = useState(0);
+  const [allowExamOverride, setAllowExamOverride] = useState(false);
+
   // Helper Format Durasi Waktu Pengerjaan
   const formatLamaPengerjaan = (mulaiStr, selesaiStr) => {
     if (!mulaiStr) return null;
@@ -277,6 +281,10 @@ export default function DashboardPeserta() {
           }
         }
       }
+
+      // Ambil data kehadiran untuk Gatekeeper Ujian
+      setPersentaseKehadiran(Number(activeUser?.persentase_kehadiran || 0));
+      setAllowExamOverride(!!activeUser?.allow_exam_override);
 
       const techIdVal =
         activeUser?.tech_id ||
@@ -473,6 +481,11 @@ export default function DashboardPeserta() {
     daftarUjianDinamis.find((u) => u.id === selectedUjian) ||
     daftarUjianDinamis[0] ||
     DEFAULT_KATALOG[0];
+
+  // Logika Kelayakan Ikut Ujian (Gatekeeper)
+  const minimalAbsen = 75; // Minimal 75%
+  const isEligibleExam =
+    allowExamOverride || persentaseKehadiran >= minimalAbsen;
 
   const handleLogout = () => {
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
@@ -976,7 +989,8 @@ export default function DashboardPeserta() {
                 </div>
               </div>
 
-              {/* FORM VERIFIKASI TOKEN UJIAN */}
+              {/* FORM VERIFIKASI TOKEN UJIAN — hanya tampil jika lolos syarat kehadiran */}
+              {isEligibleExam ? (
               <div className="p-6 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 space-y-4 font-sans">
                 <div className="border-b border-slate-800/50 pb-3 flex justify-between items-center">
                   <div>
@@ -1056,6 +1070,20 @@ export default function DashboardPeserta() {
                   )}
                 </form>
               </div>
+              ) : (
+                <div className="p-6 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-rose-500/30 space-y-3 font-sans text-center">
+                  <Button
+                    disabled
+                    className="w-full py-3 bg-slate-800 text-slate-500 cursor-not-allowed font-display font-bold text-xs rounded-xl"
+                  >
+                    🔒 Ujian Terkunci (Kehadiran &lt; {minimalAbsen}%)
+                  </Button>
+                  <p className="text-[11px] text-rose-400">
+                    Persentase kehadiran kamu baru {persentaseKehadiran}%.
+                    Silakan hubungi Pengawas untuk izin khusus.
+                  </p>
+                </div>
+              )}
             </>
           )}
         </div>

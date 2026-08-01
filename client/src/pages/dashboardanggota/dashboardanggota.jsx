@@ -7,6 +7,7 @@ import Button from "../../components/ui/Button"; // ✅ Ubah ke ../../
 import Badge from "../../components/ui/Badge"; // ✅ Ubah ke ../../
 import Sidebar from "../../components/ui/Sidebar"; // ✅ Ubah ke ../../
 import Navbar from "../../components/ui/Navbar"; // ✅ Ubah ke ../../
+import QrScannerModal from "../../components/ui/QrScannerModal";
 import {
   CheckSquare,
   Square,
@@ -42,6 +43,9 @@ import {
   MonitorCheck,
   LogIn,
   Clock,
+  Camera,
+  CalendarCheck,
+  UserCheck,
 } from "lucide-react";
 
 const AKUN_SESSION_KEY = "dcc_akun_session";
@@ -85,6 +89,11 @@ export default function DashboardPengawas() {
   const [isLoadingPeriksa, setIsLoadingPeriksa] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toast, setToast] = useState(null);
+
+  // State Modal Scanner QR & Data Absensi
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [presensiToday, setPresensiToday] = useState([]);
+  const [activeTab, setActiveTab] = useState("koreksi"); // 'koreksi' | 'absensi'
 
   // State Checkbox Bulk Delete
   const [selectedIds, setSelectedIds] = useState([]);
@@ -285,6 +294,104 @@ export default function DashboardPengawas() {
           setBankSoalAll([]);
         }
       }
+    }
+  };
+
+  // Load Data Absensi Hari Ini dari Supabase
+  const loadPresensiToday = async () => {
+    try {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from("presensi_siswa")
+        .select("*")
+        .eq("tanggal", todayStr);
+
+      if (!error && data) {
+        setPresensiToday(data);
+      }
+    } catch (err) {
+      console.warn("Gagal load data presensi:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadPresensiToday();
+  }, []);
+
+  // Handler saat QR Code Berhasil Di-Scan Kamera
+  const handleScanSuccess = async (scannedTechId) => {
+    const target = peserta.find(
+      (p) => (p.tech_id || "").toLowerCase().trim() === scannedTechId.toLowerCase().trim()
+    );
+
+    if (!target) {
+      alert(`⚠️ TechID "${scannedTechId}" tidak ditemukan dalam daftar peserta!`);
+      return;
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const jamFormat = now.toTimeString().slice(0, 5);
+
+    const statusMasuk = jamFormat <= "07:30" ? "HADIR" : "TERLAMBAT";
+
+    try {
+      const { error } = await supabase.from("presensi_siswa").upsert(
+        {
+          tech_id: target.tech_id,
+          tanggal: todayStr,
+          status: statusMasuk,
+          metode: "SCAN_QR",
+          pencatat: sesiStaff?.nama || "ADMIN",
+          waktu_masuk: now.toISOString(),
+        },
+        { onConflict: "tech_id,tanggal" }
+      );
+
+      if (error) throw error;
+
+      alert(`✅ ABSENSI BERHASIL!\n\nNama: ${target.nama || target.nama_lengkap}\nStatus: ${statusMasuk} (${jamFormat})`);
+      loadPresensiToday();
+    } catch (err) {
+      alert("⚠️ Siswa ini sudah melakukan absensi hari ini!");
+    }
+  };
+
+  // Handler Change Status Manual Admin
+  const handleChangeStatusManual = async (techId, newStatus) => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    try {
+      const { error } = await supabase.from("presensi_siswa").upsert(
+        {
+          tech_id: techId,
+          tanggal: todayStr,
+          status: newStatus,
+          metode: "MANUAL_ADMIN",
+          pencatat: sesiStaff?.nama || "ADMIN",
+          waktu_masuk: new Date().toISOString(),
+        },
+        { onConflict: "tech_id,tanggal" }
+      );
+
+      if (error) throw error;
+      loadPresensiToday();
+    } catch (err) {
+      alert("Gagal mengubah status presensi.");
+    }
+  };
+
+  // Handler Toggle Exam Override (Buka Kunci Ujian Khusus)
+  const handleToggleExamOverride = async (pesertaId, currentVal) => {
+    try {
+      const { error } = await supabase
+        .from(TABLES.PESERTA || "peserta")
+        .update({ allow_exam_override: !currentVal })
+        .eq("id", pesertaId);
+
+      if (error) throw error;
+      loadPeserta();
+    } catch (err) {
+      alert("Gagal memperbarui status izin ujian.");
     }
   };
 
@@ -1435,6 +1542,13 @@ export default function DashboardPengawas() {
                 Peserta
               </Button>
 
+              <Button
+                onClick={() => setShowQrModal(true)}
+                className="text-xs bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold border-0 flex items-center gap-1.5"
+              >
+                <Camera className="w-3.5 h-3.5" /> Scan QR Absensi
+              </Button>
+
               {peserta.length > 0 && (
                 <Button
                   onClick={handleDownloadPesertaToken}
@@ -1504,6 +1618,29 @@ export default function DashboardPengawas() {
 
         <main className="p-6 md:p-8 flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto space-y-6">
+            <div className="flex gap-2 border-b border-slate-800 pb-3 mb-6">
+              <button
+                onClick={() => setActiveTab("koreksi")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold font-display transition-all ${
+                  activeTab === "koreksi"
+                    ? "bg-cyan-400 text-slate-950"
+                    : "bg-[#0d1527] text-slate-400 hover:text-white"
+                }`}
+              >
+                Koreksi Ujian Realtime
+              </button>
+              <button
+                onClick={() => setActiveTab("absensi")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold font-display transition-all ${
+                  activeTab === "absensi"
+                    ? "bg-cyan-400 text-slate-950"
+                    : "bg-[#0d1527] text-slate-400 hover:text-white"
+                }`}
+              >
+                Presensi Harian Siswa ({presensiToday.length}/{peserta.length})
+              </button>
+            </div>
+
             {/* 📊 SUMMARY CARDS */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="p-4 bg-[#0d1527]/70 border border-slate-800 rounded-2xl">
@@ -2301,6 +2438,12 @@ export default function DashboardPengawas() {
           </div>
         </div>
       )}
+
+      <QrScannerModal
+        isOpen={showQrModal}
+        onClose={() => setShowQrModal(false)}
+        onScanSuccess={handleScanSuccess}
+      />
     </div>
   );
 }
