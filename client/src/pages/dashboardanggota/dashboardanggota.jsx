@@ -1373,15 +1373,6 @@ export default function DashboardPengawas() {
                   Pemeriksaan Realtime Hasil Pengerjaan Siswa
                 </p>
               </div>
-              <span
-                className={`text-[10px] font-display font-bold px-2 py-1 rounded-lg border ${
-                  isLeadInstruktur
-                    ? "text-purple-300 bg-purple-400/10 border-purple-400/30"
-                    : "text-slate-300 bg-slate-500/10 border-slate-500/30"
-                }`}
-              >
-                {roleLabel}
-              </span>
               {isOffline && (
                 <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-1 rounded-lg">
                   <WifiOff className="w-3 h-3" /> Mode Offline
