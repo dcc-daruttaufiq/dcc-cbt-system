@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Html5Qrcode } from "html5-qrcode";
-import { supabase, TABLES } from "../../utils/supabaseClient"; // ✅ Jalur disesuaikan (../../)
-import Sidebar from "../../components/ui/Sidebar"; // ✅ Jalur disesuaikan (../../)
-import Navbar from "../../components/ui/Navbar"; // ✅ Jalur disesuaikan (../../)
+import { supabase, TABLES } from "../../utils/supabaseClient";
+import Sidebar from "../../components/ui/Sidebar";
+import Navbar from "../../components/ui/Navbar";
 import {
   ScanLine,
   CheckCircle2,
@@ -16,9 +16,9 @@ import {
   CalendarDays,
 } from "lucide-react";
 
-const PRESENSI_TABLE = "presensi_harian";
+// ✅ Nama tabel diselaraskan dengan SQL Supabase
+const PRESENSI_TABLE = "presensi_siswa";
 
-// Bunyi "BEEP" singkat sukses / gagal, tanpa perlu file audio eksternal
 const playBeep = (sukses = true) => {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -51,41 +51,39 @@ const getTanggalHariIni = () => {
 };
 
 export default function AbsensiScan() {
-  const [statusKamera, setStatusKamera] = useState("memuat"); // memuat | aktif | error
+  const [statusKamera, setStatusKamera] = useState("memuat");
   const [errorKamera, setErrorKamera] = useState("");
-  const [hasilScan, setHasilScan] = useState(null); // { tipe, nama, techId, jam, pesan }
-  const [jamBatasMasuk, setJamBatasMasuk] = useState("");
+  const [hasilScan, setHasilScan] = useState(null);
+  const [jamBatasMasuk, setJamBatasMasuk] = useState("07:30");
   const [logHariIni, setLogHariIni] = useState([]);
 
   const scannerRef = useRef(null);
   const isProcessingRef = useRef(false);
   const resetTimeoutRef = useRef(null);
 
-  // Ambil pengaturan jam batas masuk (opsional, untuk penanda status TELAT)
   const loadJamBatas = async () => {
     try {
       const { data } = await supabase
         .from(TABLES.PENGATURAN_UJIAN || "pengaturan_ujian")
         .select("*")
-        .eq("key", "jam_masuk_absensi")
+        .eq("key", "konfigurasi_absensi")
         .maybeSingle();
 
       if (data && data.value) {
         const parsed =
           typeof data.value === "string" ? JSON.parse(data.value) : data.value;
-        setJamBatasMasuk(parsed.jam || "");
+        setJamBatasMasuk(parsed.jam_masuk_normal || "07:30");
       }
     } catch (e) {
       console.warn("Gagal memuat pengaturan jam batas absensi.", e);
     }
   };
 
-  // 📋 Ambil log presensi hari ini (urutan terbaru di atas)
   const loadLogHariIni = async () => {
     try {
       const { data } = await supabase
         .from(PRESENSI_TABLE)
-        .select("*")
+        .select("*, peserta(nama, nama_lengkap)")
         .eq("tanggal", getTanggalHariIni())
         .order("waktu_masuk", { ascending: false });
       setLogHariIni(Array.isArray(data) ? data : []);
@@ -99,18 +97,15 @@ export default function AbsensiScan() {
     loadLogHariIni();
   }, []);
 
-  // 📡 REALTIME: begitu ada baris baru masuk ke presensi_harian, log di sisi kanan update instan
   useEffect(() => {
     const channel = supabase
-      .channel("realtime_presensi_harian")
+      .channel("realtime_presensi_siswa")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: PRESENSI_TABLE },
-        (payload) => {
-          if (payload.new && payload.new.tanggal === getTanggalHariIni()) {
-            setLogHariIni((prev) => [payload.new, ...prev]);
-          }
-        },
+        () => {
+          loadLogHariIni();
+        }
       )
       .subscribe();
 
@@ -119,7 +114,6 @@ export default function AbsensiScan() {
     };
   }, []);
 
-  // Ekstrak TechID dari hasil scan QR
   const ekstrakTechId = (rawText) => {
     const trimmed = (rawText || "").trim();
     if (!trimmed) return "";
@@ -153,9 +147,8 @@ export default function AbsensiScan() {
     }
 
     try {
-      // 1. Cari data santri berdasarkan TechID di tabel peserta
       const { data: pesertaData, error: errPeserta } = await supabase
-        .from(TABLES.PESERTA)
+        .from(TABLES.PESERTA || "peserta")
         .select("*")
         .ilike("tech_id", techId)
         .maybeSingle();
@@ -172,11 +165,10 @@ export default function AbsensiScan() {
         return;
       }
 
-      const namaSantri =
-        pesertaData.nama || pesertaData.nama_lengkap || "Santri";
+      const namaSiswa =
+        pesertaData.nama || pesertaData.nama_lengkap || "Siswa";
       const tanggalHariIni = getTanggalHariIni();
 
-      // 2. Cek apakah sudah absen hari ini
       const { data: existingPresensi } = await supabase
         .from(PRESENSI_TABLE)
         .select("*")
@@ -189,42 +181,44 @@ export default function AbsensiScan() {
         setHasilScan({
           tipe: "sudah_absen",
           techId: pesertaData.tech_id,
-          nama: namaSantri,
+          nama: namaSiswa,
           jam: formatJam(existingPresensi.waktu_masuk),
         });
         scheduleReset();
         return;
       }
 
-      // 3. Tentukan status HADIR / TELAT berdasarkan jam batas (jika diatur)
+      // ✅ Penentuan status KAPITAL: HADIR / TERLAMBAT
       let statusPresensi = "HADIR";
       if (jamBatasMasuk) {
         const now = new Date();
         const [jamBatasH, jamBatasM] = jamBatasMasuk.split(":").map(Number);
         const batasDate = new Date();
         batasDate.setHours(jamBatasH, jamBatasM, 0, 0);
-        if (now > batasDate) statusPresensi = "TELAT";
+        if (now > batasDate) statusPresensi = "TERLAMBAT";
       }
 
       const nowIso = new Date().toISOString();
 
       const { error: errInsert } = await supabase.from(PRESENSI_TABLE).insert({
         tech_id: pesertaData.tech_id,
-        nama: namaSantri,
         tanggal: tanggalHariIni,
         waktu_masuk: nowIso,
         status: statusPresensi,
+        metode: "SCAN_QR",
+        pencatat: "SCANNER_KAMERA"
       });
 
       if (errInsert) throw errInsert;
 
       playBeep(true);
       setHasilScan({
-        tipe: statusPresensi === "TELAT" ? "sukses_telat" : "sukses",
+        tipe: statusPresensi === "TERLAMBAT" ? "sukses_telat" : "sukses",
         techId: pesertaData.tech_id,
-        nama: namaSantri,
+        nama: namaSiswa,
         jam: formatJam(nowIso),
       });
+      loadLogHariIni();
       scheduleReset();
     } catch (err) {
       console.error("Gagal memproses presensi:", err);
@@ -254,7 +248,7 @@ export default function AbsensiScan() {
       .then((devices) => {
         if (!devices || devices.length === 0) {
           setStatusKamera("error");
-          setErrorKamera("Tidak ada kamera yang terdeteksi di perangkat ini.");
+          setErrorKamera("Tidak ada kamera yang terdeteksi.");
           return;
         }
         const cameraId = devices[0].id;
@@ -263,21 +257,17 @@ export default function AbsensiScan() {
             cameraId,
             { fps: 10, qrbox: { width: 280, height: 280 } },
             (decodedText) => handleScanSuccess(decodedText),
-            () => {},
+            () => {}
           )
           .then(() => setStatusKamera("aktif"))
           .catch(() => {
             setStatusKamera("error");
-            setErrorKamera(
-              "Gagal mengaktifkan kamera. Pastikan izin kamera sudah diberikan.",
-            );
+            setErrorKamera("Gagal mengaktifkan kamera.");
           });
       })
       .catch(() => {
         setStatusKamera("error");
-        setErrorKamera(
-          "Tidak dapat mengakses daftar kamera. Pastikan izin kamera diizinkan di browser.",
-        );
+        setErrorKamera("Tidak dapat mengakses daftar kamera.");
       });
 
     return () => {
@@ -289,18 +279,11 @@ export default function AbsensiScan() {
       }
       if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jamBatasMasuk]);
-
-  const menuPresensi = [
-    { label: "Menu Utama", path: "/", icon: Home },
-    { label: "Scan Presensi", path: "/absensi-scan", icon: ScanLine },
-    { label: "Rekap Presensi", path: "/rekap-absensi", icon: CalendarDays },
-  ];
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
-      <Sidebar links={menuPresensi} userRole="Pengawas" />
+      <Sidebar userRole="Pengawas" />
 
       <div className="flex-1 flex flex-col min-w-0">
         <Navbar>
@@ -311,18 +294,17 @@ export default function AbsensiScan() {
                 SCAN PRESENSI HARIAN
               </h1>
               <p className="text-xs text-slate-400">
-                Tunjukkan kartu TechID ke kamera untuk mencatat kehadiran
+                Tunjukkan Kartu ID ke kamera untuk mencatat presensi
               </p>
             </div>
             <span className="ml-2 text-[10px] px-2.5 py-1 rounded-full font-display font-bold uppercase bg-emerald-400/10 text-emerald-400 border border-emerald-400/30">
-              {logHariIni.length} Sudah Presensi Hari Ini
+              {logHariIni.length} Sudah Absen Hari Ini
             </span>
           </div>
         </Navbar>
 
         <main className="p-6 md:p-8 flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-6">
-            {/* KIRI: AREA KAMERA (3 kolom) */}
             <div className="lg:col-span-3 space-y-4">
               <div className="relative rounded-3xl overflow-hidden border-4 border-slate-800 bg-[#0d1527] aspect-square max-w-xl mx-auto shadow-2xl">
                 <div id="absensi-qr-region" className="w-full h-full" />
@@ -330,23 +312,18 @@ export default function AbsensiScan() {
                 {statusKamera === "memuat" && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#030712]/90 gap-2">
                     <Camera className="w-10 h-10 text-slate-600 animate-pulse" />
-                    <p className="text-xs text-slate-400">
-                      Mengaktifkan kamera...
-                    </p>
+                    <p className="text-xs text-slate-400">Mengaktifkan kamera...</p>
                   </div>
                 )}
 
                 {statusKamera === "error" && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#030712]/95 gap-2 p-6 text-center">
                     <XCircle className="w-10 h-10 text-rose-500" />
-                    <p className="text-xs text-rose-400 font-bold">
-                      Kamera Bermasalah
-                    </p>
+                    <p className="text-xs text-rose-400 font-bold">Kamera Bermasalah</p>
                     <p className="text-[11px] text-slate-400">{errorKamera}</p>
                   </div>
                 )}
 
-                {/* OVERLAY HASIL SCAN */}
                 {hasilScan && (
                   <div
                     className={`absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center backdrop-blur-md ${
@@ -365,9 +342,7 @@ export default function AbsensiScan() {
                         <p className="text-2xl font-display font-bold text-white">
                           {hasilScan.nama} — HADIR 🟢
                         </p>
-                        <p className="text-sm text-white/90 font-mono">
-                          {hasilScan.techId}
-                        </p>
+                        <p className="text-sm text-white/90 font-mono">{hasilScan.techId}</p>
                         <p className="text-sm text-white font-bold flex items-center gap-1.5">
                           <Clock className="w-4 h-4" /> {hasilScan.jam}
                         </p>
@@ -377,11 +352,9 @@ export default function AbsensiScan() {
                       <>
                         <AlertTriangle className="w-16 h-16 text-white" />
                         <p className="text-2xl font-display font-bold text-white">
-                          {hasilScan.nama} — TELAT 🟡
+                          {hasilScan.nama} — TERLAMBAT 🟡
                         </p>
-                        <p className="text-sm text-white/90 font-mono">
-                          {hasilScan.techId}
-                        </p>
+                        <p className="text-sm text-white/90 font-mono">{hasilScan.techId}</p>
                         <p className="text-sm text-white font-bold flex items-center gap-1.5">
                           <Clock className="w-4 h-4" /> {hasilScan.jam}
                         </p>
@@ -390,82 +363,63 @@ export default function AbsensiScan() {
                     {hasilScan.tipe === "sudah_absen" && (
                       <>
                         <AlertTriangle className="w-16 h-16 text-white" />
-                        <p className="text-xl font-display font-bold text-white">
-                          {hasilScan.nama}
-                        </p>
-                        <p className="text-sm text-white/90 font-mono">
-                          {hasilScan.techId}
-                        </p>
+                        <p className="text-xl font-display font-bold text-white">{hasilScan.nama}</p>
+                        <p className="text-sm text-white/90 font-mono">{hasilScan.techId}</p>
                         <p className="text-sm text-white font-bold">
-                          Sudah Absen Hari Ini — pukul {hasilScan.jam}
+                          Sudah Absen Hari Ini — {hasilScan.jam}
                         </p>
                       </>
                     )}
                     {hasilScan.tipe === "tidak_ditemukan" && (
                       <>
                         <XCircle className="w-16 h-16 text-white" />
-                        <p className="text-sm text-white font-bold">
-                          {hasilScan.pesan}
-                        </p>
+                        <p className="text-sm text-white font-bold">{hasilScan.pesan}</p>
                       </>
                     )}
                   </div>
                 )}
               </div>
-
-              {!hasilScan && statusKamera === "aktif" && (
-                <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
-                  <User className="w-3.5 h-3.5" /> Arahkan kartu TechID ke dalam
-                  kotak kamera di atas
-                </div>
-              )}
             </div>
 
-            {/* KANAN: LOG PRESENSI REALTIME (2 kolom) */}
             <div className="lg:col-span-2 bg-[#0d1527]/60 border border-slate-800 rounded-2xl flex flex-col max-h-[640px]">
               <div className="p-4 border-b border-slate-800 flex items-center gap-2 shrink-0">
                 <ListChecks className="w-4 h-4 text-cyan-400" />
                 <h3 className="text-xs font-display font-bold text-white uppercase tracking-wider">
-                  Log Presensi Hari Ini
+                  Log Presensi Realtime
                 </h3>
               </div>
 
               <div className="overflow-y-auto flex-1">
                 {logHariIni.length === 0 ? (
                   <p className="text-xs text-slate-500 text-center py-10">
-                    Belum ada yang presensi hari ini.
+                    Belum ada siswa yang absen hari ini.
                   </p>
                 ) : (
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 bg-[#0d1527]">
                       <tr className="border-b border-slate-800 text-slate-500 uppercase text-[9px] font-display font-bold">
                         <th className="text-left p-2.5 pl-4">No</th>
-                        <th className="text-left p-2.5">TechID</th>
+                        <th className="text-left p-2.5">Siswa</th>
                         <th className="text-left p-2.5">Status</th>
-                        <th className="text-left p-2.5 pr-4">Jam Masuk</th>
+                        <th className="text-left p-2.5 pr-4">Jam</th>
                       </tr>
                     </thead>
                     <tbody>
                       {logHariIni.map((row, idx) => (
-                        <tr
-                          key={row.id || idx}
-                          className="border-b border-slate-800/40"
-                        >
+                        <tr key={row.id || idx} className="border-b border-slate-800/40">
                           <td className="p-2.5 pl-4 text-slate-500 font-mono">
                             {logHariIni.length - idx}
                           </td>
                           <td className="p-2.5">
                             <p className="font-display font-bold text-white">
-                              {row.nama || "-"}
+                              {row.peserta?.nama || row.peserta?.nama_lengkap || row.tech_id}
                             </p>
-                            <p className="font-mono text-slate-500 text-[10px]">
-                              {row.tech_id}
-                            </p>
+                            <p className="font-mono text-slate-500 text-[10px]">{row.tech_id}</p>
                           </td>
                           <td className="p-2.5">
                             <span
                               className={`text-[9px] font-bold px-2 py-0.5 rounded-md ${
-                                row.status === "TELAT"
+                                row.status === "TERLAMBAT"
                                   ? "bg-amber-400/10 text-amber-400 border border-amber-400/30"
                                   : "bg-emerald-400/10 text-emerald-400 border border-emerald-400/30"
                               }`}

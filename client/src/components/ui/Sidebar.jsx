@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
   Home,
   CheckSquare,
@@ -7,6 +7,8 @@ import {
   FileBarChart,
   Sliders,
   LogOut,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { LOGO_URL } from "../../config/brand";
 
@@ -21,7 +23,13 @@ const DEFAULT_LINKS = [
 
 export default function Sidebar({ userRole = "Anggota", links }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [logoGagalDimuat, setLogoGagalDimuat] = useState(false);
+  const [openGroups, setOpenGroups] = useState({});
+
+  const toggleGroup = (key) => {
+    setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   // Kalau halaman pemanggil kirim prop `links` sendiri, PAKAI ITU.
   // Kalau tidak dikirim sama sekali, baru fallback ke menu default di atas.
@@ -71,6 +79,79 @@ export default function Sidebar({ userRole = "Anggota", links }) {
         <nav className="flex flex-col gap-1.5">
           {finalLinks.map((item, index) => {
             const IconValue = item.icon;
+
+            // 🟢 ITEM DROPDOWN (punya submenu `children`)
+            if (item.children && item.children.length > 0) {
+              const groupKey = item.label || `group-${index}`;
+              const isChildActive = item.children.some(
+                (c) => location.pathname === c.path,
+              );
+              const isOpen = openGroups[groupKey] ?? isChildActive;
+
+              return (
+                <div key={groupKey} className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(groupKey)}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all duration-200 ${
+                      isChildActive
+                        ? "bg-slate-800/60 text-cyan-400 font-bold"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                    }`}
+                  >
+                    <span className="flex items-center gap-3">
+                      {typeof IconValue === "string" ? (
+                        <span className="w-4 h-4 shrink-0 flex items-center justify-center text-sm leading-none">
+                          {IconValue}
+                        </span>
+                      ) : (
+                        IconValue && <IconValue className="w-4 h-4 shrink-0" />
+                      )}
+                      <span>{item.label}</span>
+                    </span>
+                    {isOpen ? (
+                      <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+                    )}
+                  </button>
+
+                  {isOpen && (
+                    <div className="pl-8 pr-1 space-y-1">
+                      {item.children.map((child, cIdx) => {
+                        const ChildIcon = child.icon;
+                        return (
+                          <NavLink
+                            key={cIdx}
+                            to={child.path}
+                            className={({ isActive }) =>
+                              `flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all duration-200 ${
+                                isActive
+                                  ? "bg-cyan-400 text-slate-950 font-bold"
+                                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                              }`
+                            }
+                          >
+                            {typeof ChildIcon === "string" ? (
+                              <span className="w-3.5 h-3.5 shrink-0 flex items-center justify-center text-xs leading-none">
+                                {ChildIcon}
+                              </span>
+                            ) : (
+                              ChildIcon && (
+                                <ChildIcon className="w-3.5 h-3.5 shrink-0" />
+                              )
+                            )}
+                            <span>{child.label}</span>
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            // 🔵 ITEM BIASA (tanpa submenu) — perilaku lama, tidak berubah
             return (
               <NavLink
                 key={index}
