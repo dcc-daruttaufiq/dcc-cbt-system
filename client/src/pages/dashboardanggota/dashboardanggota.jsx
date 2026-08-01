@@ -1560,12 +1560,13 @@ export default function DashboardPengawas() {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full bg-[#0d1527] border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-400"
+                  className="w-full bg-[#0d1527] border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-400 [&>option]:bg-[#0d1527] [&>option]:text-slate-200"
+                  style={{ colorScheme: "dark" }}
                 >
-                  <option value="terbaru">Urutkan: Terbaru</option>
-                  <option value="nama">Urutkan: Nama (A-Z)</option>
-                  <option value="pelanggaran">Urutkan: Pelanggaran Terbanyak</option>
-                  <option value="nilai">Urutkan: Nilai Tertinggi</option>
+                  <option value="terbaru" className="bg-[#0d1527] text-slate-200">Urutkan: Terbaru</option>
+                  <option value="nama" className="bg-[#0d1527] text-slate-200">Urutkan: Nama (A-Z)</option>
+                  <option value="pelanggaran" className="bg-[#0d1527] text-slate-200">Urutkan: Pelanggaran Terbanyak</option>
+                  <option value="nilai" className="bg-[#0d1527] text-slate-200">Urutkan: Nilai Tertinggi</option>
                 </select>
 
                 <div className="grid grid-cols-2 gap-1.5 bg-[#0d1527] p-2 rounded-xl border border-slate-800 text-xs font-display font-bold">
@@ -1821,7 +1822,7 @@ export default function DashboardPengawas() {
                               )}
                             <div className="flex items-center gap-1 bg-[#030712] px-2 py-0.5 rounded border border-slate-800">
                               <span className="text-[9px] text-slate-500 font-bold">
-                                SKOR:
+                                NILAI:
                               </span>
                               <span className="text-xs font-bold font-mono text-cyan-400">
                                 {nilaiDisplay}
