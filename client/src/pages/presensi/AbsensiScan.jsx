@@ -236,7 +236,7 @@ export default function AbsensiScan() {
     resetTimeoutRef.current = setTimeout(() => {
       setHasilScan(null);
       isProcessingRef.current = false;
-    }, 3000);
+    }, 2500);
   };
 
   useEffect(() => {
@@ -244,17 +244,12 @@ export default function AbsensiScan() {
     const html5QrCode = new Html5Qrcode(regionId);
     scannerRef.current = html5QrCode;
 
-    // Konfigurasi scan dinamis & responsif
+    // ⚡ KONFIGURASI SUPER RESPONSIF & SAT-SET
     const config = {
-      fps: 15,
-      qrbox: (viewfinderWidth, viewfinderHeight) => {
-        const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-        return {
-          width: Math.floor(minEdge * 0.75),
-          height: Math.floor(minEdge * 0.75),
-        };
-      },
+      fps: 25, // FPS tinggi untuk pembacaan cepat
+      qrbox: undefined, // Tanpa batasan box, memindai 100% layar kamera
       aspectRatio: 1.0,
+      disableFlip: false,
     };
 
     html5QrCode
@@ -266,12 +261,12 @@ export default function AbsensiScan() {
       )
       .then(() => setStatusKamera("aktif"))
       .catch(() => {
-        // Fallback ke kamera pertama jika facingMode tidak didukung
+        // Fallback jika facingMode tidak didukung
         Html5Qrcode.getCameras()
           .then((devices) => {
             if (!devices || devices.length === 0) {
               setStatusKamera("error");
-              setErrorKamera("Tidak ada kamera terdeteksi di perangkat ini.");
+              setErrorKamera("Tidak ada kamera terdeteksi.");
               return;
             }
             html5QrCode
@@ -289,7 +284,7 @@ export default function AbsensiScan() {
           })
           .catch(() => {
             setStatusKamera("error");
-            setErrorKamera("Izin akses kamera ditolak oleh browser.");
+            setErrorKamera("Izin akses kamera ditolak.");
           });
       });
 
@@ -405,7 +400,7 @@ export default function AbsensiScan() {
 
               {!hasilScan && statusKamera === "aktif" && (
                 <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
-                  <User className="w-3.5 h-3.5" /> Posisikan QR Code Kartu ID di tengah area kamera
+                  <User className="w-3.5 h-3.5" /> Arahkan QR Code Kartu ID ke depan kamera
                 </div>
               )}
             </div>
