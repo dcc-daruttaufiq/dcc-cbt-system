@@ -26,6 +26,7 @@ import {
   ExternalLink,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Key,
   Download,
   Eye,
@@ -95,6 +96,15 @@ export default function DashboardPengawas() {
   // Search & Pagination
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("terbaru");
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
+  const sortDropdownRef = useRef(null);
+
+  const sortOptions = [
+    { value: "terbaru", label: "Urutkan: Terbaru" },
+    { value: "nama", label: "Urutkan: Nama (A-Z)" },
+    { value: "pelanggaran", label: "Urutkan: Pelanggaran Terbanyak" },
+    { value: "nilai", label: "Urutkan: Nilai Tertinggi" },
+  ];
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 8;
 
@@ -395,6 +405,16 @@ export default function DashboardPengawas() {
   useEffect(() => {
     setCurrentPage(1);
   }, [filterPeserta, searchQuery]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(e.target)) {
+        setSortDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Impor Peserta Tanpa Kolom Token (Supabase Aman Bebas Error 400)
   const handleImportPesertaExcelCSV = (e) => {
@@ -1557,17 +1577,48 @@ export default function DashboardPengawas() {
                   <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 </div>
 
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full bg-[#0d1527] border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-400 [&>option]:bg-[#0d1527] [&>option]:text-slate-200"
-                  style={{ colorScheme: "dark" }}
-                >
-                  <option value="terbaru" className="bg-[#0d1527] text-slate-200">Urutkan: Terbaru</option>
-                  <option value="nama" className="bg-[#0d1527] text-slate-200">Urutkan: Nama (A-Z)</option>
-                  <option value="pelanggaran" className="bg-[#0d1527] text-slate-200">Urutkan: Pelanggaran Terbanyak</option>
-                  <option value="nilai" className="bg-[#0d1527] text-slate-200">Urutkan: Nilai Tertinggi</option>
-                </select>
+                <div className="relative" ref={sortDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setSortDropdownOpen((prev) => !prev)}
+                    className={`w-full flex items-center justify-between bg-[#0d1527] border rounded-xl px-3 py-2 text-xs text-slate-200 transition-colors ${
+                      sortDropdownOpen ? "border-cyan-400" : "border-slate-800"
+                    }`}
+                  >
+                    <span>
+                      {sortOptions.find((o) => o.value === sortBy)?.label}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-500 transition-transform ${
+                        sortDropdownOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {sortDropdownOpen && (
+                    <div className="absolute z-20 top-full left-0 right-0 mt-1.5 bg-[#0d1527] border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
+                      {sortOptions.map((opt) => {
+                        const isActive = opt.value === sortBy;
+                        return (
+                          <div
+                            key={opt.value}
+                            onClick={() => {
+                              setSortBy(opt.value);
+                              setSortDropdownOpen(false);
+                            }}
+                            className={`px-3 py-2 text-xs cursor-pointer transition-colors ${
+                              isActive
+                                ? "bg-cyan-400 text-slate-950 font-bold"
+                                : "text-slate-200 hover:bg-cyan-400 hover:text-slate-950"
+                            }`}
+                          >
+                            {opt.label}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
 
                 <div className="grid grid-cols-2 gap-1.5 bg-[#0d1527] p-2 rounded-xl border border-slate-800 text-xs font-display font-bold">
                   <button
