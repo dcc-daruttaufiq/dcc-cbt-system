@@ -12,6 +12,7 @@ import {
 } from "../../utils/examCategories";
 import { STORAGE_KEYS, jawabanLocalKey } from "../../utils/storageKeys";
 import { LOGO_URL } from "../../config/brand";
+import soundKetahuan from "../../assets/sound/ketahuan.mp3";d";
 import Button from "../../components/ui/Button";
 import Badge from "../../components/ui/Badge";
 import {
@@ -530,6 +531,17 @@ export default function RuangUjian() {
           }
           return next;
         });
+      } else if (
+        !document.hidden &&
+        techIdRef.current &&
+        !isExamFinishedRef.current
+      ) {
+        // 🔊 Peserta baru saja BALIK ke tab ujian -> bunyi "ketahuan!"
+        try {
+          const audio = new Audio(soundKetahuan);
+          audio.volume = 0.7;
+          audio.play().catch(() => {});
+        } catch (e) {}
       }
     };
 
