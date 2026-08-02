@@ -105,9 +105,10 @@ export default function DashboardPeserta() {
   const [daftarUjianDinamis, setDaftarUjianDinamis] = useState(DEFAULT_KATALOG);
   const [dataError, setDataError] = useState("");
 
-  // State Gatekeeper Kehadiran (Langkah 4)
+  // State Gatekeeper Kehadiran & Dispensasi Dinamis
   const [persentaseKehadiran, setPersentaseKehadiran] = useState(0);
-  const [allowExamOverride, setAllowExamOverride] = useState(false);
+  const [statusKelayakan, setStatusKelayakan] = useState("otomatis"); // 'otomatis' | 'dispensasi' | 'blokir'
+  const [minimalAbsen, setMinimalAbsen] = useState(75);
 
   // Helper Format Durasi Waktu Pengerjaan
   const formatLamaPengerjaan = (mulaiStr, selesaiStr) => {
@@ -145,8 +146,9 @@ export default function DashboardPeserta() {
   };
 
   useEffect(() => {
-    const fetchModeToken = async () => {
+    const fetchModeTokenAndSettings = async () => {
       try {
+        // Mode Token
         const { data } = await supabase
           .from(TABLES.PENGATURAN_UJIAN || "pengaturan_ujian")
           .select("*")
@@ -165,9 +167,31 @@ export default function DashboardPeserta() {
           const localMode = localStorage.getItem("dcc_mode_token");
           if (localMode) setModeToken(localMode);
         }
+
+        // Syarat Kehadiran Minimal
+        const { data: dataMinAbsen } = await supabase
+          .from(TABLES.PENGATURAN_UJIAN || "pengaturan_ujian")
+          .select("*")
+          .eq("key", "min_kehadiran_persen")
+          .maybeSingle();
+
+        if (dataMinAbsen && dataMinAbsen.value) {
+          const val =
+            typeof dataMinAbsen.value === "string"
+              ? dataMinAbsen.value
+              : dataMinAbsen.value.val || dataMinAbsen.value;
+          setMinimalAbsen(Number(val ?? 75));
+          localStorage.setItem("dcc_min_kehadiran", String(val ?? 75));
+        } else {
+          const localMin = localStorage.getItem("dcc_min_kehadiran");
+          if (localMin) setMinimalAbsen(Number(localMin));
+        }
       } catch (e) {
         const localMode = localStorage.getItem("dcc_mode_token");
         if (localMode) setModeToken(localMode);
+
+        const localMin = localStorage.getItem("dcc_min_kehadiran");
+        if (localMin) setMinimalAbsen(Number(localMin));
       }
     };
 
@@ -240,7 +264,7 @@ export default function DashboardPeserta() {
     };
 
     const initDashboard = async () => {
-      await fetchModeToken();
+      await fetchModeTokenAndSettings();
       const activeCatalog = await loadKatalogDinamis();
       const savedUserStr = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
       let activeUser = savedUserStr ? JSON.parse(savedUserStr) : null;
@@ -282,9 +306,9 @@ export default function DashboardPeserta() {
         }
       }
 
-      // Ambil data kehadiran untuk Gatekeeper Ujian
+      // Ambil data kehadiran & status kelayakan untuk Gatekeeper Ujian
       setPersentaseKehadiran(Number(activeUser?.persentase_kehadiran || 0));
-      setAllowExamOverride(!!activeUser?.allow_exam_override);
+      setStatusKelayakan(activeUser?.status_kelayakan || "otomatis");
 
       const techIdVal =
         activeUser?.tech_id ||
@@ -482,10 +506,17 @@ export default function DashboardPeserta() {
     daftarUjianDinamis[0] ||
     DEFAULT_KATALOG[0];
 
-  // Logika Kelayakan Ikut Ujian (Gatekeeper)
-  const minimalAbsen = 75; // Minimal 75%
-  const isEligibleExam =
-    allowExamOverride || persentaseKehadiran >= minimalAbsen;
+  // 🌟 LOGIKA KELAYAKAN IKUT UJIAN (GATEKEEPER UNLOCKED & DISPENSASI) 🌟
+  let isEligibleExam = false;
+  if (statusKelayakan === "dispensasi") {
+    isEligibleExam = true; // Buka kunci khusus (Dispensasi Admin)
+  } else if (statusKelayakan === "blokir") {
+    isEligibleExam = false; // Kunci paksa
+  } else {
+    // Mode Otomatis: Buka jika batas minimal <= 0 ATAU persentase memenuhi syarat
+    isEligibleExam =
+      minimalAbsen <= 0 || persentaseKehadiran >= minimalAbsen;
+  }
 
   const handleLogout = () => {
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
@@ -540,7 +571,7 @@ export default function DashboardPeserta() {
 
     const inputUpper = tokenInput.trim().toUpperCase();
 
-    // 🛑 VALIDASI TOKEN HANYA DARI TOKEN RESMI DATABASE (BEBAS HARDCODED BACKDOOR)
+    // 🛑 VALIDASI TOKEN HANYA DARI TOKEN RESMI DATABASE
     let isTokenValid = false;
 
     if (modeToken === "siswa") {
@@ -991,96 +1022,97 @@ export default function DashboardPeserta() {
 
               {/* FORM VERIFIKASI TOKEN UJIAN — hanya tampil jika lolos syarat kehadiran */}
               {isEligibleExam ? (
-              <div className="p-6 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 space-y-4 font-sans">
-                <div className="border-b border-slate-800/50 pb-3 flex justify-between items-center">
-                  <div>
-                    <h4 className="text-xs font-display font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
-                      <Key className="w-4 h-4" /> VERIFIKASI TOKEN UJIAN
-                    </h4>
-                    <p className="text-xs text-slate-300 font-sans mt-1">
-                      Mata Ujian Terpilih:{" "}
-                      <strong className="text-white font-bold">
-                        {activeExamDetail.nama}
-                      </strong>
-                    </p>
+                <div className="p-6 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-slate-800/50 space-y-4 font-sans">
+                  <div className="border-b border-slate-800/50 pb-3 flex justify-between items-center">
+                    <div>
+                      <h4 className="text-xs font-display font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
+                        <Key className="w-4 h-4" /> VERIFIKASI TOKEN UJIAN
+                      </h4>
+                      <p className="text-xs text-slate-300 font-sans mt-1">
+                        Mata Ujian Terpilih:{" "}
+                        <strong className="text-white font-bold">
+                          {activeExamDetail.nama}
+                        </strong>
+                      </p>
+                    </div>
+
+                    {/* INDICATOR TIPE MODE TOKEN YANG SANGAT JELAS */}
+                    {modeToken === "siswa" ? (
+                      <span className="text-[11px] font-display font-bold text-purple-300 bg-purple-500/10 px-2.5 py-1 rounded-lg border border-purple-500/20 flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />{" "}
+                        Mode: Token Unik Siswa
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-display font-bold text-cyan-400 bg-cyan-400/10 px-2.5 py-1 rounded-lg border border-cyan-400/20">
+                        Token Mapel: {activeExamDetail.tokenDefault}
+                      </span>
+                    )}
                   </div>
 
-                  {/* INDICATOR TIPE MODE TOKEN YANG SANGAT JELAS */}
-                  {modeToken === "siswa" ? (
-                    <span className="text-[11px] font-display font-bold text-purple-300 bg-purple-500/10 px-2.5 py-1 rounded-lg border border-purple-500/20 flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />{" "}
-                      Mode: Token Unik Siswa
-                    </span>
-                  ) : (
-                    <span className="text-[11px] font-display font-bold text-cyan-400 bg-cyan-400/10 px-2.5 py-1 rounded-lg border border-cyan-400/20">
-                      Token Mapel: {activeExamDetail.tokenDefault}
-                    </span>
-                  )}
-                </div>
+                  <form onSubmit={handleMulaiUjian} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                      <div className="md:col-span-2">
+                        <Input
+                          type="text"
+                          placeholder={
+                            modeToken === "siswa"
+                              ? "Masukkan Token Unik Siswa Anda..."
+                              : `Masukkan Token Ujian ${activeExamDetail.nama}...`
+                          }
+                          value={tokenInput}
+                          onChange={(e) =>
+                            setTokenInput(e.target.value.toUpperCase())
+                          }
+                          className="w-full px-4 py-3 uppercase font-display font-bold tracking-widest text-sm bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-white rounded-xl font-sans"
+                        />
+                      </div>
+                      <Button
+                        type="submit"
+                        disabled={isLoading}
+                        className="w-full py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0 rounded-xl shadow-lg shadow-cyan-400/20 flex items-center justify-center gap-2"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-slate-950" /> MULAI
+                        PENGERJAAN
+                      </Button>
+                    </div>
 
-                <form onSubmit={handleMulaiUjian} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                    <div className="md:col-span-2">
-                      <Input
-                        type="text"
-                        placeholder={
-                          modeToken === "siswa"
-                            ? "Masukkan Token Unik Siswa Anda..."
-                            : `Masukkan Token Ujian ${activeExamDetail.nama}...`
-                        }
-                        value={tokenInput}
-                        onChange={(e) =>
-                          setTokenInput(e.target.value.toUpperCase())
-                        }
-                        className="w-full px-4 py-3 uppercase font-display font-bold tracking-widest text-sm bg-[#030712]/80 border border-slate-800 focus:border-cyan-400 text-white rounded-xl font-sans"
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="agree"
+                        checked={isAgreed}
+                        onChange={(e) => setIsAgreed(e.target.checked)}
+                        className="w-3.5 h-3.5 accent-cyan-400 rounded cursor-pointer"
                       />
+                      <label
+                        htmlFor="agree"
+                        className="text-[11px] text-slate-400 cursor-pointer select-none font-sans"
+                      >
+                        Saya menyetujui tata tertib pengerjaan ujian{" "}
+                        {activeExamDetail.nama}.
+                      </label>
                     </div>
-                    <Button
-                      type="submit"
-                      disabled={isLoading}
-                      className="w-full py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0 rounded-xl shadow-lg shadow-cyan-400/20 flex items-center justify-center gap-2"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-slate-950" /> MULAI
-                      PENGERJAAN
-                    </Button>
-                  </div>
 
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="agree"
-                      checked={isAgreed}
-                      onChange={(e) => setIsAgreed(e.target.checked)}
-                      className="w-3.5 h-3.5 accent-cyan-400 rounded cursor-pointer"
-                    />
-                    <label
-                      htmlFor="agree"
-                      className="text-[11px] text-slate-400 cursor-pointer select-none font-sans"
-                    >
-                      Saya menyetujui tata tertib pengerjaan ujian{" "}
-                      {activeExamDetail.nama}.
-                    </label>
-                  </div>
-
-                  {tokenError && (
-                    <div className="p-3 bg-rose-500/10 rounded-xl text-rose-400 text-xs flex items-center gap-2 border border-rose-500/20 font-sans">
-                      <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>{tokenError}</span>
-                    </div>
-                  )}
-                </form>
-              </div>
+                    {tokenError && (
+                      <div className="p-3 bg-rose-500/10 rounded-xl text-rose-400 text-xs flex items-center gap-2 border border-rose-500/20 font-sans">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{tokenError}</span>
+                      </div>
+                    )}
+                  </form>
+                </div>
               ) : (
                 <div className="p-6 bg-[#0d1527]/50 backdrop-blur-md rounded-2xl border border-rose-500/30 space-y-3 font-sans text-center">
                   <Button
                     disabled
                     className="w-full py-3 bg-slate-800 text-slate-500 cursor-not-allowed font-display font-bold text-xs rounded-xl"
                   >
-                    🔒 Ujian Terkunci (Kehadiran &lt; {minimalAbsen}%)
+                    🔒 Ujian Terkunci {statusKelayakan === "blokir" ? "(Diblokir Manual)" : `(Kehadiran < ${minimalAbsen}%)`}
                   </Button>
                   <p className="text-[11px] text-rose-400">
-                    Persentase kehadiran kamu baru {persentaseKehadiran}%.
-                    Silakan hubungi Pengawas untuk izin khusus.
+                    {statusKelayakan === "blokir"
+                      ? "Akses pengerjaan ujian Anda saat ini diblokir secara manual oleh Pengawas."
+                      : `Persentase kehadiran kamu baru ${persentaseKehadiran}%. Silakan hubungi Pengawas untuk izin khusus.`}
                   </p>
                 </div>
               )}
