@@ -1107,11 +1107,11 @@ export default function DashboardPeserta() {
                     disabled
                     className="w-full py-3 bg-slate-800 text-slate-500 cursor-not-allowed font-display font-bold text-xs rounded-xl"
                   >
-                    🔒 Ujian Terkunci {statusKelayakan === "blokir" ? "(Diblokir Manual)" : `(Kehadiran < ${minimalAbsen}%)`}
+                    🔒 Ujian Terkunci {statusKelayakan === "blokir" ? "(Diblokir)" : `(Kehadiran < ${minimalAbsen}%)`}
                   </Button>
                   <p className="text-[11px] text-rose-400">
                     {statusKelayakan === "blokir"
-                      ? "Akses pengerjaan ujian Anda saat ini diblokir secara manual oleh Pengawas."
+                      ? "Akses pengerjaan ujian Anda saat ini diblokir oleh Pengawas."
                       : `Persentase kehadiran kamu baru ${persentaseKehadiran}%. Silakan hubungi Pengawas untuk izin khusus.`}
                   </p>
                 </div>
