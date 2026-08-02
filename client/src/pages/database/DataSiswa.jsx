@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { supabase, TABLES } from "../../utils/supabaseClient";
 import Sidebar from "../../components/ui/Sidebar";
 import Navbar from "../../components/ui/Navbar";
@@ -15,15 +15,20 @@ import {
   Save,
   QrCode,
   GraduationCap,
+  Upload,
+  Download,
+  FileSpreadsheet,
 } from "lucide-react";
 
 export default function DataSiswa() {
-  const [activeTab, setActiveTab] = useState("siswa"); // 'siswa' atau 'kurikulum'
+  const [activeTab, setActiveTab] = useState("siswa");
   const [listSiswa, setListSiswa] = useState([]);
   const [listModul, setListModul] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterSemester, setFilterSemester] = useState("semua");
+
+  const fileInputRef = useRef(null);
 
   // State Modal Form Siswa
   const [isModalSiswaOpen, setIsModalSiswaOpen] = useState(false);
@@ -37,7 +42,7 @@ export default function DataSiswa() {
     semester: "Semester 1",
   });
 
-  // State Modal Form Modul/Pembelajaran
+  // State Modal Form Modul
   const [isModalModulOpen, setIsModalModulOpen] = useState(false);
   const [formModul, setFormModul] = useState({
     semester: "Semester 1",
@@ -80,11 +85,11 @@ export default function DataSiswa() {
         setListModul(data);
       }
     } catch (err) {
-      console.warn("Tabel modul_pembelajaran belum tersedia, menggunakan data default.");
+      console.warn("Mata pelajaran belum termuat:", err);
     }
   };
 
-  // --- HANDLER SISWA ---
+  // --- HANDLER SISWA MANUAL ---
   const handleOpenModalSiswa = (siswa = null) => {
     if (siswa) {
       setEditingSiswaId(siswa.id);
@@ -161,6 +166,85 @@ export default function DataSiswa() {
     }
   };
 
+  // --- HANDLER IMPORT CSV MASSAL ---
+  const handleDownloadTemplate = () => {
+    const csvHeader = "nama,tech_id,semester,tempat_lahir,tanggal_lahir,alamat\n";
+    const csvExample = "Ahmad Rizki,DCC-1001,Semester 1,Serang,2005-08-12,Jl Merdeka No 12\nBudi Santoso,DCC-1002,Semester 2,Cilegon,2004-05-20,Jl Anyer KM 5\n";
+    
+    const blob = new Blob([csvHeader + csvExample], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "template_import_siswa_dcc.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleUploadCSV = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const text = evt.target.result;
+        const lines = text.split("\n").filter((line) => line.trim() !== "");
+        if (lines.length <= 1) {
+          alert("File CSV kosong atau tidak memiliki data.");
+          return;
+        }
+
+        const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
+        const dataToInsert = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(",").map((v) => v.trim());
+          if (values.length < 2) continue;
+
+          const rowObj = {};
+          headers.forEach((header, index) => {
+            rowObj[header] = values[index] || "";
+          });
+
+          if (rowObj.nama) {
+            dataToInsert.push({
+              nama: rowObj.nama,
+              nama_lengkap: rowObj.nama,
+              tech_id: rowObj.tech_id || `DCC-${Math.floor(1000 + Math.random() * 9000)}`,
+              semester: rowObj.semester || "Semester 1",
+              tempat_lahir: rowObj.tempat_lahir || "",
+              tanggal_lahir: rowObj.tanggal_lahir || null,
+              alamat: rowObj.alamat || "",
+              kategori: "Siswa",
+            });
+          }
+        }
+
+        if (dataToInsert.length === 0) {
+          alert("Tidak ada data valid yang bisa diimport.");
+          return;
+        }
+
+        setIsLoading(true);
+        const { error } = await supabase
+          .from(TABLES.PESERTA || "peserta")
+          .insert(dataToInsert);
+
+        if (error) throw error;
+
+        alert(`Berhasil mengimpor ${dataToInsert.length} data siswa secara otomatis! 🎉`);
+        loadDataSiswa();
+      } catch (err) {
+        alert("Gagal mengimpor CSV: " + err.message);
+      } finally {
+        setIsLoading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    };
+    reader.readAsText(file);
+  };
+
   // --- HANDLER MODUL PEMBELAJARAN ---
   const handleSaveModul = async (e) => {
     e.preventDefault();
@@ -168,14 +252,20 @@ export default function DataSiswa() {
     try {
       const { error } = await supabase
         .from("modul_pembelajaran")
-        .insert([formModul]);
+        .insert([{
+          semester: formModul.semester,
+          nama_modul: formModul.nama_modul,
+          deskripsi: formModul.deskripsi
+        }]);
 
       if (error) throw error;
+      
       setIsModalModulOpen(false);
       setFormModul({ semester: "Semester 1", nama_modul: "", deskripsi: "" });
       loadDataModul();
+      alert("Berhasil menambah modul materi! 🎉");
     } catch (err) {
-      alert("Gagal menyimpan materi pembelajaran.");
+      alert("Gagal menyimpan materi pembelajaran: " + err.message);
     } finally {
       setIsSaving(false);
     }
@@ -184,10 +274,11 @@ export default function DataSiswa() {
   const handleDeleteModul = async (id) => {
     if (!window.confirm("Hapus materi ini?")) return;
     try {
-      await supabase.from("modul_pembelajaran").delete().eq("id", id);
+      const { error } = await supabase.from("modul_pembelajaran").delete().eq("id", id);
+      if (error) throw error;
       loadDataModul();
     } catch (err) {
-      alert("Gagal menghapus.");
+      alert("Gagal menghapus modul: " + err.message);
     }
   };
 
@@ -256,9 +347,9 @@ export default function DataSiswa() {
           {/* TAB 1: MASTER DATA SISWA */}
           {activeTab === "siswa" && (
             <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#0d1527]/70 p-4 border border-slate-800 rounded-2xl">
-                <div className="flex items-center gap-3 flex-1">
-                  <div className="relative flex-1 max-w-md">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-[#0d1527]/70 p-4 border border-slate-800 rounded-2xl">
+                <div className="flex flex-wrap items-center gap-3 flex-1">
+                  <div className="relative flex-1 min-w-[200px] max-w-md">
                     <input
                       type="text"
                       value={searchQuery}
@@ -283,12 +374,40 @@ export default function DataSiswa() {
                   </select>
                 </div>
 
-                <Button
-                  onClick={() => handleOpenModalSiswa()}
-                  className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 text-xs font-bold border-0 flex items-center gap-2"
-                >
-                  <UserPlus className="w-4 h-4" /> Tambah Siswa Baru
-                </Button>
+                {/* TOMBOL IMPORT & TAMBAH */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={handleDownloadTemplate}
+                    title="Unduh contoh format CSV"
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all"
+                  >
+                    <Download className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Template CSV</span>
+                  </button>
+
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleUploadCSV}
+                    accept=".csv"
+                    className="hidden"
+                  />
+
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Import CSV</span>
+                  </button>
+
+                  <Button
+                    onClick={() => handleOpenModalSiswa()}
+                    className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 text-xs font-bold border-0 flex items-center gap-1.5"
+                  >
+                    <UserPlus className="w-4 h-4" /> Tambah Siswa
+                  </Button>
+                </div>
               </div>
 
               <div className="bg-[#0d1527]/60 border border-slate-800 rounded-2xl overflow-hidden">
