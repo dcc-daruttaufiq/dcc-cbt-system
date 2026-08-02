@@ -35,6 +35,8 @@ const AbsensiScan = lazy(() => import("../pages/presensi/AbsensiScan"));
 const DashboardPeserta = lazy(() => import("../pages/ujian/DashboardPeserta"));
 const RuangUjian = lazy(() => import("../pages/ujian/RuangUjian"));
 const PengaturanUjian = lazy(() => import("../pages/ujian/PengaturanUjian"));
+// ➕ TAMBAHAN: Monitoring & Koreksi Ujian
+const MonitoringUjian = lazy(() => import("../pages/ujian/MonitoringUjian"));
 
 // 🚀 Folder fitur_tambahan/
 const NotifikasiWhatsapp = lazy(
@@ -109,6 +111,15 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <DashboardAdmin />
+          </SuspenseWrapper>
+        ),
+      },
+      // ➕ ROUTE BARU: Koreksi & Live Monitoring Ujian
+      {
+        path: "koreksi-ujian",
+        element: (
+          <SuspenseWrapper>
+            <MonitoringUjian />
           </SuspenseWrapper>
         ),
       },
