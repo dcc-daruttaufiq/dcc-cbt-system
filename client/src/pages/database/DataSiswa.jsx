@@ -122,6 +122,7 @@ export default function DataSiswa() {
         tanggal_lahir: formSiswa.tanggal_lahir || null,
         alamat: formSiswa.alamat,
         semester: formSiswa.semester,
+        kategori: "Siswa",
       };
 
       if (editingSiswaId) {
