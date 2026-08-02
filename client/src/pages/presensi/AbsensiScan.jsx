@@ -301,7 +301,7 @@ export default function AbsensiScan() {
 
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
-      <Sidebar userRole="Pengawas" />
+      <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
         <Navbar>
