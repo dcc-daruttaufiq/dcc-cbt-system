@@ -673,123 +673,6 @@ export default function PengaturanUjian() {
               </form>
             </div>
 
-            {/* 🌟 BARIS BARU 1.6: TABEL OVERRIDE DISPENSASI SISWA 🌟 */}
-            <div className="p-6 bg-[#0d1527]/60 border border-slate-800 rounded-2xl shadow-xl space-y-4 font-sans">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-sm font-display font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                    <ShieldAlert className="w-4 h-4 text-amber-400" />
-                    DISPENSASI / OVERRIDE KELAYAKAN UJIAN SISWA
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Buka kunci ujian secara manual bagi siswa yang persentase keikutsertaannya rendah (Dispensasi / Izin Khusus).
-                  </p>
-                </div>
-
-                <div className="relative max-w-xs">
-                  <Input
-                    type="text"
-                    value={searchQuerySiswa}
-                    onChange={(e) => setSearchQuerySiswa(e.target.value)}
-                    placeholder="Cari Nama / TechID..."
-                    className="w-full bg-[#030712] border-slate-800 text-xs rounded-xl pl-9 pr-3 py-1.5"
-                  />
-                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                </div>
-              </div>
-
-              <div className="overflow-x-auto border border-slate-800/80 rounded-xl">
-                <table className="w-full text-xs text-left">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] font-bold bg-[#0a101d]">
-                      <th className="p-3">Nama Siswa</th>
-                      <th className="p-3">TechID</th>
-                      <th className="p-3">Semester</th>
-                      <th className="p-3">Status Akses Ujian</th>
-                      <th className="p-3 text-right">Aksi Override</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {siswaFiltered.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" className="p-6 text-center text-slate-500">
-                          Data siswa tidak ditemukan.
-                        </td>
-                      </tr>
-                    ) : (
-                      siswaFiltered.map((s) => {
-                        const status = s.status_kelayakan || "otomatis";
-                        return (
-                          <tr
-                            key={s.id}
-                            className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-all"
-                          >
-                            <td className="p-3 font-bold text-white">
-                              {s.nama || s.nama_lengkap || "-"}
-                            </td>
-                            <td className="p-3 font-mono text-cyan-400">{s.tech_id || "-"}</td>
-                            <td className="p-3 text-slate-400">{s.semester || "Semester 1"}</td>
-                            <td className="p-3">
-                              {status === "dispensasi" && (
-                                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold text-[10px] flex items-center gap-1 w-fit">
-                                  <Unlock className="w-3 h-3" /> Dispensasi (Izin Terbuka)
-                                </span>
-                              )}
-                              {status === "blokir" && (
-                                <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold text-[10px] flex items-center gap-1 w-fit">
-                                  <Lock className="w-3 h-3" /> Diblokir Manual
-                                </span>
-                              )}
-                              {status === "otomatis" && (
-                                <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-bold text-[10px] flex items-center gap-1 w-fit">
-                                  <CheckCircle2 className="w-3 h-3 text-cyan-400" /> Sesuai Absen (Otomatis)
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-3 text-right space-x-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleChangeStatusSiswa(s.id, "otomatis")}
-                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
-                                  status === "otomatis"
-                                    ? "bg-cyan-500 text-slate-950"
-                                    : "bg-slate-800 text-slate-400 hover:text-white"
-                                }`}
-                              >
-                                Otomatis
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleChangeStatusSiswa(s.id, "dispensasi")}
-                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
-                                  status === "dispensasi"
-                                    ? "bg-emerald-400 text-slate-950"
-                                    : "bg-slate-800 text-slate-400 hover:text-emerald-400"
-                                }`}
-                              >
-                                Beri Dispensasi
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleChangeStatusSiswa(s.id, "blokir")}
-                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
-                                  status === "blokir"
-                                    ? "bg-rose-500 text-white"
-                                    : "bg-slate-800 text-slate-400 hover:text-rose-400"
-                                }`}
-                              >
-                                Blokir
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
             {/* MASTER MATA UJIAN - TABLE GRID TEGAK LURUS PERFEK */}
             <div className="p-6 bg-[#0d1527]/60 border border-slate-800 rounded-2xl space-y-6 shadow-xl">
               <div className="border-b border-slate-800/80 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -955,6 +838,123 @@ export default function PengaturanUjian() {
                   </div>
                 </form>
               )}
+            </div>
+
+            {/* 🌟 BARIS BARU 1.6: TABEL OVERRIDE DISPENSASI SISWA 🌟 */}
+            <div className="p-6 bg-[#0d1527]/60 border border-slate-800 rounded-2xl shadow-xl space-y-4 font-sans">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-display font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-amber-400" />
+                    DISPENSASI / OVERRIDE KELAYAKAN UJIAN SISWA
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Buka kunci ujian secara manual bagi siswa yang persentase keikutsertaannya rendah (Dispensasi / Izin Khusus).
+                  </p>
+                </div>
+
+                <div className="relative max-w-xs">
+                  <Input
+                    type="text"
+                    value={searchQuerySiswa}
+                    onChange={(e) => setSearchQuerySiswa(e.target.value)}
+                    placeholder="Cari Nama / TechID..."
+                    className="w-full bg-[#030712] border-slate-800 text-xs rounded-xl pl-9 pr-3 py-1.5"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-800/80 rounded-xl">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] font-bold bg-[#0a101d]">
+                      <th className="p-3">Nama Siswa</th>
+                      <th className="p-3">TechID</th>
+                      <th className="p-3">Semester</th>
+                      <th className="p-3">Status Akses Ujian</th>
+                      <th className="p-3 text-right">Aksi Override</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {siswaFiltered.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" className="p-6 text-center text-slate-500">
+                          Data siswa tidak ditemukan.
+                        </td>
+                      </tr>
+                    ) : (
+                      siswaFiltered.map((s) => {
+                        const status = s.status_kelayakan || "otomatis";
+                        return (
+                          <tr
+                            key={s.id}
+                            className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-all"
+                          >
+                            <td className="p-3 font-bold text-white">
+                              {s.nama || s.nama_lengkap || "-"}
+                            </td>
+                            <td className="p-3 font-mono text-cyan-400">{s.tech_id || "-"}</td>
+                            <td className="p-3 text-slate-400">{s.semester || "Semester 1"}</td>
+                            <td className="p-3">
+                              {status === "dispensasi" && (
+                                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold text-[10px] flex items-center gap-1 w-fit">
+                                  <Unlock className="w-3 h-3" /> Dispensasi (Izin Terbuka)
+                                </span>
+                              )}
+                              {status === "blokir" && (
+                                <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold text-[10px] flex items-center gap-1 w-fit">
+                                  <Lock className="w-3 h-3" /> Diblokir Manual
+                                </span>
+                              )}
+                              {status === "otomatis" && (
+                                <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-bold text-[10px] flex items-center gap-1 w-fit">
+                                  <CheckCircle2 className="w-3 h-3 text-cyan-400" /> Sesuai Absen (Otomatis)
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3 text-right space-x-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleChangeStatusSiswa(s.id, "otomatis")}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                                  status === "otomatis"
+                                    ? "bg-cyan-500 text-slate-950"
+                                    : "bg-slate-800 text-slate-400 hover:text-white"
+                                }`}
+                              >
+                                Otomatis
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleChangeStatusSiswa(s.id, "dispensasi")}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                                  status === "dispensasi"
+                                    ? "bg-emerald-400 text-slate-950"
+                                    : "bg-slate-800 text-slate-400 hover:text-emerald-400"
+                                }`}
+                              >
+                                Beri Dispensasi
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleChangeStatusSiswa(s.id, "blokir")}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                                  status === "blokir"
+                                    ? "bg-rose-500 text-white"
+                                    : "bg-slate-800 text-slate-400 hover:text-rose-400"
+                                }`}
+                              >
+                                Blokir
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </main>
