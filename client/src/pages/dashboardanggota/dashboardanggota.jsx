@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { supabase, TABLES } from "../utils/supabaseClient"; // Sesuaikan path utils kamu
-import Sidebar from "../components/ui/Sidebar"; // Sesuaikan path ui kamu
-import Navbar from "../components/ui/Navbar"; // Sesuaikan path ui kamu
+import { supabase, TABLES } from "../../utils/supabaseClient"; // Sesuaikan path utils kamu
+import Sidebar from "../../components/ui/Sidebar"; // Sesuaikan path ui kamu
+import Navbar from "../../components/ui/Navbar"; // Sesuaikan path ui kamu
 import {
   Users,
   CheckSquare,
