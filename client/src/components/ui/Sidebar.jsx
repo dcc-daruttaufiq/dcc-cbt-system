@@ -33,9 +33,9 @@ export default function Sidebar() {
     <aside className="w-64 bg-[#0a101d] border-r border-slate-800/80 min-h-screen p-4 flex flex-col justify-between shrink-0 font-sans">
       <div className="space-y-6">
         
-        {/* BRANDING LOGO LEMBAGA */}
+        {/* BRANDING LOGO LEMBAGA (BERSIH TANPA BINGKAI/BORDER) */}
         <div className="flex items-center gap-3 px-2 py-1">
-          <div className="w-10 h-10 rounded-xl bg-white/5 border border-cyan-400/30 flex items-center justify-center p-1 shrink-0 overflow-hidden shadow-sm">
+          <div className="w-9 h-9 flex items-center justify-center shrink-0">
             <img
               src={dccLogo}
               alt="Logo DCC"
