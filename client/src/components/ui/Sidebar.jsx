@@ -6,7 +6,7 @@ import dccLogo from "../../assets/logo/logo.png";
 
 import {
   Home,
-  CheckSquare,
+  Activity,
   QrCode,
   ClipboardList,
   Database,
@@ -74,7 +74,7 @@ export default function Sidebar() {
               <span>Menu Utama</span>
             </button>
 
-            {/* Koreksi Ujian */}
+            {/* Monitoring Ujian */}
             <button
               onClick={() => navigate("/koreksi-ujian")}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
@@ -83,8 +83,8 @@ export default function Sidebar() {
                   : "text-slate-400 hover:text-white hover:bg-slate-800/50"
               }`}
             >
-              <CheckSquare className="w-4 h-4" />
-              <span>Koreksi Ujian</span>
+              <Activity className="w-4 h-4" />
+              <span>Monitoring Ujian</span>
             </button>
 
             {/* Repositori Soal */}
@@ -113,7 +113,7 @@ export default function Sidebar() {
               <span>Pengaturan Ujian</span>
             </button>
 
-            {/* Nilai Akhir (Sudah diarahkan ke /nilai-akhir) */}
+            {/* Nilai Akhir */}
             <button
               onClick={() => navigate("/nilai-akhir")}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
