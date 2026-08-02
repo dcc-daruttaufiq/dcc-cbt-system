@@ -7,6 +7,7 @@ import dccLogo from "../../assets/logo/logo.png";
 import {
   Home,
   Activity,
+  Users, // 👈 Icon untuk Data Siswa
   QrCode,
   ClipboardList,
   Database,
@@ -72,6 +73,19 @@ export default function Sidebar() {
             >
               <Home className="w-4 h-4" />
               <span>Menu Utama</span>
+            </button>
+
+            {/* Data Siswa & Kurikulum */}
+            <button
+              onClick={() => navigate("/data-siswa")}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+                isActive("/data-siswa")
+                  ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-bold"
+                  : "text-slate-400 hover:text-white hover:bg-slate-800/50"
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>Data Siswa</span>
             </button>
 
             {/* Monitoring Ujian */}

@@ -18,10 +18,11 @@ const Laporan = lazy(() => import("../pages/database/NilaiAkhir"));
 const Fasilitasdcc = lazy(() => import("../pages/database/Fasilitasdcc"));
 const PeminjamanAset = lazy(() => import("../pages/database/PeminjamanAset"));
 const PortalAlumni = lazy(() => import("../pages/database/PortalAlumni"));
+const DataSiswa = lazy(() => import("../pages/database/DataSiswa")); // 👈 Halaman Master Data Siswa
 
 // 👥 Folder dashboardanggota/
 const DashboardAnggota = lazy(
-  () => import("../pages/dashboardanggota/dashboardanggota"),
+  () => import("../pages/dashboardanggota/dashboardanggota")
 );
 
 // 🔐 Folder auth/
@@ -39,10 +40,10 @@ const MonitoringUjian = lazy(() => import("../pages/ujian/MonitoringUjian"));
 
 // 🚀 Folder fitur_tambahan/
 const NotifikasiWhatsapp = lazy(
-  () => import("../pages/fitur_tambahan/NotifikasiWhatsapp"),
+  () => import("../pages/fitur_tambahan/NotifikasiWhatsapp")
 );
 const PoinGamifikasi = lazy(
-  () => import("../pages/fitur_tambahan/PoinGamifikasi"),
+  () => import("../pages/fitur_tambahan/PoinGamifikasi")
 );
 
 // Wrapper Suspense
@@ -136,7 +137,6 @@ export const router = createBrowserRouter([
           </SuspenseWrapper>
         ),
       },
-      // 📊 Laporan tetap ada untuk fallback, dan Nilai Akhir mengarah ke halaman Laporan/Nilai ini
       {
         path: "laporan",
         element: (
@@ -230,6 +230,15 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <PortalAlumni />
+          </SuspenseWrapper>
+        ),
+      },
+      // 🎓 Route Baru: Master Data Siswa & Kurikulum
+      {
+        path: "data-siswa",
+        element: (
+          <SuspenseWrapper>
+            <DataSiswa />
           </SuspenseWrapper>
         ),
       },
