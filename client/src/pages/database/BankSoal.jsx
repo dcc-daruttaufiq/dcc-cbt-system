@@ -51,6 +51,7 @@ export default function BankSoal() {
 
   // State untuk Pilihan Checkbox (Bulk Delete)
   const [selectedIds, setSelectedIds] = useState([]);
+  const [deletingId, setDeletingId] = useState(null);
 
   // Form States
   const [kategori, setKategori] = useState("word");
@@ -193,6 +194,7 @@ export default function BankSoal() {
   // FITUR 1: HAPUS SATU SOAL
   const handleDelete = async (id) => {
     if (!confirm("Apakah Anda yakin ingin menghapus soal ini?")) return;
+    setDeletingId(id);
 
     try {
       const { error, data: berhasil } = await supabase.rpc("hapus_soal", {
@@ -210,6 +212,8 @@ export default function BankSoal() {
     } catch (err) {
       console.error("Gagal menghapus soal di Supabase Cloud:", err);
       alert("Gagal menghapus soal di Supabase Cloud.");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -706,12 +710,17 @@ export default function BankSoal() {
                         >
                           <Edit3 className="w-4 h-4" />
                         </button>
-                        <button
+                       <button
                           onClick={() => handleDelete(row.id)}
-                          className="p-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition"
+                          disabled={deletingId === row.id}
+                          className="p-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition disabled:opacity-40"
                           title="Hapus Soal ini"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          {deletingId === row.id ? (
+                            <Trash2 className="w-4 h-4 animate-pulse" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
                         </button>
                       </div>
                     </div>

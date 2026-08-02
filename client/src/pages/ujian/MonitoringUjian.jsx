@@ -89,6 +89,7 @@ export default function MonitoringUjian() {
 
   // State Checkbox Bulk Delete
   const [selectedIds, setSelectedIds] = useState([]);
+  const [deletingId, setDeletingId] = useState(null);
 
   // Filter Status (6 Tab Utama)
   const [filterPeserta, setFilterPeserta] = useState("semua");
@@ -800,6 +801,7 @@ export default function MonitoringUjian() {
 
   const handleDeleteSingle = async (pesertaId, nama) => {
     if (!confirm(`Hapus data peserta "${nama}"?`)) return;
+    setDeletingId(pesertaId);
 
     try {
 const { error, data: berhasil } = await supabase.rpc("hapus_peserta", {
@@ -817,6 +819,8 @@ const { error, data: berhasil } = await supabase.rpc("hapus_peserta", {
       logAudit("HAPUS_PESERTA", `Menghapus peserta: ${nama}`);
     } catch (err) {
       showToast("Gagal menghapus peserta.", "error");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -1736,10 +1740,15 @@ const { error, data: berhasil } = await supabase.rpc("hapus_peserta", {
                               onClick={() =>
                                 handleDeleteSingle(p.id, p.nama || p.nama_lengkap)
                               }
-                              className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                              disabled={deletingId === p.id}
+                              className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition disabled:opacity-40"
                               title="Hapus Peserta (khusus Lead Instruktur)"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              {deletingId === p.id ? (
+                                <Trash2 className="w-3.5 h-3.5 animate-pulse" />
+                              ) : (
+                                <Trash2 className="w-3.5 h-3.5" />
+                              )}
                             </button>
                           )}
                         </div>
