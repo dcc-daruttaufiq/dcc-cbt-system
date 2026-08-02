@@ -802,22 +802,12 @@ export default function MonitoringUjian() {
     if (!confirm(`Hapus data peserta "${nama}"?`)) return;
 
     try {
-      const targetPeserta = peserta.find((p) => p.id === pesertaId);
-      const { error } = await supabase
-        .from(TABLES.PESERTA)
-        .delete()
-        .eq("id", pesertaId);
+const { error, data: berhasil } = await supabase.rpc("hapus_peserta", {
+        p_id: pesertaId,
+      });
       if (error) throw error;
-
-      if (targetPeserta?.tech_id) {
-        try {
-          await supabase
-            .from(TABLES.JAWABAN_PESERTA)
-            .delete()
-            .eq("tech_id", targetPeserta.tech_id);
-        } catch (e) {
-          console.warn("Gagal menghapus jawaban terkait peserta ini.", e);
-        }
+      if (!berhasil) {
+        throw new Error("Peserta tidak ditemukan / gagal dihapus di database.");
       }
 
       const updated = peserta.filter((p) => p.id !== pesertaId);
@@ -839,25 +829,13 @@ export default function MonitoringUjian() {
     if (!confirm(`Hapus ${selectedIds.length} peserta terpilih?`)) return;
 
     try {
-      const targetTechIds = peserta
-        .filter((p) => selectedIds.includes(p.id))
-        .map((p) => p.tech_id)
-        .filter(Boolean);
-      const { error } = await supabase
-        .from(TABLES.PESERTA)
-        .delete()
-        .in("id", selectedIds);
+      const { error, data: jumlahTerhapus } = await supabase.rpc(
+        "hapus_peserta_bulk",
+        { p_ids: selectedIds },
+      );
       if (error) throw error;
-
-      if (targetTechIds.length > 0) {
-        try {
-          await supabase
-            .from(TABLES.JAWABAN_PESERTA)
-            .delete()
-            .in("tech_id", targetTechIds);
-        } catch (e) {
-          console.warn("Gagal menghapus jawaban terkait peserta terpilih.", e);
-        }
+      if (!jumlahTerhapus) {
+        throw new Error("Tidak ada peserta yang terhapus di database.");
       }
 
       const updated = peserta.filter((p) => !selectedIds.includes(p.id));
@@ -883,21 +861,8 @@ export default function MonitoringUjian() {
       return;
 
     try {
-      const idsToDelete = peserta.map((p) => p.id).filter(Boolean);
-      const techIdsToDelete = peserta.map((p) => p.tech_id).filter(Boolean);
-      if (idsToDelete.length > 0) {
-        await supabase.from(TABLES.PESERTA).delete().in("id", idsToDelete);
-      }
-      if (techIdsToDelete.length > 0) {
-        try {
-          await supabase
-            .from(TABLES.JAWABAN_PESERTA)
-            .delete()
-            .in("tech_id", techIdsToDelete);
-        } catch (e) {
-          console.warn("Gagal menghapus jawaban terkait semua peserta.", e);
-        }
-      }
+      const { error } = await supabase.rpc("hapus_semua_peserta");
+      if (error) throw error;
       setPeserta([]);
       localStorage.setItem(STORAGE_KEYS.PESERTA, JSON.stringify([]));
       localStorage.removeItem("dcc_persistent_tokens");

@@ -195,11 +195,13 @@ export default function BankSoal() {
     if (!confirm("Apakah Anda yakin ingin menghapus soal ini?")) return;
 
     try {
-      const { error } = await supabase
-        .from(TABLES.BANK_SOAL)
-        .delete()
-        .eq("id", id);
+      const { error, data: berhasil } = await supabase.rpc("hapus_soal", {
+        p_id: id,
+      });
       if (error) throw error;
+      if (!berhasil) {
+        throw new Error("Soal tidak ditemukan / gagal dihapus di database.");
+      }
 
       const updated = listSoal.filter((item) => item.id !== id);
       setDataSoal(updated);
@@ -223,11 +225,14 @@ export default function BankSoal() {
       return;
 
     try {
-      const { error } = await supabase
-        .from(TABLES.BANK_SOAL)
-        .delete()
-        .in("id", selectedIds);
+      const { error, data: jumlahTerhapus } = await supabase.rpc(
+        "hapus_soal_bulk",
+        { p_ids: selectedIds },
+      );
       if (error) throw error;
+      if (!jumlahTerhapus) {
+        throw new Error("Tidak ada soal yang terhapus di database.");
+      }
 
       const updated = listSoal.filter((item) => !selectedIds.includes(item.id));
       setDataSoal(updated);
@@ -252,14 +257,8 @@ export default function BankSoal() {
       return;
 
     try {
-      const idsToDelete = listSoal.map((s) => s.id).filter(Boolean);
-      if (idsToDelete.length > 0) {
-        const { error } = await supabase
-          .from(TABLES.BANK_SOAL)
-          .delete()
-          .in("id", idsToDelete);
-        if (error) throw error;
-      }
+      const { error } = await supabase.rpc("hapus_semua_soal");
+      if (error) throw error;
 
       setDataSoal([]);
       setSelectedIds([]);
