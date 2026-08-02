@@ -28,6 +28,8 @@ import {
   CheckSquare,
   Database,
   FileBarChart,
+  ShieldAlert,
+  Search,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -102,6 +104,12 @@ export default function PengaturanUjian() {
   const [isSaving, setIsSaving] = useState(false);
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
+
+  // 🌟 FITUR BARU: SYARAT KEHADIRAN & DISPENSASI MANUALLY 🌟
+  const [minKehadiran, setMinKehadiran] = useState("75");
+  const [listSiswaAbsen, setListSiswaAbsen] = useState([]);
+  const [searchQuerySiswa, setSearchQuerySiswa] = useState("");
+  const [isSavingKehadiran, setIsSavingKehadiran] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -183,6 +191,31 @@ export default function PengaturanUjian() {
         setModeToken(mt.mode || "mapel");
         localStorage.setItem("dcc_mode_token", mt.mode || "mapel");
       }
+
+      // 4. 🌟 Fetch Syarat Kehadiran Minimal Global 🌟
+      const { data: dataMinAbsen } = await supabase
+        .from(TABLES.PENGATURAN_UJIAN || "pengaturan_ujian")
+        .select("*")
+        .eq("key", "min_kehadiran_persen")
+        .maybeSingle();
+
+      if (dataMinAbsen && dataMinAbsen.value) {
+        const val = typeof dataMinAbsen.value === "string" ? dataMinAbsen.value : dataMinAbsen.value.val;
+        setMinKehadiran(String(val || "75"));
+        localStorage.setItem("dcc_min_kehadiran", String(val || "75"));
+      } else {
+        const localMin = localStorage.getItem("dcc_min_kehadiran");
+        if (localMin) setMinKehadiran(localMin);
+      }
+
+      // 5. 🌟 Fetch Data Siswa Untuk Dispensasi 🌟
+      const { data: dataSiswa } = await supabase
+        .from(TABLES.PESERTA || "peserta")
+        .select("*")
+        .order("nama", { ascending: true });
+
+      if (dataSiswa) setListSiswaAbsen(dataSiswa);
+
     } catch (err) {
       console.warn("Membaca pengaturan dari cache lokal...", err);
       const localKatalog = localStorage.getItem("dcc_katalog_mapel");
@@ -196,6 +229,9 @@ export default function PengaturanUjian() {
 
       const localModeToken = localStorage.getItem("dcc_mode_token");
       if (localModeToken) setModeToken(localModeToken);
+
+      const localMin = localStorage.getItem("dcc_min_kehadiran");
+      if (localMin) setMinKehadiran(localMin);
     } finally {
       setIsLoading(false);
     }
@@ -204,6 +240,53 @@ export default function PengaturanUjian() {
   useEffect(() => {
     loadPengaturan();
   }, []);
+
+  // 🌟 Handler Simpan Batas Kehadiran Minimal 🌟
+  const handleSaveMinKehadiran = async (e) => {
+    e.preventDefault();
+    setIsSavingKehadiran(true);
+    localStorage.setItem("dcc_min_kehadiran", minKehadiran);
+
+    try {
+      await supabase.from(TABLES.PENGATURAN_UJIAN || "pengaturan_ujian").upsert(
+        {
+          key: "min_kehadiran_persen",
+          value: minKehadiran,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" }
+      );
+      setMessage({
+        type: "success",
+        text: `Syarat minimal kehadiran ujian berhasil diset ke ${minKehadiran}%!`,
+      });
+    } catch (err) {
+      setMessage({
+        type: "warning",
+        text: "Syarat kehadiran tersimpan di lokal browser.",
+      });
+    } finally {
+      setIsSavingKehadiran(false);
+    }
+  };
+
+  // 🌟 Handler Ubah Status Kelayakan Ujian Siswa (Dispensasi/Blokir/Otomatis) 🌟
+  const handleChangeStatusSiswa = async (id, statusBaru) => {
+    try {
+      const { error } = await supabase
+        .from(TABLES.PESERTA || "peserta")
+        .update({ status_kelayakan: statusBaru })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      setListSiswaAbsen((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, status_kelayakan: statusBaru } : s))
+      );
+    } catch (err) {
+      alert("Gagal memperbarui status siswa: " + err.message);
+    }
+  };
 
   const handleToggleStatusSesi = async () => {
     const nextStatus = statusSesi === "DIBUKA" ? "DITUTUP" : "DIBUKA";
@@ -419,6 +502,13 @@ export default function PengaturanUjian() {
     setIsModalOpen(false);
   };
 
+  const siswaFiltered = listSiswaAbsen.filter((s) => {
+    const q = searchQuerySiswa.toLowerCase();
+    const nama = (s.nama || s.nama_lengkap || "").toLowerCase();
+    const techId = (s.tech_id || "").toLowerCase();
+    return nama.includes(q) || techId.includes(q);
+  });
+
   return (
     <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
       <Sidebar links={menuPengawas} userRole="Pengawas" />
@@ -432,7 +522,7 @@ export default function PengaturanUjian() {
                 PENGATURAN UJIAN
               </h1>
               <p className="text-xs text-slate-400 font-sans">
-                Kontrol Akses Sesi, Mode Token, KKM & Bobot Nilai
+                Kontrol Akses Sesi, Syarat Kehadiran, Mode Token, KKM &amp; Bobot Nilai
               </p>
             </div>
           </div>
@@ -482,7 +572,7 @@ export default function PengaturanUjian() {
                 >
                   {statusSesi === "DIBUKA" ? (
                     <>
-                      <Lock className="w-4 h-4" /> KUNCI & TUTUP SESI
+                      <Lock className="w-4 h-4" /> KUNCI &amp; TUTUP SESI
                     </>
                   ) : (
                     <>
@@ -541,13 +631,172 @@ export default function PengaturanUjian() {
               </div>
             </div>
 
+            {/* 🌟 BARIS BARU 1.5: ATURAN SYARAT PERSENTASE KEHADIRAN 🌟 */}
+            <div className="p-6 bg-[#0d1527]/80 border border-slate-800 rounded-2xl shadow-xl space-y-4 font-sans">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                  <Percent className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-display font-bold text-white uppercase tracking-wider">
+                    ATURAN SYARAT ABSENSI / KEHADIRAN MINIMAL
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Siswa dengan persentase kehadiran di bawah angka ini otomatis terkunci ujiannya (Set 0% jika ingin membebaskan syarat).
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveMinKehadiran} className="flex items-center gap-3 pt-1">
+                <div className="relative w-40">
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={minKehadiran}
+                    onChange={(e) => setMinKehadiran(e.target.value)}
+                    className="w-full bg-[#030712] border-slate-800 text-sm font-bold text-cyan-400 pr-8 rounded-xl font-mono text-center"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500">
+                    %
+                  </span>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={isSavingKehadiran}
+                  className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs px-5 py-2.5 border-0 rounded-xl flex items-center gap-1.5"
+                >
+                  <Save className="w-4 h-4" />
+                  {isSavingKehadiran ? "Menyimpan..." : "Simpan Aturan Absen"}
+                </Button>
+              </form>
+            </div>
+
+            {/* 🌟 BARIS BARU 1.6: TABEL OVERRIDE DISPENSASI SISWA 🌟 */}
+            <div className="p-6 bg-[#0d1527]/60 border border-slate-800 rounded-2xl shadow-xl space-y-4 font-sans">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-display font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-amber-400" />
+                    DISPENSASI / OVERRIDE KELAYAKAN UJIAN SISWA
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Buka kunci ujian secara manual bagi siswa yang persentase keikutsertaannya rendah (Dispensasi / Izin Khusus).
+                  </p>
+                </div>
+
+                <div className="relative max-w-xs">
+                  <Input
+                    type="text"
+                    value={searchQuerySiswa}
+                    onChange={(e) => setSearchQuerySiswa(e.target.value)}
+                    placeholder="Cari Nama / TechID..."
+                    className="w-full bg-[#030712] border-slate-800 text-xs rounded-xl pl-9 pr-3 py-1.5"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-800/80 rounded-xl">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] font-bold bg-[#0a101d]">
+                      <th className="p-3">Nama Siswa</th>
+                      <th className="p-3">TechID</th>
+                      <th className="p-3">Semester</th>
+                      <th className="p-3">Status Akses Ujian</th>
+                      <th className="p-3 text-right">Aksi Override</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {siswaFiltered.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" className="p-6 text-center text-slate-500">
+                          Data siswa tidak ditemukan.
+                        </td>
+                      </tr>
+                    ) : (
+                      siswaFiltered.map((s) => {
+                        const status = s.status_kelayakan || "otomatis";
+                        return (
+                          <tr
+                            key={s.id}
+                            className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-all"
+                          >
+                            <td className="p-3 font-bold text-white">
+                              {s.nama || s.nama_lengkap || "-"}
+                            </td>
+                            <td className="p-3 font-mono text-cyan-400">{s.tech_id || "-"}</td>
+                            <td className="p-3 text-slate-400">{s.semester || "Semester 1"}</td>
+                            <td className="p-3">
+                              {status === "dispensasi" && (
+                                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold text-[10px] flex items-center gap-1 w-fit">
+                                  <Unlock className="w-3 h-3" /> Dispensasi (Izin Terbuka)
+                                </span>
+                              )}
+                              {status === "blokir" && (
+                                <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold text-[10px] flex items-center gap-1 w-fit">
+                                  <Lock className="w-3 h-3" /> Diblokir Manual
+                                </span>
+                              )}
+                              {status === "otomatis" && (
+                                <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-bold text-[10px] flex items-center gap-1 w-fit">
+                                  <CheckCircle2 className="w-3 h-3 text-cyan-400" /> Sesuai Absen (Otomatis)
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3 text-right space-x-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleChangeStatusSiswa(s.id, "otomatis")}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                                  status === "otomatis"
+                                    ? "bg-cyan-500 text-slate-950"
+                                    : "bg-slate-800 text-slate-400 hover:text-white"
+                                }`}
+                              >
+                                Otomatis
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleChangeStatusSiswa(s.id, "dispensasi")}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                                  status === "dispensasi"
+                                    ? "bg-emerald-400 text-slate-950"
+                                    : "bg-slate-800 text-slate-400 hover:text-emerald-400"
+                                }`}
+                              >
+                                Beri Dispensasi
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleChangeStatusSiswa(s.id, "blokir")}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                                  status === "blokir"
+                                    ? "bg-rose-500 text-white"
+                                    : "bg-slate-800 text-slate-400 hover:text-rose-400"
+                                }`}
+                              >
+                                Blokir
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
             {/* MASTER MATA UJIAN - TABLE GRID TEGAK LURUS PERFEK */}
             <div className="p-6 bg-[#0d1527]/60 border border-slate-800 rounded-2xl space-y-6 shadow-xl">
               <div className="border-b border-slate-800/80 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-sm font-display font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
                     <Clock className="w-4 h-4" /> MASTER MATA UJIAN, DURASI, KKM
-                    & BOBOT
+                    &amp; BOBOT
                   </h2>
                   <p className="text-xs text-slate-400 mt-1 font-sans">
                     Atur durasi pengerjaan, KKM, persentase bobot nilai, serta
@@ -763,7 +1012,7 @@ export default function PengaturanUjian() {
                     Deskripsi Singkat
                   </label>
                   <Input
-                    placeholder="Contoh: Desain Grafis & Manipulasi Foto"
+                    placeholder="Contoh: Desain Grafis &amp; Manipulasi Foto"
                     value={formMapel.desc}
                     onChange={(e) =>
                       setFormMapel({ ...formMapel, desc: e.target.value })
