@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
-export default function Laporan() {
+export default function NilaiAkhir() {
   const [laporan, setLaporan] = useState({
     statistik: { totalSiswa: 0, rataRata: 0, tertinggi: 0, terendah: 0 },
     dataLaporan: [],

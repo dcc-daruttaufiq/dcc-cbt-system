@@ -3,18 +3,18 @@ import { createBrowserRouter } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import Loader from "../components/ui/Loader";
 
-// 🏠 Halaman Utama & Not Found (Di luar subfolder)
+// 🏠 Halaman Utama & Not Found
 const Home = lazy(() => import("../pages/Home"));
 const NotFound = lazy(() => import("../pages/NotFound"));
 
 // 🏛️ Folder admin/
 const DashboardAdmin = lazy(() => import("../pages/admin/DashboardAdmin"));
 
-// 📂 Folder database/ (Daftar file yang dipindahkan)
+// 📂 Folder database/
 const KelolaAkun = lazy(() => import("../pages/database/KelolaAkun"));
 const RekapAbsensi = lazy(() => import("../pages/database/RekapAbsensi"));
 const BankSoal = lazy(() => import("../pages/database/BankSoal"));
-const Laporan = lazy(() => import("../pages/database/Laporan"));
+const Laporan = lazy(() => import("../pages/database/NilaiAkhir"));
 const Fasilitasdcc = lazy(() => import("../pages/database/Fasilitasdcc"));
 const PeminjamanAset = lazy(() => import("../pages/database/PeminjamanAset"));
 const PortalAlumni = lazy(() => import("../pages/database/PortalAlumni"));
@@ -35,7 +35,6 @@ const AbsensiScan = lazy(() => import("../pages/presensi/AbsensiScan"));
 const DashboardPeserta = lazy(() => import("../pages/ujian/DashboardPeserta"));
 const RuangUjian = lazy(() => import("../pages/ujian/RuangUjian"));
 const PengaturanUjian = lazy(() => import("../pages/ujian/PengaturanUjian"));
-// ➕ TAMBAHAN: Monitoring & Koreksi Ujian
 const MonitoringUjian = lazy(() => import("../pages/ujian/MonitoringUjian"));
 
 // 🚀 Folder fitur_tambahan/
@@ -73,7 +72,6 @@ export const router = createBrowserRouter([
           </SuspenseWrapper>
         ),
       },
-      // ✅ Route Login Ujian (Disupport via /login-ujian maupun /login)
       {
         path: "login-ujian",
         element: (
@@ -114,7 +112,6 @@ export const router = createBrowserRouter([
           </SuspenseWrapper>
         ),
       },
-      // ➕ ROUTE BARU: Koreksi & Live Monitoring Ujian
       {
         path: "koreksi-ujian",
         element: (
@@ -139,8 +136,17 @@ export const router = createBrowserRouter([
           </SuspenseWrapper>
         ),
       },
+      // 📊 Laporan tetap ada untuk fallback, dan Nilai Akhir mengarah ke halaman Laporan/Nilai ini
       {
         path: "laporan",
+        element: (
+          <SuspenseWrapper>
+            <Laporan />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: "nilai-akhir",
         element: (
           <SuspenseWrapper>
             <Laporan />

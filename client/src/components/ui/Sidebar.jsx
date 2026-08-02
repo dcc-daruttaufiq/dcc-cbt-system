@@ -1,5 +1,9 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+
+// 🖼️ Import Gambar Logo dari folder src/assets/logo/
+import dccLogo from "../../assets/logo/logo.png";
+
 import {
   Home,
   CheckSquare,
@@ -7,7 +11,7 @@ import {
   ClipboardList,
   Database,
   Sliders,
-  FileText,
+  Award,
   Monitor,
   ChevronDown,
   ChevronRight,
@@ -19,7 +23,6 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Otomatis buka dropdown presensi jika user sedang di halaman absensi
   const [isAbsensiOpen, setIsAbsensiOpen] = useState(
     location.pathname.includes("/absensi") || location.pathname.includes("/rekap")
   );
@@ -29,10 +32,15 @@ export default function Sidebar() {
   return (
     <aside className="w-64 bg-[#0a101d] border-r border-slate-800/80 min-h-screen p-4 flex flex-col justify-between shrink-0 font-sans">
       <div className="space-y-6">
-        {/* BRANDING LOGO */}
+        
+        {/* BRANDING LOGO LEMBAGA */}
         <div className="flex items-center gap-3 px-2 py-1">
-          <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-400/30 flex items-center justify-center">
-            <Monitor className="w-5 h-5 text-cyan-400" />
+          <div className="w-10 h-10 rounded-xl bg-white/5 border border-cyan-400/30 flex items-center justify-center p-1 shrink-0 overflow-hidden shadow-sm">
+            <img
+              src={dccLogo}
+              alt="Logo DCC"
+              className="w-full h-full object-contain"
+            />
           </div>
           <div>
             <h1 className="text-sm font-bold text-white tracking-wide">
@@ -46,7 +54,7 @@ export default function Sidebar() {
 
         {/* LIST NAVIGASI TERKELOMPOK */}
         <nav className="space-y-4 text-xs font-semibold">
-
+          
           {/* === KELOMPOK 1: UTAMA & UJIAN === */}
           <div className="space-y-1">
             <p className="px-3 text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1">
@@ -56,10 +64,11 @@ export default function Sidebar() {
             {/* Menu Utama */}
             <button
               onClick={() => navigate("/dashboard-anggota")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${isActive("/dashboard-anggota")
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+                isActive("/dashboard-anggota")
                   ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-bold"
                   : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-                }`}
+              }`}
             >
               <Home className="w-4 h-4" />
               <span>Menu Utama</span>
@@ -68,10 +77,11 @@ export default function Sidebar() {
             {/* Koreksi Ujian */}
             <button
               onClick={() => navigate("/koreksi-ujian")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${isActive("/koreksi-ujian")
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+                isActive("/koreksi-ujian")
                   ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-bold"
                   : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-                }`}
+              }`}
             >
               <CheckSquare className="w-4 h-4" />
               <span>Koreksi Ujian</span>
@@ -80,10 +90,11 @@ export default function Sidebar() {
             {/* Repositori Soal */}
             <button
               onClick={() => navigate("/bank-soal")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${isActive("/bank-soal")
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+                isActive("/bank-soal")
                   ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-bold"
                   : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-                }`}
+              }`}
             >
               <Database className="w-4 h-4" />
               <span>Repositori Soal</span>
@@ -92,29 +103,31 @@ export default function Sidebar() {
             {/* Pengaturan Ujian */}
             <button
               onClick={() => navigate("/pengaturan-ujian")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${isActive("/pengaturan-ujian")
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+                isActive("/pengaturan-ujian")
                   ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-bold"
                   : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-                }`}
+              }`}
             >
               <Sliders className="w-4 h-4" />
               <span>Pengaturan Ujian</span>
             </button>
 
-            {/* Laporan Nilai */}
+            {/* Nilai Akhir (Sudah diarahkan ke /nilai-akhir) */}
             <button
-              onClick={() => navigate("/laporan-nilai")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${isActive("/laporan-nilai")
+              onClick={() => navigate("/nilai-akhir")}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+                isActive("/nilai-akhir") || isActive("/laporan")
                   ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-bold"
                   : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-                }`}
+              }`}
             >
-              <FileText className="w-4 h-4" />
-              <span>Laporan Nilai</span>
+              <Award className="w-4 h-4 text-amber-400" />
+              <span>Nilai Akhir</span>
             </button>
           </div>
 
-          {/* === KELOMPOK 2: PRESENSI SISWA (DROPDOWN) === */}
+          {/* === KELOMPOK 2: PRESENSI SISWA === */}
           <div className="space-y-1 pt-2 border-t border-slate-800/60">
             <p className="px-3 text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1">
               Kehadiran &amp; Absensi
@@ -122,10 +135,11 @@ export default function Sidebar() {
 
             <button
               onClick={() => setIsAbsensiOpen(!isAbsensiOpen)}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all ${location.pathname.includes("absensi") || location.pathname.includes("rekap")
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all ${
+                location.pathname.includes("absensi") || location.pathname.includes("rekap")
                   ? "bg-slate-800/80 text-cyan-400 font-bold"
                   : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-                }`}
+              }`}
             >
               <div className="flex items-center gap-3">
                 <CalendarCheck className="w-4 h-4 text-cyan-400" />
@@ -143,10 +157,11 @@ export default function Sidebar() {
               <div className="pl-8 pr-1 space-y-1 pt-1">
                 <button
                   onClick={() => navigate("/absensi-scan")}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[11px] transition-all ${isActive("/absensi-scan")
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[11px] transition-all ${
+                    isActive("/absensi-scan")
                       ? "bg-cyan-400 text-slate-950 font-bold shadow-md"
                       : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                    }`}
+                  }`}
                 >
                   <QrCode className="w-3.5 h-3.5" />
                   <span>Scan QR Presensi</span>
@@ -154,10 +169,11 @@ export default function Sidebar() {
 
                 <button
                   onClick={() => navigate("/rekap-absensi")}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[11px] transition-all ${isActive("/rekap-absensi")
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[11px] transition-all ${
+                    isActive("/rekap-absensi")
                       ? "bg-cyan-400 text-slate-950 font-bold shadow-md"
                       : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                    }`}
+                  }`}
                 >
                   <ClipboardList className="w-3.5 h-3.5" />
                   <span>Rekap &amp; Override</span>
@@ -172,11 +188,12 @@ export default function Sidebar() {
               Lainnya
             </p>
             <button
-              onClick={() => navigate("/fasilitas-dcc")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${isActive("/fasilitas-dcc")
+              onClick={() => navigate("/fasilitas")}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+                isActive("/fasilitas")
                   ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-bold"
                   : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-                }`}
+              }`}
             >
               <Monitor className="w-4 h-4" />
               <span>Fasilitas DCC</span>
