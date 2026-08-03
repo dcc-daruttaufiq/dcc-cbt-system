@@ -156,7 +156,7 @@ export default function AbsensiScan() {
     resetTimeoutRef.current = setTimeout(() => {
       setHasilScan(null);
       isProcessingRef.current = false;
-    }, 2500);
+    }, 2000); // Reset sedikit lebih cepat agar siap untuk siswa berikutnya
   };
 
   // FUNGSI UTAMA PEMROSESAN PRESENSI
@@ -300,11 +300,15 @@ export default function AbsensiScan() {
     const html5QrCode = new Html5Qrcode(regionId);
     scannerRef.current = html5QrCode;
 
+    // ⚡ KONFIGURASI FAST READ ENGINE (SUPER SENSIF & INSTAN)
     const config = {
-      fps: 15,
-      qrbox: { width: 250, height: 250 },
+      fps: 25, // Dioptimalkan ke 25 FPS agar pembacaan sangat cepat
+      qrbox: { width: 300, height: 300 }, // Box diperluas agar QR Code langsung kena tanpa presisi ketat
       aspectRatio: 1.0,
       disableFlip: false,
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: true, // Memanfaatkan hardware detektor sistem jika didukung
+      },
     };
 
     html5QrCode
