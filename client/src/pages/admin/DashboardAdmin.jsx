@@ -18,8 +18,15 @@ import {
   Home,
   Power,
   Key,
+  UserCog,
+  MonitorCheck,
+  FileBarChart,
+  Sliders,
+  ChevronRight,
 } from "lucide-react";
-const PRESENSI_TABLE = "presensi_harian";
+
+// 🛑 PERBAIKAN: Disamakan dengan tabel resmi presensi di Supabase
+const PRESENSI_TABLE = "presensi_siswa";
 
 const getTanggalHariIni = () => {
   const d = new Date();
@@ -30,7 +37,7 @@ const getTanggalHariIni = () => {
 };
 
 export default function DashboardAdmin() {
-  useDocumentTitle("Master Administrator");
+  useDocumentTitle("Master Administrator - DCC SISTEM");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -47,28 +54,34 @@ export default function DashboardAdmin() {
   const [modeToken, setModeToken] = useState("mapel");
   const [aktivitasTerbaru, setAktivitasTerbaru] = useState([]);
 
+  // 🚀 MENUS LENGKAP KHUSUS MASTER ADMIN
   const menuAdmin = [
-    { label: "Menu Utama", path: "/", icon: Home },
-    { label: "Sistem Ujian", path: "/dashboard-anggota", icon: ClipboardList },
+    { label: "Menu Utama", path: "/dashboard-admin", icon: Home },
+    { label: "Kelola Akun Staff", path: "/kelola-akun", icon: UserCog },
+    { label: "Master Data Siswa", path: "/data-siswa", icon: Users },
+    { label: "Koreksi & Koreksi Ujian", path: "/dashboard-anggota", icon: ClipboardList },
     { label: "Presensi Harian", path: "/absensi-scan", icon: ScanLine },
-    { label: "Kelola Akun DCC", path: "/kelola-akun", icon: Users },
+    { label: "Repositori Soal", path: "/bank-soal", icon: Database },
+    { label: "Pengaturan Ujian", path: "/pengaturan-ujian", icon: Sliders },
+    { label: "Fasilitas DCC", path: "/fasilitas-dcc", icon: MonitorCheck },
+    { label: "Laporan Nilai", path: "/laporan", icon: FileBarChart },
   ];
 
   const loadData = async () => {
     try {
       // 1. Total soal di bank soal
       const { count: totalSoal } = await supabase
-        .from(TABLES.BANK_SOAL)
+        .from(TABLES.BANK_SOAL || "bank_soal_ujian")
         .select("*", { count: "exact", head: true });
 
       // 2. Total peserta terdaftar
       const { count: totalPeserta } = await supabase
-        .from(TABLES.PESERTA)
+        .from(TABLES.PESERTA || "peserta")
         .select("*", { count: "exact", head: true });
 
       // 3. Peserta yang sudah selesai ujian + nilai akhir (buat rata-rata)
       const { data: pesertaSelesaiData } = await supabase
-        .from(TABLES.PESERTA)
+        .from(TABLES.PESERTA || "peserta")
         .select("nilai_akhir, status")
         .eq("status", "selesai");
 
@@ -80,7 +93,7 @@ export default function DashboardAdmin() {
       const rataRata =
         jumlahSelesai > 0 ? Math.round(totalNilai / jumlahSelesai) : 0;
 
-      // 4. Presensi hari ini
+      // 4. Presensi hari ini (Tabel presensi_siswa)
       const { count: presensiHariIni } = await supabase
         .from(PRESENSI_TABLE)
         .select("*", { count: "exact", head: true })
@@ -121,15 +134,15 @@ export default function DashboardAdmin() {
         setModeToken(parsed.mode || "mapel");
       }
 
-      // 6. Aktivitas terbaru — gabungan presensi terakhir & peserta yang baru selesai ujian
+      // 6. Aktivitas terbaru
       const { data: presensiTerbaru } = await supabase
         .from(PRESENSI_TABLE)
-        .select("*")
+        .select("*, peserta(nama, nama_lengkap)")
         .order("waktu_masuk", { ascending: false })
         .limit(5);
 
       const { data: ujianTerbaru } = await supabase
-        .from(TABLES.PESERTA)
+        .from(TABLES.PESERTA || "peserta")
         .select("nama, nama_lengkap, tech_id, waktu_selesai, nilai_akhir")
         .eq("status", "selesai")
         .not("waktu_selesai", "is", null)
@@ -139,14 +152,14 @@ export default function DashboardAdmin() {
       const gabunganAktivitas = [
         ...(presensiTerbaru || []).map((p) => ({
           tipe: "presensi",
-          nama: p.nama,
+          nama: p.peserta?.nama || p.peserta?.nama_lengkap || p.tech_id,
           techId: p.tech_id,
           waktu: p.waktu_masuk,
           status: p.status,
         })),
         ...(ujianTerbaru || []).map((p) => ({
           tipe: "ujian",
-          nama: p.nama || p.nama_lengkap,
+          nama: p.nama || p.nama_lengkap || p.tech_id,
           techId: p.tech_id,
           waktu: p.waktu_selesai,
           nilai: p.nilai_akhir,
@@ -179,19 +192,19 @@ export default function DashboardAdmin() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#030712] text-slate-100 font-['Poppins',sans-serif]">
-      <Sidebar links={menuAdmin} userRole="Admin" />
+    <div className="flex min-h-screen bg-[#030712] text-slate-100 font-sans">
+      <Sidebar links={menuAdmin} userRole="Master Admin" />
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 font-sans">
         <Navbar>
           <div className="flex items-center gap-3">
             <Database className="text-cyan-400 w-6 h-6" />
             <div>
-              <h1 className="text-base font-['Rajdhani',sans-serif] font-bold text-white tracking-wider uppercase">
-                DASBOR UTAMA
+              <h1 className="text-base font-display font-bold text-white tracking-wider uppercase">
+                DASBOR MASTER ADMIN
               </h1>
-              <p className="text-xs text-slate-400 font-['Poppins',sans-serif]">
-                Overview gabungan Sistem Ujian & Presensi
+              <p className="text-xs text-slate-400 font-sans">
+                Overview Pusat Kontrol Ujian, Presensi, &amp; Akun Staff DCC
               </p>
             </div>
           </div>
@@ -203,14 +216,22 @@ export default function DashboardAdmin() {
             animate={{ opacity: 1, y: 0 }}
             className="max-w-6xl mx-auto space-y-6"
           >
-            <div className="flex justify-end">
+            <div className="flex justify-between items-center">
+              {/* TOMBOL PINTAS LANGSUNG KE KELOLA AKUN STAFF */}
+              <a
+                href="/kelola-akun"
+                className="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-xs px-3.5 py-2 rounded-xl font-display font-bold flex items-center gap-2 transition-all shadow-lg shadow-cyan-500/10"
+              >
+                <UserCog className="w-4 h-4" /> Kelola Akun Staff &amp; Pengawas <ChevronRight className="w-3.5 h-3.5" />
+              </a>
+
               <Button
                 onClick={async () => {
                   setIsRefreshing(true);
                   await loadData();
                   setTimeout(() => setIsRefreshing(false), 400);
                 }}
-                className="bg-[#0d1527] hover:bg-[#1e293b] text-xs border border-slate-800 text-slate-300 font-['Poppins',sans-serif] flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all"
+                className="bg-[#0d1527] hover:bg-[#1e293b] text-xs border border-slate-800 text-slate-300 font-sans flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all"
               >
                 <RefreshCw
                   className={`w-3.5 h-3.5 text-cyan-400 ${isRefreshing ? "animate-spin" : ""}`}
@@ -223,60 +244,60 @@ export default function DashboardAdmin() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <Card className="border-slate-800/80 bg-[#0d1527]/80 backdrop-blur-md p-5 rounded-2xl shadow-xl">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-slate-400 font-['Poppins',sans-serif]">
+                  <span className="text-xs text-slate-400 font-sans">
                     Total Soal
                   </span>
                   <Database className="w-5 h-5 text-cyan-400" />
                 </div>
-                <h3 className="text-3xl font-['Rajdhani',sans-serif] font-bold text-white tracking-wide">
+                <h3 className="text-3xl font-display font-bold text-white tracking-wide">
                   {isLoading ? "—" : statistik.totalSoal}
                 </h3>
               </Card>
 
               <Card className="border-slate-800/80 bg-[#0d1527]/80 backdrop-blur-md p-5 rounded-2xl shadow-xl">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-slate-400 font-['Poppins',sans-serif]">
+                  <span className="text-xs text-slate-400 font-sans">
                     Total Peserta
                   </span>
                   <Users className="w-5 h-5 text-indigo-400" />
                 </div>
-                <h3 className="text-3xl font-['Rajdhani',sans-serif] font-bold text-white tracking-wide">
+                <h3 className="text-3xl font-display font-bold text-white tracking-wide">
                   {isLoading ? "—" : statistik.totalPeserta}
                 </h3>
               </Card>
 
               <Card className="border-slate-800/80 bg-[#0d1527]/80 backdrop-blur-md p-5 rounded-2xl shadow-xl">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-slate-400 font-['Poppins',sans-serif]">
+                  <span className="text-xs text-slate-400 font-sans">
                     Selesai Ujian
                   </span>
                   <FileText className="w-5 h-5 text-emerald-400" />
                 </div>
-                <h3 className="text-3xl font-['Rajdhani',sans-serif] font-bold text-emerald-400 tracking-wide">
+                <h3 className="text-3xl font-display font-bold text-emerald-400 tracking-wide">
                   {isLoading ? "—" : statistik.pesertaSelesai}
                 </h3>
               </Card>
 
               <Card className="border-slate-800/80 bg-[#0d1527]/80 backdrop-blur-md p-5 rounded-2xl shadow-xl">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-slate-400 font-['Poppins',sans-serif]">
+                  <span className="text-xs text-slate-400 font-sans">
                     Rata-Rata Nilai
                   </span>
                   <TrendingUp className="w-5 h-5 text-amber-400" />
                 </div>
-                <h3 className="text-3xl font-['Rajdhani',sans-serif] font-bold text-amber-400 tracking-wide">
+                <h3 className="text-3xl font-display font-bold text-amber-400 tracking-wide">
                   {isLoading ? "—" : statistik.rataRataNilai}
                 </h3>
               </Card>
 
               <Card className="border-slate-800/80 bg-[#0d1527]/80 backdrop-blur-md p-5 rounded-2xl shadow-xl">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-slate-400 font-['Poppins',sans-serif]">
+                  <span className="text-xs text-slate-400 font-sans">
                     Presensi Hari Ini
                   </span>
                   <ScanLine className="w-5 h-5 text-cyan-400" />
                 </div>
-                <h3 className="text-3xl font-['Rajdhani',sans-serif] font-bold text-cyan-400 tracking-wide">
+                <h3 className="text-3xl font-display font-bold text-cyan-400 tracking-wide">
                   {isLoading ? "—" : statistik.presensiHariIni}
                 </h3>
               </Card>
@@ -285,16 +306,16 @@ export default function DashboardAdmin() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* STATUS SISTEM REAL */}
               <Card className="border-slate-800/80 bg-[#0d1527]/50 backdrop-blur-md p-6 space-y-4 rounded-2xl shadow-xl">
-                <h3 className="text-lg font-['Rajdhani',sans-serif] font-bold text-white tracking-wider uppercase">
+                <h3 className="text-lg font-display font-bold text-white tracking-wider uppercase">
                   Status Sistem Ujian
                 </h3>
 
                 <div className="flex items-center justify-between p-3.5 bg-[#030712]/80 rounded-xl border border-slate-800/60">
-                  <span className="text-xs text-slate-300 font-['Poppins',sans-serif] flex items-center gap-2">
+                  <span className="text-xs text-slate-300 font-sans flex items-center gap-2">
                     <Power className="w-4 h-4 text-cyan-400" /> Sesi Ujian
                   </span>
                   <Badge
-                    className={`text-[10px] font-['Rajdhani',sans-serif] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider ${
+                    className={`text-[10px] font-display font-bold px-2.5 py-1 rounded-md uppercase tracking-wider ${
                       statusSesi === "DIBUKA"
                         ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
                         : "bg-rose-500/20 text-rose-400 border border-rose-500/40"
@@ -305,15 +326,15 @@ export default function DashboardAdmin() {
                 </div>
 
                 <div className="flex items-center justify-between p-3.5 bg-[#030712]/80 rounded-xl border border-slate-800/60">
-                  <span className="text-xs text-slate-300 font-['Poppins',sans-serif] flex items-center gap-2">
+                  <span className="text-xs text-slate-300 font-sans flex items-center gap-2">
                     <Key className="w-4 h-4 text-cyan-400" /> Mode Token
                   </span>
-                  <Badge className="text-[10px] font-['Rajdhani',sans-serif] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider bg-cyan-500/20 text-cyan-400 border border-cyan-500/40">
+                  <Badge className="text-[10px] font-display font-bold px-2.5 py-1 rounded-md uppercase tracking-wider bg-cyan-500/20 text-cyan-400 border border-cyan-500/40">
                     {modeToken === "siswa" ? "Per Siswa" : "Per Mapel"}
                   </Badge>
                 </div>
 
-                <p className="text-[11px] text-slate-400 font-['Poppins',sans-serif]">
+                <p className="text-[11px] text-slate-400 font-sans">
                   Pengaturan ini dikontrol dari halaman Pengaturan Ujian di
                   Sistem Ujian.
                 </p>
@@ -321,16 +342,16 @@ export default function DashboardAdmin() {
 
               {/* AKTIVITAS TERBARU REAL */}
               <Card className="border-slate-800/80 bg-[#0d1527]/50 backdrop-blur-md p-6 rounded-2xl shadow-xl">
-                <h3 className="text-lg font-['Rajdhani',sans-serif] font-bold mb-3 text-white tracking-wider uppercase">
+                <h3 className="text-lg font-display font-bold mb-3 text-white tracking-wider uppercase">
                   Aktivitas Terbaru
                 </h3>
-                <div className="text-xs font-['Rajdhani',sans-serif] tracking-wide space-y-2 text-slate-300 bg-[#030712]/80 p-4 rounded-xl border border-slate-800/60 max-h-64 overflow-y-auto">
+                <div className="text-xs font-mono tracking-wide space-y-2 text-slate-300 bg-[#030712]/80 p-4 rounded-xl border border-slate-800/60 max-h-64 overflow-y-auto custom-scrollbar">
                   {isLoading ? (
-                    <p className="text-slate-500 font-['Poppins',sans-serif]">
+                    <p className="text-slate-500 font-sans">
                       Memuat aktivitas...
                     </p>
                   ) : aktivitasTerbaru.length === 0 ? (
-                    <p className="text-slate-500 font-['Poppins',sans-serif]">
+                    <p className="text-slate-500 font-sans">
                       Belum ada aktivitas tercatat.
                     </p>
                   ) : (
