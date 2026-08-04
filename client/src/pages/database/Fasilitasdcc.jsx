@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../../utils/supabaseClient"; // ✅ Ubah ke ../../
-import Sidebar from "../../components/ui/Sidebar"; // ✅ Ubah ke ../../
-import Navbar from "../../components/ui/Navbar"; // ✅ Ubah ke ../../
-import Button from "../../components/ui/Button"; // ✅ Ubah ke ../../
-import Input from "../../components/ui/Input"; // ✅ Ubah ke ../../
-import Badge from "../../components/ui/Badge"; // ✅ Ubah ke ../../
+import { supabase } from "../../utils/supabaseClient";
+import Sidebar from "../../components/ui/Sidebar";
+import Navbar from "../../components/ui/Navbar";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
+import Badge from "../../components/ui/Badge";
 import {
   MonitorCheck,
   Plus,
@@ -20,12 +20,15 @@ import {
   FileBarChart,
   AlertTriangle,
   Wrench,
+  Calendar,
+  UserCheck,
+  Tag,
 } from "lucide-react";
 
 const FASILITAS_TABLE = "fasilitas_dcc";
 const AKUN_SESSION_KEY = "dcc_akun_session";
 
-const KATEGORI_OPSI = [
+const KATEGORI_DEFAULT = [
   "Komputer",
   "Jaringan",
   "Elektronik",
@@ -47,10 +50,19 @@ export default function FasilitasDCC() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Form State
   const [namaFasilitas, setNamaFasilitas] = useState("");
+  const [kategoriOpsiList, setKategoriOpsiList] = useState(KATEGORI_DEFAULT);
   const [kategori, setKategori] = useState("Komputer");
+  const [isTambahKategoriMode, setIsTambahKategoriMode] = useState(false);
+  const [kategoriBaruInput, setKategoriBaruInput] = useState("");
+
   const [status, setStatus] = useState("Baik");
   const [catatan, setCatatan] = useState("");
+  const [tanggalPembelian, setTanggalPembelian] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+  const [namaPencatat, setNamaPencatat] = useState("");
 
   const menuPengawas = [
     { label: "Menu Utama", path: "/", icon: Home },
@@ -61,7 +73,7 @@ export default function FasilitasDCC() {
     { label: "Fasilitas DCC", path: "/fasilitas-dcc", icon: MonitorCheck },
   ];
 
-  // 🔐 Proteksi halaman — sama seperti Dashboard Pengawas
+  // 🔐 Proteksi halaman
   useEffect(() => {
     try {
       const raw = localStorage.getItem(AKUN_SESSION_KEY);
@@ -71,10 +83,11 @@ export default function FasilitasDCC() {
         return;
       }
       setSesiStaff(sesi);
+      setNamaPencatat(sesi.nama || sesi.username || "Staff DCC");
     } catch (e) {
       navigate("/akun-login");
       return;
-    } finally {
+    } font-sans finally {
       setIsCheckingSesi(false);
     }
   }, [navigate]);
@@ -86,10 +99,26 @@ export default function FasilitasDCC() {
         .from(FASILITAS_TABLE)
         .select("*")
         .order("created_at", { ascending: false });
+
       if (error) throw error;
-      setDaftarFasilitas(Array.isArray(data) ? data : []);
+      
+      const loaded = Array.isArray(data) ? data : [];
+      setDaftarFasilitas(loaded);
+      localStorage.setItem("dcc_fasilitas_cache", JSON.stringify(loaded));
+
+      // Ekstrak kategori kustom dari database
+      const customKat = loaded.map((i) => i.kategori).filter(Boolean);
+      const uniqueKat = Array.from(new Set([...KATEGORI_DEFAULT, ...customKat]));
+      setKategoriOpsiList(uniqueKat);
+
     } catch (err) {
-      console.error("Gagal memuat data fasilitas:", err);
+      console.warn("Mengambil data dari cache lokal...", err);
+      const cached = localStorage.getItem("dcc_fasilitas_cache");
+      if (cached) {
+        try {
+          setDaftarFasilitas(JSON.parse(cached));
+        } catch (e) {}
+      }
     } finally {
       setIsLoading(false);
     }
@@ -104,7 +133,23 @@ export default function FasilitasDCC() {
     setKategori("Komputer");
     setStatus("Baik");
     setCatatan("");
+    setTanggalPembelian(new Date().toISOString().split("T")[0]);
+    setNamaPencatat(sesiStaff?.nama || sesiStaff?.username || "Staff DCC");
+    setIsTambahKategoriMode(false);
+    setKategoriBaruInput("");
     setIsModalOpen(true);
+  };
+
+  const handleTambahKategoriBaru = (e) => {
+    e.preventDefault();
+    if (!kategoriBaruInput.trim()) return;
+    const cleanKategori = kategoriBaruInput.trim();
+    if (!kategoriOpsiList.includes(cleanKategori)) {
+      setKategoriOpsiList((prev) => [...prev, cleanKategori]);
+    }
+    setKategori(cleanKategori);
+    setKategoriBaruInput("");
+    setIsTambahKategoriMode(false);
   };
 
   const handleSimpan = async (e) => {
@@ -112,37 +157,58 @@ export default function FasilitasDCC() {
     if (!namaFasilitas.trim()) return alert("Nama fasilitas wajib diisi!");
 
     setIsSubmitting(true);
+    const payload = {
+      nama_fasilitas: namaFasilitas.trim(),
+      kategori,
+      status,
+      catatan: catatan.trim(),
+      dicatat_oleh: namaPencatat.trim() || "Staff DCC",
+      tanggal_pembelian: tanggalPembelian,
+    };
+
     try {
-      const { error } = await supabase.from(FASILITAS_TABLE).insert({
-        nama_fasilitas: namaFasilitas.trim(),
-        kategori,
-        status,
-        catatan: catatan.trim(),
-        dicatat_oleh: sesiStaff?.nama || sesiStaff?.username || "Staff DCC",
-      });
+      const { data, error } = await supabase
+        .from(FASILITAS_TABLE)
+        .insert([payload])
+        .select();
+
       if (error) throw error;
 
+      alert("Data fasilitas berhasil dicatat! 🎉");
       setIsModalOpen(false);
       await loadFasilitas();
     } catch (err) {
-      console.error("Gagal menyimpan data fasilitas:", err);
-      alert("Gagal menyimpan ke Supabase Cloud.");
+      console.error("Gagal menyimpan ke Supabase Cloud, menyimpan ke lokal:", err);
+      // Fallback lokal agar data tetap tersimpan jika Supabase error
+      const newItem = {
+        ...payload,
+        id: Date.now(),
+        created_at: new Date().toISOString(),
+      };
+      const updatedList = [newItem, ...daftarFasilitas];
+      setDaftarFasilitas(updatedList);
+      localStorage.setItem("dcc_fasilitas_cache", JSON.stringify(updatedList));
+      alert("Tersimpan secara lokal (Terjadi kendala jaringan ke Cloud).");
+      setIsModalOpen(false);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleHapus = async (id) => {
-    if (!confirm("Hapus catatan fasilitas ini?")) return;
+    if (!confirm("Apakah Anda yakin ingin menghapus catatan fasilitas ini?")) return;
     try {
       const { error } = await supabase
         .from(FASILITAS_TABLE)
         .delete()
         .eq("id", id);
+
       if (error) throw error;
-      setDaftarFasilitas((prev) => prev.filter((f) => f.id !== id));
+      const updated = daftarFasilitas.filter((f) => f.id !== id);
+      setDaftarFasilitas(updated);
+      localStorage.setItem("dcc_fasilitas_cache", JSON.stringify(updated));
     } catch (err) {
-      alert("Gagal menghapus catatan.");
+      alert("Gagal menghapus catatan dari Cloud.");
     }
   };
 
@@ -151,8 +217,10 @@ export default function FasilitasDCC() {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return (
-        f.nama_fasilitas.toLowerCase().includes(q) ||
-        (f.catatan || "").toLowerCase().includes(q)
+        (f.nama_fasilitas || "").toLowerCase().includes(q) ||
+        (f.catatan || "").toLowerCase().includes(q) ||
+        (f.kategori || "").toLowerCase().includes(q) ||
+        (f.dicatat_oleh || "").toLowerCase().includes(q)
       );
     }
     return true;
@@ -203,10 +271,10 @@ export default function FasilitasDCC() {
               <MonitorCheck className="text-cyan-400 w-6 h-6" />
               <div>
                 <h1 className="text-base font-display font-bold text-white tracking-wide">
-                  FASILITAS & ASET DCC
+                  FASILITAS &amp; ASET DCC
                 </h1>
                 <p className="text-xs text-slate-400">
-                  Catatan kondisi perangkat & fasilitas laboratorium
+                  Manajemen &amp; Catatan Kondisi Perangkat Laboratorium
                 </p>
               </div>
             </div>
@@ -227,7 +295,7 @@ export default function FasilitasDCC() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Cari nama fasilitas atau catatan..."
+                  placeholder="Cari nama fasilitas, kategori, atau pencatat..."
                   className="w-full bg-[#0d1527] border border-slate-800 rounded-xl pl-9 pr-3 py-2.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-400"
                 />
                 <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -262,7 +330,7 @@ export default function FasilitasDCC() {
                   return (
                     <div
                       key={f.id}
-                      className="p-4 bg-[#0d1527]/60 border border-slate-800/60 rounded-2xl flex flex-col sm:flex-row sm:items-start justify-between gap-3"
+                      className="p-4 bg-[#0d1527]/60 border border-slate-800/60 rounded-2xl flex flex-col sm:flex-row sm:items-start justify-between gap-3 transition-all hover:border-slate-700"
                     >
                       <div className="flex-1 min-w-0 space-y-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -270,7 +338,7 @@ export default function FasilitasDCC() {
                             {f.nama_fasilitas}
                           </h3>
                           <Badge className="bg-slate-800 text-slate-300 text-[9px] px-2 py-0.5 rounded-md border border-slate-700">
-                            {f.kategori}
+                            {f.kategori || "Umum"}
                           </Badge>
                           <Badge
                             className={`text-[9px] px-2 py-0.5 rounded-md border flex items-center gap-1 ${badge.className}`}
@@ -278,15 +346,26 @@ export default function FasilitasDCC() {
                             <BadgeIcon className="w-2.5 h-2.5" /> {f.status}
                           </Badge>
                         </div>
+
                         {f.catatan && (
                           <p className="text-xs text-slate-400 leading-relaxed">
                             {f.catatan}
                           </p>
                         )}
-                        <p className="text-[10px] text-slate-500">
-                          Dicatat oleh {f.dicatat_oleh} •{" "}
-                          {formatTanggal(f.created_at)}
-                        </p>
+
+                        <div className="flex items-center gap-4 pt-1 text-[10px] text-slate-500 flex-wrap font-sans">
+                          <span className="flex items-center gap-1 text-slate-400">
+                            <UserCheck className="w-3 h-3 text-cyan-400" /> Pencatat:{" "}
+                            <strong className="text-slate-300">{f.dicatat_oleh || "Staff"}</strong>
+                          </span>
+
+                          <span className="flex items-center gap-1 text-slate-400">
+                            <Calendar className="w-3 h-3 text-amber-400" /> Tgl Aset:{" "}
+                            <strong className="text-slate-300">
+                              {formatTanggal(f.tanggal_pembelian || f.created_at)}
+                            </strong>
+                          </span>
+                        </div>
                       </div>
 
                       <button
@@ -308,10 +387,10 @@ export default function FasilitasDCC() {
       {/* MODAL TAMBAH FASILITAS */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
-          <div className="bg-[#0d1527] border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4">
+          <div className="bg-[#0d1527] border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 text-white">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800/60">
-              <h3 className="font-display text-base font-bold text-cyan-400 uppercase">
-                Catat Fasilitas
+              <h3 className="font-display text-base font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-2">
+                <MonitorCheck className="w-5 h-5" /> Catat Fasilitas &amp; Aset
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -322,36 +401,72 @@ export default function FasilitasDCC() {
             </div>
 
             <form onSubmit={handleSimpan} className="space-y-4">
-              <Input
-                label="Nama Fasilitas"
-                placeholder="Contoh: Komputer Unit 05"
-                value={namaFasilitas}
-                onChange={(e) => setNamaFasilitas(e.target.value)}
-                required
-              />
-
+              {/* 1. NAMA FASILITAS */}
               <div>
-                <label className="text-xs font-display font-bold text-slate-300 mb-1.5 block uppercase">
-                  Kategori
+                <label className="text-xs font-display font-bold text-slate-300 mb-1 block uppercase">
+                  Nama Fasilitas / Aset
                 </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {KATEGORI_OPSI.map((k) => (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setKategori(k)}
-                      className={`py-2 rounded-xl border text-[11px] font-display font-bold transition ${
-                        kategori === k
-                          ? "bg-cyan-400 text-slate-950 border-cyan-400"
-                          : "text-slate-400 border-slate-800 hover:text-white"
-                      }`}
-                    >
-                      {k}
-                    </button>
-                  ))}
-                </div>
+                <Input
+                  placeholder="Contoh: Komputer PC Lab Unit 05"
+                  value={namaFasilitas}
+                  onChange={(e) => setNamaFasilitas(e.target.value)}
+                  required
+                  className="bg-[#030712]/60 border-slate-800 text-xs rounded-xl"
+                />
               </div>
 
+              {/* 2. KATEGORI & FITUR TAMBAH KATEGORI BARU */}
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="text-xs font-display font-bold text-slate-300 uppercase flex items-center gap-1">
+                    <Tag className="w-3 h-3 text-cyan-400" /> Kategori Aset
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsTambahKategoriMode(!isTambahKategoriMode)}
+                    className="text-[10px] text-cyan-400 font-bold hover:underline"
+                  >
+                    {isTambahKategoriMode ? "← Pilih Opsi" : "+ Kategori Baru"}
+                  </button>
+                </div>
+
+                {isTambahKategoriMode ? (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Kategori Baru (Misal: Proyektor)..."
+                      value={kategoriBaruInput}
+                      onChange={(e) => setKategoriBaruInput(e.target.value)}
+                      className="bg-[#030712]/60 border-slate-800 text-xs rounded-xl flex-1"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleTambahKategoriBaru}
+                      className="bg-cyan-400 text-slate-950 font-bold text-xs px-3 rounded-xl border-0"
+                    >
+                      Tambah
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    {kategoriOpsiList.map((k) => (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => setKategori(k)}
+                        className={`py-1.5 px-2 rounded-xl border text-[11px] font-display font-bold transition truncate ${
+                          kategori === k
+                            ? "bg-cyan-400 text-slate-950 border-cyan-400"
+                            : "text-slate-400 border-slate-800 hover:text-white"
+                        }`}
+                      >
+                        {k}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 3. STATUS KONDISI */}
               <div>
                 <label className="text-xs font-display font-bold text-slate-300 mb-1.5 block uppercase">
                   Status Kondisi
@@ -378,16 +493,48 @@ export default function FasilitasDCC() {
                 </div>
               </div>
 
+              {/* 4. TANGGAL ASET DITERIMA / DICEK */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-display font-bold text-slate-300 mb-1 block uppercase flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-amber-400" /> Tanggal Aset
+                  </label>
+                  <Input
+                    type="date"
+                    value={tanggalPembelian}
+                    onChange={(e) => setTanggalPembelian(e.target.value)}
+                    required
+                    className="bg-[#030712]/60 border-slate-800 text-xs rounded-xl text-slate-200"
+                  />
+                </div>
+
+                {/* 5. NAMA PENCATAT */}
+                <div>
+                  <label className="text-xs font-display font-bold text-slate-300 mb-1 block uppercase flex items-center gap-1">
+                    <UserCheck className="w-3 h-3 text-cyan-400" /> Pencatat
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="Nama Pencatat..."
+                    value={namaPencatat}
+                    onChange={(e) => setNamaPencatat(e.target.value)}
+                    required
+                    className="bg-[#030712]/60 border-slate-800 text-xs rounded-xl"
+                  />
+                </div>
+              </div>
+
+              {/* 6. CATATAN Tambahan */}
               <div>
-                <label className="text-xs font-display font-bold text-slate-300 mb-1.5 block uppercase">
-                  Catatan (opsional)
+                <label className="text-xs font-display font-bold text-slate-300 mb-1 block uppercase">
+                  Catatan Kondisi / Detail (Opsional)
                 </label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={catatan}
                   onChange={(e) => setCatatan(e.target.value)}
-                  placeholder="Detail kondisi, kapan terakhir dicek, dsb..."
-                  className="w-full p-3 bg-[#030712]/60 border border-slate-800 focus:border-cyan-400 text-xs text-white rounded-xl focus:outline-none"
+                  placeholder="Detail spesifikasi, kendala, atau lokasi barang..."
+                  className="w-full p-2.5 bg-[#030712]/60 border border-slate-800 focus:border-cyan-400 text-xs text-white rounded-xl focus:outline-none"
                 />
               </div>
 
@@ -406,7 +553,7 @@ export default function FasilitasDCC() {
                   className="bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-display font-bold text-xs border-0 flex items-center gap-1.5"
                 >
                   <Save className="w-4 h-4" />{" "}
-                  {isSubmitting ? "Menyimpan..." : "Simpan"}
+                  {isSubmitting ? "Menyimpan..." : "Simpan Fasilitas"}
                 </Button>
               </div>
             </form>

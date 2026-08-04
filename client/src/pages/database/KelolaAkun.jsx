@@ -64,7 +64,7 @@ export default function KelolaAkun() {
 
   const menuAdmin = [
     { label: "Menu Utama", path: "/", icon: Home },
-    { label: "Sistem Ujian", path: "/dashboard-Pengawas", icon: ClipboardList },
+    { label: "Sistem Ujian", path: "/dashboard-anggota", icon: ClipboardList },
     { label: "Presensi Harian", path: "/absensi-scan", icon: ScanLine },
     { label: "Kelola Akun DCC", path: "/kelola-akun", icon: Users },
   ];
