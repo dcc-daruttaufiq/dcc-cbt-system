@@ -7,7 +7,8 @@ import dccLogo from "../../assets/logo/logo.png";
 import {
   Home,
   Activity,
-  Users, // 👈 Icon untuk Data Siswa
+  Users, // Icon untuk Data Siswa
+  UserCog, // 👈 Icon untuk Kelola Akun Staff DCC
   QrCode,
   ClipboardList,
   Database,
@@ -34,7 +35,7 @@ export default function Sidebar() {
     <aside className="w-64 bg-[#0a101d] border-r border-slate-800/80 min-h-screen p-4 flex flex-col justify-between shrink-0 font-sans">
       <div className="space-y-6">
         
-        {/* BRANDING LOGO LEMBAGA (BERSIH TANPA BINGKAI/BORDER) */}
+        {/* BRANDING LOGO LEMBAGA */}
         <div className="flex items-center gap-3 px-2 py-1">
           <div className="w-9 h-9 flex items-center justify-center shrink-0">
             <img
@@ -48,7 +49,7 @@ export default function Sidebar() {
               DCC <span className="text-cyan-400">SISTEM</span>
             </h1>
             <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">
-              PENGAWAS DASHBOARD
+              PANEL NAVIGASI
             </p>
           </div>
         </div>
@@ -56,23 +57,36 @@ export default function Sidebar() {
         {/* LIST NAVIGASI TERKELOMPOK */}
         <nav className="space-y-4 text-xs font-semibold">
           
-          {/* === KELOMPOK 1: UTAMA & UJIAN === */}
+          {/* === KELOMPOK 1: UTAMA & AKADEMIK === */}
           <div className="space-y-1">
             <p className="px-3 text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1">
               Akademik &amp; Ujian
             </p>
 
-            {/* Menu Utama */}
+            {/* Menu Utama Admin / Pengawas */}
             <button
-              onClick={() => navigate("/dashboard-anggota")}
+              onClick={() => navigate("/dashboard-admin")}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                isActive("/dashboard-anggota")
+                isActive("/dashboard-admin") || isActive("/dashboard-anggota")
                   ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-bold"
                   : "text-slate-400 hover:text-white hover:bg-slate-800/50"
               }`}
             >
               <Home className="w-4 h-4" />
               <span>Menu Utama</span>
+            </button>
+
+            {/* 🚀 KELOLA AKUN STAFF & PENGAWAS (BARU DITAMBAHKAN) */}
+            <button
+              onClick={() => navigate("/kelola-akun")}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+                isActive("/kelola-akun")
+                  ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-bold"
+                  : "text-slate-400 hover:text-white hover:bg-slate-800/50"
+              }`}
+            >
+              <UserCog className="w-4 h-4 text-cyan-400" />
+              <span>Kelola Akun DCC</span>
             </button>
 
             {/* Data Siswa & Kurikulum */}
@@ -88,11 +102,11 @@ export default function Sidebar() {
               <span>Data Siswa</span>
             </button>
 
-            {/* Monitoring Ujian */}
+            {/* Monitoring / Koreksi Ujian */}
             <button
               onClick={() => navigate("/koreksi-ujian")}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                isActive("/koreksi-ujian")
+                isActive("/koreksi-ujian") || isActive("/dashboard-anggota")
                   ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-bold"
                   : "text-slate-400 hover:text-white hover:bg-slate-800/50"
               }`}
@@ -127,9 +141,9 @@ export default function Sidebar() {
               <span>Pengaturan Ujian</span>
             </button>
 
-            {/* Nilai Akhir */}
+            {/* Nilai Akhir / Laporan */}
             <button
-              onClick={() => navigate("/nilai-akhir")}
+              onClick={() => navigate("/laporan")}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
                 isActive("/nilai-akhir") || isActive("/laporan")
                   ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-bold"
@@ -199,12 +213,12 @@ export default function Sidebar() {
           {/* === KELOMPOK 3: FASILITAS === */}
           <div className="space-y-1 pt-2 border-t border-slate-800/60">
             <p className="px-3 text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1">
-              Lainnya
+              Inventaris
             </p>
             <button
-              onClick={() => navigate("/fasilitas")}
+              onClick={() => navigate("/fasilitas-dcc")}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                isActive("/fasilitas")
+                isActive("/fasilitas-dcc") || isActive("/fasilitas")
                   ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-bold"
                   : "text-slate-400 hover:text-white hover:bg-slate-800/50"
               }`}
@@ -220,7 +234,7 @@ export default function Sidebar() {
       {/* FOOTER / LOGOUT */}
       <div className="pt-4 border-t border-slate-800/80">
         <button
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/akun-login")}
           className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-500/10 transition-all"
         >
           <LogOut className="w-4 h-4" />

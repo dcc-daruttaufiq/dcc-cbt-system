@@ -18,7 +18,7 @@ const Laporan = lazy(() => import("../pages/database/NilaiAkhir"));
 const Fasilitasdcc = lazy(() => import("../pages/database/Fasilitasdcc"));
 const PeminjamanAset = lazy(() => import("../pages/database/PeminjamanAset"));
 const PortalAlumni = lazy(() => import("../pages/database/PortalAlumni"));
-const DataSiswa = lazy(() => import("../pages/database/DataSiswa")); // 👈 Halaman Master Data Siswa
+const DataSiswa = lazy(() => import("../pages/database/DataSiswa"));
 
 // 👥 Folder dashboardanggota/
 const DashboardAnggota = lazy(
@@ -202,6 +202,14 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: "fasilitas-dcc", // 👈 ALIAS BARU (Penting agar Sidebar tidak 404)
+        element: (
+          <SuspenseWrapper>
+            <Fasilitasdcc />
+          </SuspenseWrapper>
+        ),
+      },
+      {
         path: "peminjaman-aset",
         element: (
           <SuspenseWrapper>
@@ -233,7 +241,6 @@ export const router = createBrowserRouter([
           </SuspenseWrapper>
         ),
       },
-      // 🎓 Route Baru: Master Data Siswa & Kurikulum
       {
         path: "data-siswa",
         element: (
