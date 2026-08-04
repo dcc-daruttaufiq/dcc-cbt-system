@@ -87,7 +87,7 @@ export default function FasilitasDCC() {
     } catch (e) {
       navigate("/akun-login");
       return;
-    } font-sans finally {
+    } finally {
       setIsCheckingSesi(false);
     }
   }, [navigate]);
