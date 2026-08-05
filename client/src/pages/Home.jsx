@@ -22,6 +22,7 @@ import {
   Briefcase,
   UserCheck,
   MapPin,
+  Loader2,
 } from "lucide-react";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { LOGO_URL } from "../config/brand";
@@ -114,7 +115,7 @@ const modul = [
   },
 ];
 
-// 2. Sample Showcase Karya Santri (Hall of Fame)
+// 2. Showcase Karya Santri (Hall of Fame)
 const karyaSantri = [
   {
     id: 1,
@@ -145,7 +146,7 @@ const karyaSantri = [
   },
 ];
 
-// 3. Data Foto & Portofolio Anggota Tim DCC
+// 3. Portofolio Tim DCC
 const anggotaDCC = [
   {
     id: 1,
@@ -185,64 +186,62 @@ export default function Home() {
   useDocumentTitle("Menu Utama");
   const navigate = useNavigate();
 
-  // 🚀 STATE STATISTIK REAL DARI SUPABASE DATABASE
+  // 🚀 STATE STATISTIK REAL DARI SUPABASE (TANPA DUMMY VALUE)
   const [stats, setStats] = useState({
-    totalSantri: "150+",
-    persenKelulusan: "98%",
-    totalKomputer: "40 Unit",
+    totalSantri: null,
+    persenKelulusan: null,
+    totalKomputer: null,
     isLoading: true,
   });
 
   useEffect(() => {
-    const fetchRealStats = async () => {
+    const fetchPureRealStats = async () => {
       try {
-        // 1. Ambil Total Santri dari tabel peserta
+        // 1. Exact Count Santri dari tabel peserta
         const { count: countPeserta } = await supabase
           .from(TABLES.PESERTA || "peserta")
           .select("*", { count: "exact", head: true });
 
-        // 2. Hitung statistik lulus CBT
+        // 2. Hitung statistik lulus CBT murni dari data ujian
         const { data: pesertaData } = await supabase
           .from(TABLES.PESERTA || "peserta")
           .select("nilai_akhir, status")
           .eq("status", "selesai");
 
-        let kelulusan = "98%";
+        let calculatedKelulusan = "0%";
         if (pesertaData && pesertaData.length > 0) {
           const totalSelesai = pesertaData.length;
           const totalLulus = pesertaData.filter(
             (p) => (Number(p.nilai_akhir) || 0) >= 70
           ).length;
-          const rate = Math.round((totalLulus / totalSelesai) * 100);
-          kelulusan = `${rate}%`;
+          calculatedKelulusan = `${Math.round((totalLulus / totalSelesai) * 100)}%`;
         }
 
-        // 3. Hitung unit komputer ready dari tabel fasilitas_dcc
-        const { data: fasilitasData } = await supabase
+        // 3. Exact Count Komputer Ready dari tabel fasilitas_dcc
+        const { count: countKomputer } = await supabase
           .from("fasilitas_dcc")
-          .select("kategori, status")
-          .ilike("kategori", "%komputer%");
-
-        let pcReadyCount = 0;
-        if (fasilitasData && fasilitasData.length > 0) {
-          pcReadyCount = fasilitasData.filter(
-            (f) => f.status === "Baik" || f.status === "BAIK"
-          ).length;
-        }
+          .select("*", { count: "exact", head: true })
+          .ilike("kategori", "%komputer%")
+          .eq("status", "Baik");
 
         setStats({
-          totalSantri: countPeserta && countPeserta > 0 ? `${countPeserta}+` : "150+",
-          persenKelulusan: kelulusan,
-          totalKomputer: pcReadyCount > 0 ? `${pcReadyCount} Unit` : "40 Unit",
+          totalSantri: countPeserta ?? 0,
+          persenKelulusan: calculatedKelulusan,
+          totalKomputer: countKomputer ?? 0,
           isLoading: false,
         });
       } catch (e) {
-        console.warn("Menggunakan fallback nilai awal...", e);
-        setStats((prev) => ({ ...prev, isLoading: false }));
+        console.error("Gagal mengambil statistik real Supabase:", e);
+        setStats({
+          totalSantri: 0,
+          persenKelulusan: "0%",
+          totalKomputer: 0,
+          isLoading: false,
+        });
       }
     };
 
-    fetchRealStats();
+    fetchPureRealStats();
   }, []);
 
   return (
@@ -276,7 +275,7 @@ export default function Home() {
             Wujud komitmen Pondok Pesantren Daruttaufiq dalam membentuk generasi santri yang mahir teknologi, kreatif berinovasi, dan beretika Islami. Melalui Daruttaufiq Computer Centre (DCC), teknologi dioptimalkan sebagai sarana pendidikan, pengembangan diri, dan dakwah.
           </p>
 
-          {/* 📍 ALAMAT LENGKAP PONDOK PESANTREN DARUTTAUFIQ */}
+          {/* 📍 ALAMAT PONDOK PESANTREN DARUTTAUFIQ */}
           <div className="mt-5 flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-[#0d1527] border border-slate-800 text-xs text-slate-300 max-w-2xl shadow-lg">
             <MapPin className="w-4 h-4 text-cyan-400 shrink-0" />
             <span className="font-sans text-[11px] md:text-xs">
@@ -285,7 +284,7 @@ export default function Home() {
           </div>
         </motion.div>
 
-        {/* 📊 BARIS STATISTIK REAL DARI DATABASE */}
+        {/* 📊 BARIS STATISTIK PURE REAL TIME (LIVE DB) */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -294,18 +293,26 @@ export default function Home() {
         >
           <div className="flex flex-col items-center p-3 border-r border-slate-800/80 last:border-r-0">
             <Users className="w-5 h-5 text-cyan-400 mb-1" />
-            <span className="font-display text-2xl font-bold text-white">
-              {stats.totalSantri}
+            <span className="font-display text-2xl font-bold text-white flex items-center gap-1">
+              {stats.isLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
+              ) : (
+                `${stats.totalSantri} Santri`
+              )}
             </span>
             <span className="text-[10px] text-slate-400 uppercase tracking-wider font-display">
-              Santri Aktif
+              Santri Terdaftar
             </span>
           </div>
 
           <div className="flex flex-col items-center p-3 border-r border-slate-800/80 last:border-r-0">
             <CheckCircle2 className="w-5 h-5 text-emerald-400 mb-1" />
-            <span className="font-display text-2xl font-bold text-emerald-400">
-              {stats.persenKelulusan}
+            <span className="font-display text-2xl font-bold text-emerald-400 flex items-center gap-1">
+              {stats.isLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
+              ) : (
+                stats.persenKelulusan
+              )}
             </span>
             <span className="text-[10px] text-slate-400 uppercase tracking-wider font-display">
               Kelulusan CBT
@@ -314,8 +321,12 @@ export default function Home() {
 
           <div className="flex flex-col items-center p-3 border-r border-slate-800/80 last:border-r-0">
             <MonitorCheck className="w-5 h-5 text-amber-400 mb-1" />
-            <span className="font-display text-2xl font-bold text-amber-400">
-              {stats.totalKomputer}
+            <span className="font-display text-2xl font-bold text-amber-400 flex items-center gap-1">
+              {stats.isLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
+              ) : (
+                `${stats.totalKomputer} Unit`
+              )}
             </span>
             <span className="text-[10px] text-slate-400 uppercase tracking-wider font-display">
               Komputer Ready
@@ -407,7 +418,7 @@ export default function Home() {
         </motion.div>
       </div>
 
-      {/* 🎨 SECTION SHOWCASE KARYA SANTRI (DCC HALL OF FAME) */}
+      {/* 🎨 SECTION SHOWCASE KARYA SANTRI */}
       <div className="max-w-6xl mx-auto px-6 mt-16">
         <div className="flex items-center justify-between mb-6 border-b border-slate-800/80 pb-3">
           <div>
