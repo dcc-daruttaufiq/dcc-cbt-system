@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { supabase, TABLES } from "../utils/supabaseClient";
 import {
   ClipboardList,
   ScanLine,
@@ -19,9 +20,8 @@ import {
   PackageCheck,
   Trophy,
   Briefcase,
-  Camera,
-  Code,
   UserCheck,
+  MapPin,
 } from "lucide-react";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { LOGO_URL } from "../config/brand";
@@ -31,7 +31,7 @@ const modul = [
   {
     label: "Sistem Ujian DCC",
     desc: "CBT ujian sertifikasi kompetensi — bank soal, koreksi, dan laporan nilai.",
-    path: "/login-ujian", // ✅ Diubah ke /login-ujian
+    path: "/login-ujian",
     icon: ClipboardList,
     badge: "Aktif",
   },
@@ -151,28 +151,32 @@ const anggotaDCC = [
     id: 1,
     nama: "Pembina / Lead Instructor",
     peran: "Koordinator Utama & Instructor",
-    foto: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80",
+    foto:
+      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80",
     keahlian: ["System Architect", "Fullstack Dev", "Mentor"],
   },
   {
     id: 2,
     nama: "Instruktur Lab Komputer",
     peran: "Pengawas Ujian & Teknisi Lab",
-    foto: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80",
+    foto:
+      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80",
     keahlian: ["Hardware & Networking", "CBT Supervision"],
   },
   {
     id: 3,
     nama: "Tim Multimedia & Desain",
     peran: "Pengelola Aset & Konten Digital",
-    foto: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=600&q=80",
+    foto:
+      "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=600&q=80",
     keahlian: ["Graphic Design", "UI/UX Design", "Content Creator"],
   },
   {
     id: 4,
     nama: "Divisi Kedisiplinan & Presensi",
     peran: "Penanggung Jawab Absensi Santri",
-    foto: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&q=80",
+    foto:
+      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&q=80",
     keahlian: ["Data Management", "Santri Monitoring"],
   },
 ];
@@ -181,8 +185,68 @@ export default function Home() {
   useDocumentTitle("Menu Utama");
   const navigate = useNavigate();
 
+  // 🚀 STATE STATISTIK REAL DARI SUPABASE DATABASE
+  const [stats, setStats] = useState({
+    totalSantri: "150+",
+    persenKelulusan: "98%",
+    totalKomputer: "40 Unit",
+    isLoading: true,
+  });
+
+  useEffect(() => {
+    const fetchRealStats = async () => {
+      try {
+        // 1. Ambil Total Santri dari tabel peserta
+        const { count: countPeserta } = await supabase
+          .from(TABLES.PESERTA || "peserta")
+          .select("*", { count: "exact", head: true });
+
+        // 2. Hitung statistik lulus CBT
+        const { data: pesertaData } = await supabase
+          .from(TABLES.PESERTA || "peserta")
+          .select("nilai_akhir, status")
+          .eq("status", "selesai");
+
+        let kelulusan = "98%";
+        if (pesertaData && pesertaData.length > 0) {
+          const totalSelesai = pesertaData.length;
+          const totalLulus = pesertaData.filter(
+            (p) => (Number(p.nilai_akhir) || 0) >= 70
+          ).length;
+          const rate = Math.round((totalLulus / totalSelesai) * 100);
+          kelulusan = `${rate}%`;
+        }
+
+        // 3. Hitung unit komputer ready dari tabel fasilitas_dcc
+        const { data: fasilitasData } = await supabase
+          .from("fasilitas_dcc")
+          .select("kategori, status")
+          .ilike("kategori", "%komputer%");
+
+        let pcReadyCount = 0;
+        if (fasilitasData && fasilitasData.length > 0) {
+          pcReadyCount = fasilitasData.filter(
+            (f) => f.status === "Baik" || f.status === "BAIK"
+          ).length;
+        }
+
+        setStats({
+          totalSantri: countPeserta && countPeserta > 0 ? `${countPeserta}+` : "150+",
+          persenKelulusan: kelulusan,
+          totalKomputer: pcReadyCount > 0 ? `${pcReadyCount} Unit` : "40 Unit",
+          isLoading: false,
+        });
+      } catch (e) {
+        console.warn("Menggunakan fallback nilai awal...", e);
+        setStats((prev) => ({ ...prev, isLoading: false }));
+      }
+    };
+
+    fetchRealStats();
+  }, []);
+
   return (
-    <div className="min-h-screen bg-[#030712] text-slate-100 font-['Poppins',sans-serif] pb-20">
+    <div className="min-h-screen bg-[#030712] text-slate-100 font-sans pb-20">
       {/* 🚀 HERO SECTION */}
       <div className="flex flex-col items-center justify-center text-center px-6 pt-16 pb-10">
         <motion.div
@@ -199,18 +263,29 @@ export default function Home() {
               e.target.style.display = "none";
             }}
           />
-          <p className="mb-2 font-['Rajdhani',sans-serif] text-sm font-bold uppercase tracking-[0.3em] text-cyan-400">
+
+          <p className="mb-2 font-display text-sm font-bold uppercase tracking-[0.3em] text-cyan-400">
             Daruttaufiq Computer Centre
           </p>
-          <h1 className="font-['Rajdhani',sans-serif] text-4xl font-bold text-white md:text-6xl tracking-wide uppercase leading-tight">
+
+          <h1 className="font-display text-4xl font-bold text-white md:text-6xl tracking-wide uppercase leading-tight">
             Digitalisasi Santri <span className="text-cyan-400">Daruttaufiq</span>
           </h1>
+
           <p className="mt-4 text-xs md:text-sm text-slate-400 max-w-xl leading-relaxed">
-Wujud komitmen Pondok Pesantren Daruttaufiq dalam membentuk generasi santri yang mahir teknologi, kreatif berinovasi, dan beretika Islami. Melalui Daruttaufiq Computer Centre (DCC), teknologi dioptimalkan sebagai sarana pendidikan, pengembangan diri, dan dakwah.
+            Wujud komitmen Pondok Pesantren Daruttaufiq dalam membentuk generasi santri yang mahir teknologi, kreatif berinovasi, dan beretika Islami. Melalui Daruttaufiq Computer Centre (DCC), teknologi dioptimalkan sebagai sarana pendidikan, pengembangan diri, dan dakwah.
           </p>
+
+          {/* 📍 ALAMAT LENGKAP PONDOK PESANTREN DARUTTAUFIQ */}
+          <div className="mt-5 flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-[#0d1527] border border-slate-800 text-xs text-slate-300 max-w-2xl shadow-lg">
+            <MapPin className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span className="font-sans text-[11px] md:text-xs">
+              Jl. Jaha No.80, Tj. Manis, Kec. Anyar, Kabupaten Serang, Banten 42166
+            </span>
+          </div>
         </motion.div>
 
-        {/* 📊 BARIS STATISTIK RINGKAS */}
+        {/* 📊 BARIS STATISTIK REAL DARI DATABASE */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -219,37 +294,40 @@ Wujud komitmen Pondok Pesantren Daruttaufiq dalam membentuk generasi santri yang
         >
           <div className="flex flex-col items-center p-3 border-r border-slate-800/80 last:border-r-0">
             <Users className="w-5 h-5 text-cyan-400 mb-1" />
-            <span className="font-['Rajdhani',sans-serif] text-2xl font-bold text-white">
-              150+
+            <span className="font-display text-2xl font-bold text-white">
+              {stats.totalSantri}
             </span>
-            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-['Rajdhani',sans-serif]">
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-display">
               Santri Aktif
             </span>
           </div>
+
           <div className="flex flex-col items-center p-3 border-r border-slate-800/80 last:border-r-0">
             <CheckCircle2 className="w-5 h-5 text-emerald-400 mb-1" />
-            <span className="font-['Rajdhani',sans-serif] text-2xl font-bold text-emerald-400">
-              98%
+            <span className="font-display text-2xl font-bold text-emerald-400">
+              {stats.persenKelulusan}
             </span>
-            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-['Rajdhani',sans-serif]">
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-display">
               Kelulusan CBT
             </span>
           </div>
+
           <div className="flex flex-col items-center p-3 border-r border-slate-800/80 last:border-r-0">
             <MonitorCheck className="w-5 h-5 text-amber-400 mb-1" />
-            <span className="font-['Rajdhani',sans-serif] text-2xl font-bold text-amber-400">
-              40 Unit
+            <span className="font-display text-2xl font-bold text-amber-400">
+              {stats.totalKomputer}
             </span>
-            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-['Rajdhani',sans-serif]">
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-display">
               Komputer Ready
             </span>
           </div>
+
           <div className="flex flex-col items-center p-3">
             <ShieldCheck className="w-5 h-5 text-indigo-400 mb-1" />
-            <span className="font-['Rajdhani',sans-serif] text-2xl font-bold text-indigo-400">
+            <span className="font-display text-2xl font-bold text-indigo-400">
               Official
             </span>
-            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-['Rajdhani',sans-serif]">
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-display">
               Sertifikasi Lab
             </span>
           </div>
@@ -260,8 +338,8 @@ Wujud komitmen Pondok Pesantren Daruttaufiq dalam membentuk generasi santri yang
       <div className="max-w-6xl mx-auto px-6 mt-6">
         <div className="flex items-center justify-between mb-6 border-b border-slate-800/80 pb-3">
           <div>
-            <h2 className="font-['Rajdhani',sans-serif] text-xl font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-cyan-400" /> Modul & Portal
+            <h2 className="font-display text-xl font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-cyan-400" /> Modul &amp; Portal
               Utama
             </h2>
             <p className="text-xs text-slate-400">
@@ -294,7 +372,7 @@ Wujud komitmen Pondok Pesantren Daruttaufiq dalam membentuk generasi santri yang
               className="group relative flex flex-col items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-[#0d1527]/70 backdrop-blur-md p-6 text-center shadow-xl transition-all hover:border-cyan-400/60 hover:bg-[#0d1527] hover:shadow-cyan-400/10 cursor-pointer text-left"
             >
               <span
-                className={`absolute top-3 right-3 text-[9px] font-['Rajdhani',sans-serif] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${
+                className={`absolute top-3 right-3 text-[9px] font-display font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${
                   badge === "Aktif"
                     ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
                     : badge === "Baru"
@@ -313,15 +391,15 @@ Wujud komitmen Pondok Pesantren Daruttaufiq dalam membentuk generasi santri yang
                   />
                 </div>
 
-                <span className="font-['Rajdhani',sans-serif] text-base font-bold text-white tracking-wide uppercase leading-tight">
+                <span className="font-display text-base font-bold text-white tracking-wide uppercase leading-tight">
                   {label}
                 </span>
-                <span className="text-[11px] text-slate-400 font-['Poppins',sans-serif] leading-relaxed line-clamp-3">
+                <span className="text-[11px] text-slate-400 font-sans leading-relaxed line-clamp-3">
                   {desc}
                 </span>
               </div>
 
-              <span className="mt-3 flex items-center justify-center gap-1.5 w-full rounded-xl bg-cyan-400/10 border border-cyan-400/30 px-4 py-2 font-['Rajdhani',sans-serif] text-xs font-bold text-cyan-400 group-hover:bg-cyan-400 group-hover:text-slate-950 transition-all uppercase tracking-wider">
+              <span className="mt-3 flex items-center justify-center gap-1.5 w-full rounded-xl bg-cyan-400/10 border border-cyan-400/30 px-4 py-2 font-display text-xs font-bold text-cyan-400 group-hover:bg-cyan-400 group-hover:text-slate-950 transition-all uppercase tracking-wider">
                 Buka Portal <ArrowRight className="h-3.5 w-3.5" />
               </span>
             </motion.button>
@@ -333,7 +411,7 @@ Wujud komitmen Pondok Pesantren Daruttaufiq dalam membentuk generasi santri yang
       <div className="max-w-6xl mx-auto px-6 mt-16">
         <div className="flex items-center justify-between mb-6 border-b border-slate-800/80 pb-3">
           <div>
-            <h2 className="font-['Rajdhani',sans-serif] text-xl font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            <h2 className="font-display text-xl font-bold text-white uppercase tracking-wider flex items-center gap-2">
               <Award className="w-5 h-5 text-amber-400" /> DCC Hall of Fame
               (Karya Santri)
             </h2>
@@ -356,17 +434,17 @@ Wujud komitmen Pondok Pesantren Daruttaufiq dalam membentuk generasi santri yang
                   alt={item.judul}
                   className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                 />
-                <div className="absolute top-3 left-3 bg-[#030712]/80 backdrop-blur-md px-2.5 py-1 rounded-md border border-slate-700 text-[10px] font-['Rajdhani',sans-serif] font-bold text-cyan-400 uppercase">
+                <div className="absolute top-3 left-3 bg-[#030712]/80 backdrop-blur-md px-2.5 py-1 rounded-md border border-slate-700 text-[10px] font-display font-bold text-cyan-400 uppercase">
                   {item.kategori}
                 </div>
               </div>
               <div className="p-4 space-y-2">
-                <h3 className="font-['Rajdhani',sans-serif] font-bold text-base text-white tracking-wide group-hover:text-cyan-400 transition">
+                <h3 className="font-display font-bold text-base text-white tracking-wide group-hover:text-cyan-400 transition">
                   {item.judul}
                 </h3>
-                <div className="flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/80 pt-2.5 font-['Poppins',sans-serif]">
+                <div className="flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/80 pt-2.5 font-sans">
                   <span>{item.pembuat}</span>
-                  <span className="font-['Rajdhani',sans-serif] font-bold text-slate-500">
+                  <span className="font-display font-bold text-slate-500">
                     {item.techId}
                   </span>
                 </div>
@@ -376,12 +454,12 @@ Wujud komitmen Pondok Pesantren Daruttaufiq dalam membentuk generasi santri yang
         </div>
       </div>
 
-      {/* 📸 SECTION PORTOFOLIO ANGGOTA DCC (DCC TEAM & MEMBERS) */}
+      {/* 📸 SECTION PORTOFOLIO ANGGOTA DCC */}
       <div className="max-w-6xl mx-auto px-6 mt-16">
         <div className="flex items-center justify-between mb-6 border-b border-slate-800/80 pb-3">
           <div>
-            <h2 className="font-['Rajdhani',sans-serif] text-xl font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-cyan-400" /> Anggota &
+            <h2 className="font-display text-xl font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-cyan-400" /> Anggota &amp;
               Pengelola DCC
             </h2>
             <p className="text-xs text-slate-400">
@@ -403,7 +481,7 @@ Wujud komitmen Pondok Pesantren Daruttaufiq dalam membentuk generasi santri yang
                   className="w-full h-full object-cover group-hover:scale-110 transition duration-500"
                 />
               </div>
-              <h3 className="font-['Rajdhani',sans-serif] font-bold text-base text-white tracking-wide uppercase">
+              <h3 className="font-display font-bold text-base text-white tracking-wide uppercase">
                 {anggota.nama}
               </h3>
               <p className="text-[11px] text-cyan-400 font-medium mb-3">
@@ -413,7 +491,7 @@ Wujud komitmen Pondok Pesantren Daruttaufiq dalam membentuk generasi santri yang
                 {anggota.keahlian.map((skill, index) => (
                   <span
                     key={index}
-                    className="text-[9px] bg-slate-800/80 border border-slate-700/60 text-slate-300 px-2 py-0.5 rounded-full font-['Rajdhani',sans-serif]"
+                    className="text-[9px] bg-slate-800/80 border border-slate-700/60 text-slate-300 px-2 py-0.5 rounded-full font-display"
                   >
                     {skill}
                   </span>
@@ -425,13 +503,13 @@ Wujud komitmen Pondok Pesantren Daruttaufiq dalam membentuk generasi santri yang
       </div>
 
       {/* FOOTER RESMI */}
-      <footer className="mt-20 border-t border-slate-800/80 pt-8 text-center text-xs text-slate-500 font-['Poppins',sans-serif]">
+      <footer className="mt-20 border-t border-slate-800/80 pt-8 text-center text-xs text-slate-500 font-sans">
         <p>
           © {new Date().getFullYear()} Daruttaufiq Computer Centre. All rights
           reserved.
         </p>
         <p className="text-[11px] text-slate-600 mt-1">
-          Sistem Terintegrasi Laboratorium Komputer & Pendidikan Santri
+          Jl. Jaha No.80, Tj. Manis, Kec. Anyar, Kabupaten Serang, Banten 42166
         </p>
       </footer>
     </div>
