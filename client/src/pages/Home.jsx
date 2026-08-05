@@ -206,7 +206,6 @@ export default function Home() {
             Digitalisasi Santri <span className="text-cyan-400">Daruttaufiq</span>
           </h1>
           <p className="mt-4 text-xs md:text-sm text-slate-400 max-w-xl leading-relaxed">
-            Program Integrasi Teknologi & Nilai Islami
 Wujud komitmen Pondok Pesantren Daruttaufiq dalam membentuk generasi santri yang mahir teknologi, kreatif berinovasi, dan beretika Islami. Melalui Daruttaufiq Computer Centre (DCC), teknologi dioptimalkan sebagai sarana pendidikan, pengembangan diri, dan dakwah.
           </p>
         </motion.div>
