@@ -49,7 +49,7 @@ export default function Sidebar() {
               DCC <span className="text-cyan-400">SISTEM</span>
             </h1>
             <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">
-              PANEL NAVIGASI
+              DASHBOARD 
             </p>
           </div>
         </div>
