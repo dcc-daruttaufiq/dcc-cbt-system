@@ -203,12 +203,11 @@ export default function Home() {
             Daruttaufiq Computer Centre
           </p>
           <h1 className="font-['Rajdhani',sans-serif] text-4xl font-bold text-white md:text-6xl tracking-wide uppercase leading-tight">
-            Pusat Layanan <span className="text-cyan-400">Digital Santri</span>
+            Digitalisasi Santri <span className="text-cyan-400">Daruttaufiq</span>
           </h1>
           <p className="mt-4 text-xs md:text-sm text-slate-400 max-w-xl leading-relaxed">
-            Mewujudkan santri yang berakhlak, adaptif, dan unggul di bidang
-            komputer. Akses seluruh portal layanan terpadu dalam satu sistem
-            terintegrasi.
+            Program Integrasi Teknologi & Nilai Islami
+Wujud komitmen Pondok Pesantren Daruttaufiq dalam membentuk generasi santri yang mahir teknologi, kreatif berinovasi, dan beretika Islami. Melalui Daruttaufiq Computer Centre (DCC), teknologi dioptimalkan sebagai sarana pendidikan, pengembangan diri, dan dakwah.
           </p>
         </motion.div>
 
