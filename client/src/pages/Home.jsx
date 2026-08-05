@@ -301,7 +301,7 @@ export default function Home() {
               )}
             </span>
             <span className="text-[10px] text-slate-400 uppercase tracking-wider font-display">
-              Santri Terdaftar
+              Siswa DCC Terdaftar
             </span>
           </div>
 
@@ -315,7 +315,7 @@ export default function Home() {
               )}
             </span>
             <span className="text-[10px] text-slate-400 uppercase tracking-wider font-display">
-              Kelulusan CBT
+              Kelulusan
             </span>
           </div>
 
