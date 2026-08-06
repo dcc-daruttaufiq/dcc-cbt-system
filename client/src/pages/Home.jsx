@@ -411,7 +411,7 @@ export default function Home() {
               </div>
 
               <span className="mt-3 flex items-center justify-center gap-1.5 w-full rounded-xl bg-cyan-400/10 border border-cyan-400/30 px-4 py-2 font-display text-xs font-bold text-cyan-400 group-hover:bg-cyan-400 group-hover:text-slate-950 transition-all uppercase tracking-wider">
-                Buka Portal <ArrowRight className="h-3.5 w-3.5" />
+                Buka <ArrowRight className="h-3.5 w-3.5" />
               </span>
             </motion.button>
           ))}
